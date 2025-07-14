@@ -1,0 +1,120 @@
+#!/usr/bin/env bb
+
+(require
+  '[babashka.process :as p]
+  '[clojure.string :as str])
+
+(def ^:private bookmark-tree-command
+  ["jj" "log" "-r" "trunk()::@ & bookmarks()" "-T" "local_bookmarks ++ \"\n\"" "--no-graph"])
+
+(defn- create-pr-command [head-branch base-branch]
+  (format "gh pr create --head %s --base %s"
+    head-branch base-branch))
+
+(defn- run-cmd [cmd]
+  (-> (p/process cmd {:out :string})
+    p/check
+    :out
+    str/trim))
+
+(defn- get-bookmark-tree []
+  (run-cmd bookmark-tree-command))
+
+(defn- parse-bookmark-tree [raw-output]
+  (->> raw-output
+    (str/split-lines)
+    (map str/trim)
+    (remove empty?)
+    (reverse)))
+
+(comment
+  (parse-bookmark-tree
+    (get-bookmark-tree)))
+
+(defn- create-pr [head-branch base-branch]
+  (println ;; run-cmd
+    (create-pr-command head-branch base-branch)))
+
+(def ^:private colors
+  {:reset "\033[0m"
+   :bold "\033[1m"
+   :green "\033[32m"
+   :blue "\033[34m"
+   :yellow "\033[33m"
+   :cyan "\033[36m"})
+
+(defn- colorize [color text]
+  (str (colors color) text (colors :reset)))
+
+(defn- read-first-char []
+  (when-let [input (read-line)]
+    (when (seq input)
+      (first input))))
+
+(defn- prompt [prompt]
+  (print prompt " (y/n): ")
+  (flush)
+  (= (read-first-char) \y))
+
+(defn- consecutive-pairs [coll]
+  (map vector coll (rest coll)))
+
+(defn- format-bookmark [i bookmark]
+  (let [indent (str (apply str (repeat (* (dec i) 2) " ")) (when-not (zero? i) "└─ "))]
+    (str (colorize :yellow indent)
+         (colorize :blue bookmark))))
+
+(defn- create-prs []
+  (let [bookmarks (parse-bookmark-tree (get-bookmark-tree))]
+
+    (println (colorize :cyan "Detected the following stack of bookmarks:\n"))
+    (doseq [[i bookmark] (map-indexed vector bookmarks)]
+      (println (format-bookmark i bookmark)))
+    (println)
+
+    (println (colorize :cyan "Let's create the PRs!\n"))
+    (doseq [[base-branch head-branch] (consecutive-pairs bookmarks)]
+      (when (prompt
+              (format "Create a PR for %s onto %s?"
+               (colorize :blue head-branch)
+               (colorize :blue base-branch)))
+        ;;(run-cmd ["nvim" (str head-branch "-onto-" base-branch ".txt")])
+        ;;(create-pr head-branch base-branch)
+        (println (colorize :green "\n✅ Created PR ...\n"))))))
+
+(defn- machete-entry [i bookmark]
+  (str (apply str (repeat (* i 2) " ")) bookmark))
+
+(defn- write-machete-file []
+  (let [bookmarks (parse-bookmark-tree (get-bookmark-tree))
+        current-contents (slurp ".git/machete")
+        added-contents (->> bookmarks
+                            (drop 1)
+                            (map-indexed #(machete-entry (inc %1) %2))
+                            (str/join "\n"))]
+    (println (colorize :cyan "Current Machete contents:\n"))
+    (println current-contents)
+    (println (colorize :cyan "\nAdding these lines\n"))
+    (println added-contents)
+    (spit ".git/machete" added-contents :append true)))
+
+(defn -main [& _args]
+  (println (colorize :bold (colorize :green "🚀 PR Stacker\n")))
+
+  (case (first *command-line-args*)
+    "create" (create-prs)
+    "machete" (write-machete-file)
+    (do
+      (println (colorize :red "Error") "unknown command" (first *command-line-args*))
+      (System/exit 1))))
+
+(-main)
+
+;;(defn- read-single-char []
+;;  (-> (process/process "stty raw -echo" {:inherit true})
+;;      process/check)
+;;  (let [char (char (.read System/in))]
+;;    (-> (process/process "stty cooked echo" {:inherit true})
+;;        process/check)
+;;    char))
+
