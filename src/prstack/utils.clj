@@ -1,7 +1,7 @@
 (ns prstack.utils
   (:require
-   [babashka.process :as p]
-   [clojure.string :as str]))
+    [babashka.process :as p]
+    [clojure.string :as str]))
 
 (def colors
   {:reset "\033[0m"

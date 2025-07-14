@@ -1,0 +1,13 @@
+{:paths ["src" "test" "dev" "build"]
+ :indents {#re ".*" [[:inner 0]]}
+ :extra-indents {or     [[:block 0]]
+                 and    [[:block 0]]
+                 =      [[:block 0]]
+                 not=   [[:block 0]]
+                 str    [[:block 0]]
+                 +      [[:block 0]]
+                 -      [[:block 0]]}
+ :function-arguments-indentation :cursive
+ :remove-surrounding-whitespace?  false
+ :remove-trailing-whitespace?     true
+ :remove-consecutive-blank-lines? false}

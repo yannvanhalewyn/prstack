@@ -1,13 +1,13 @@
 (ns prstack.git
   (:require
-   [prstack.utils :as utils]
-   [clojure.string :as str]))
+    [prstack.utils :as u]
+    [clojure.string :as str]))
 
 (def bookmark-tree-command
   ["jj" "log" "-r" "trunk()::@ & bookmarks()" "-T" "local_bookmarks ++ \"\n\"" "--no-graph"])
 
 (defn get-bookmark-tree []
-  (utils/run-cmd bookmark-tree-command))
+  (u/run-cmd bookmark-tree-command))
 
 (defn parse-bookmark-tree [raw-output]
   (->> raw-output
@@ -21,5 +21,5 @@
     head-branch base-branch))
 
 (defn create-pr [head-branch base-branch]
-  (println ;; utils/run-cmd
+  (println ;; u/run-cmd
     (create-pr-command head-branch base-branch)))
