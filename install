@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$HOME/bin"
+
+echo "Installing prstack CLI..."
+
+# Create ~/bin directory if it doesn't exist
+mkdir -p "$INSTALL_DIR"
+
+# Create the wrapper script
+cat > "$INSTALL_DIR/prstack" << EOF
+#!/bin/bash
+exec bb "$SCRIPT_DIR/bin/prstack" "\$@"
+EOF
+
+# Make it executable
+chmod +x "$INSTALL_DIR/prstack"
+
+echo "✅ prstack CLI installed to $INSTALL_DIR/prstack"
+echo "Make sure $INSTALL_DIR is in your PATH"
