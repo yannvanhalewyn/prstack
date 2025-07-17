@@ -10,7 +10,8 @@
    :blue "\033[34m"
    :yellow "\033[33m"
    :cyan "\033[36m"
-   :red "\033[31m"})
+   :red "\033[31m"
+   :gray "\033[90m"})
 
 (defn colorize [color text]
   (str (colors color) text (colors :reset)))

@@ -17,10 +17,19 @@
     (remove empty?)
     (reverse)))
 
-(defn create-pr [head-branch base-branch]
+(defn create-pr! [head-branch base-branch]
   (->
     (p/shell {:inherit true}
       "gh" "pr" "create" "--head" head-branch "--base" base-branch)
     p/check
     :out
     slurp))
+
+(defn find-pr
+  [head-branch base-branch]
+  (not-empty
+    (u/run-cmd ["gh" "pr" "list"
+                "--head" head-branch
+                "--base" base-branch
+                "--limit" "1"
+                "--json" "url" "--jq" ".[0].url"])))

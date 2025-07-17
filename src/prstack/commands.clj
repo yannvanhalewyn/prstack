@@ -1,9 +1,7 @@
 (ns prstack.commands
   (:require
-    [babashka.process :as p]
     [clojure.string :as str]
     [prstack.git :as git]
-    [prstack.state :as state]
     [prstack.utils :as u]))
 
 (defn format-bookmark [i bookmark]
@@ -11,25 +9,8 @@
     (str (u/colorize :yellow indent)
          (u/colorize :blue bookmark))))
 
-(comment
-  (state/read-state)
-  (state/write-state
-    {:prs
-     [{:head "feature-2" :base "master" :id 1}
-      {:head "feature-3" :base "feature-2" :id 2}]})
-  (state/add-pr! "feature-4" "feature-3" 3)
-  (state/add-pr! "feature-5" "feature-4" 4)
-  (state/find-pr (state/read-state) "feature-3" "feature-2")
-
-  (p/shell {:inherit true} "gh" "pr" "create"))
-
-;; I need to keep track of which PRs were stacked before, and which branches
-;; were created for them
-;; So check bookmarks, see what the goal is, then for each head branch check if
-;; there is already a PR. If not create one.
 (defn create-prs []
-  (let [state (state/read-state)
-        bookmarks (git/parse-bookmark-tree (git/get-bookmark-tree))]
+  (let [bookmarks (git/parse-bookmark-tree (git/get-bookmark-tree))]
 
     ;; Log bookmark tree
     (println (u/colorize :cyan "Detected the following stack of bookmarks:\n"))
@@ -40,19 +21,19 @@
     ;; Create PRs
     (println (u/colorize :cyan "Let's create the PRs!\n"))
     (doseq [[base-branch head-branch] (u/consecutive-pairs bookmarks)]
-      (let [pr (state/find-pr state head-branch base-branch)]
-        (if pr
+      (let [pr-url (git/find-pr head-branch base-branch)]
+        (if pr-url
           (println
-            (format "PR already exists for %s onto %s, skipping."
+            (format "PR already exists for %s onto %s, skipping. (%s)"
               (u/colorize :blue head-branch)
-              (u/colorize :blue base-branch)))
+              (u/colorize :blue base-branch)
+              (u/colorize :gray pr-url)))
           (when (u/prompt
                   (format "Create a PR for %s onto %s?"
                     (u/colorize :blue head-branch)
                     (u/colorize :blue base-branch)))
-            (let [pr-id (git/create-pr head-branch base-branch)]
-              (state/add-pr! head-branch base-branch pr-id))
-            (println (u/colorize :green "\n✅ Created PR ...\n"))))))))
+            (git/create-pr! head-branch base-branch)
+            (println (u/colorize :green "\n✅ Created PR ... \n"))))))))
 
 (defn machete-entry [i bookmark]
   (str (apply str (repeat (* i 2) " ")) bookmark))
