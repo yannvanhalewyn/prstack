@@ -14,15 +14,16 @@
   '[prstack.commands :as commands])
 
 (defn -main [& _args]
-  (println (utils/colorize :bold (utils/colorize :green "🚀 PR Stacker\n")))
-
-  (case (first *command-line-args*)
-    "list" (commands/list-stack)
-    "create" (commands/create-prs)
-    "machete" (commands/write-machete-file)
-    (do
-      (println (utils/colorize :red "Error") "unknown command" (first *command-line-args*))
-      (System/exit 1))))
+  (let [args *command-line-args*
+        command (first args)]
+    (case command
+      "list" (commands/list-stack (some #{"--include-prs"} args))
+      "create" (commands/create-prs)
+      "sync" (commands/sync)
+      "machete" (commands/write-machete-file)
+      (do
+        (println (utils/colorize :red "Error") "unknown command" command)
+        (System/exit 1)))))
 
 (-main)
 

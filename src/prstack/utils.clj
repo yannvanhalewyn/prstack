@@ -16,11 +16,19 @@
 (defn colorize [color text]
   (str (colors color) text (colors :reset)))
 
-(defn run-cmd [cmd]
+(defn run-cmd [cmd & [{:keys [echo?]}]]
+  (when echo?
+    (println (colorize :gray (str "$ " (str/join " " cmd)))))
   (-> (p/process cmd {:out :string})
     p/check
     :out
     str/trim))
+
+(defn shell-out [cmd & [{:keys [echo?]}]]
+  (when echo?
+    (println (colorize :gray (str "$ " (str/join " " cmd)))))
+  (-> (p/shell cmd {:inherit :true})
+    p/check))
 
 (defn read-first-char []
   (when-let [input (read-line)]

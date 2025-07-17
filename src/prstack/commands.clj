@@ -12,11 +12,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Commands
 
-(defn list-stack []
-  (let [include-prs? true
-        bookmarks (vec (git/parse-bookmark-tree (git/get-bookmark-tree)))
+(defn list-stack [include-prs?]
+  (let [bookmarks (vec (git/parse-bookmark-tree (git/get-bookmark-tree)))
         formatted-bookmarks (map-indexed format-bookmark bookmarks)
-        max-width (apply max (map count (map-indexed format-bookmark bookmarks)))]
+        max-width (when (seq bookmarks)
+                    (apply max (map count (map-indexed format-bookmark bookmarks))))]
     (doseq [[i [bookmark formatted-bookmark]] (map-indexed vector
                                                 (map vector bookmarks formatted-bookmarks))]
       (let [pr-url (when-let [base-branch (and include-prs? (get bookmarks (dec i)))]
@@ -24,14 +24,17 @@
             padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
         (println padded-bookmark (if pr-url (u/colorize :gray (str " (" pr-url ")")) ""))))))
 
+(defn- print-bookmark-tree [bookmarks]
+  (println (u/colorize :cyan "Detected the following stack of bookmarks:\n"))
+  (doseq [[i bookmark] (map-indexed vector bookmarks)]
+    (println (format-bookmark i bookmark)))
+  (println))
+
 (defn create-prs []
   (let [bookmarks (git/parse-bookmark-tree (git/get-bookmark-tree))]
 
     ;; Log bookmark tree
-    (println (u/colorize :cyan "Detected the following stack of bookmarks:\n"))
-    (doseq [[i bookmark] (map-indexed vector bookmarks)]
-      (println (format-bookmark i bookmark)))
-    (println)
+    (print-bookmark-tree bookmarks)
 
     ;; Create PRs
     (println (u/colorize :cyan "Let's create the PRs!\n"))
@@ -65,3 +68,21 @@
     (println (u/colorize :cyan "\nAdding these lines\n"))
     (println added-contents)
     (spit ".git/machete" added-contents :append true)))
+
+(defn sync []
+  (println (u/colorize :yellow "\nFetching branches from remote..."))
+  (u/shell-out ["jj" "git" "fetch"]
+    {:echo? true})
+
+  (println (u/colorize :yellow "\nBumping local master to remote master..."))
+  (u/shell-out ["jj" "bookmark" "set" "master" "-r" "master@origin"]
+    {:echo? true})
+
+  (when (u/prompt (format "\nRebase on %s?" (u/colorize :blue "master")))
+    (u/shell-out ["jj" "rebase" "-d" "master"]
+      {:echo? true}))
+
+  (println (u/colorize :yellow "Pushing local tracked branches..."))
+  (u/shell-out ["jj" "git" "push" "--tracked"] {:echo? true})
+
+  (print-bookmark-tree (git/parse-bookmark-tree (git/get-bookmark-tree))))
