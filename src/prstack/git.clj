@@ -1,7 +1,8 @@
 (ns prstack.git
   (:require
-    [prstack.utils :as u]
-    [clojure.string :as str]))
+    [babashka.process :as p]
+    [clojure.string :as str]
+    [prstack.utils :as u]))
 
 (def bookmark-tree-command
   ["jj" "log" "-r" "trunk()::@ & bookmarks()" "-T" "local_bookmarks ++ \"\n\"" "--no-graph"])
@@ -16,10 +17,10 @@
     (remove empty?)
     (reverse)))
 
-(defn create-pr-command [head-branch base-branch]
-  (format "gh pr create --head %s --base %s"
-    head-branch base-branch))
-
 (defn create-pr [head-branch base-branch]
-  (println ;; u/run-cmd
-    (create-pr-command head-branch base-branch)))
+  (->
+    (p/shell {:inherit true}
+      "gh" "pr" "create" "--head" head-branch "--base" base-branch)
+    p/check
+    :out
+    slurp))

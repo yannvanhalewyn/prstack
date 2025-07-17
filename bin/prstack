@@ -1,10 +1,10 @@
 #!/usr/bin/env bb
 
-(def script-dir (-> *file* 
-                    java.io.File. 
-                    .getParent 
-                    java.io.File. 
-                    .getParent))
+(def script-dir (-> *file*
+                  java.io.File.
+                  .getParent
+                  java.io.File.
+                  .getParent))
 
 (require '[babashka.classpath :as cp])
 (cp/add-classpath (str script-dir "/src"))
