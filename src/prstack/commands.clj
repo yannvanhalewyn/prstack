@@ -13,12 +13,16 @@
 ;; Commands
 
 (defn list-stack []
-  (let [include-prs? false
-        bookmarks (vec (git/parse-bookmark-tree (git/get-bookmark-tree)))]
-    (doseq [[i bookmark] (map-indexed vector bookmarks)]
+  (let [include-prs? true
+        bookmarks (vec (git/parse-bookmark-tree (git/get-bookmark-tree)))
+        formatted-bookmarks (map-indexed format-bookmark bookmarks)
+        max-width (apply max (map count (map-indexed format-bookmark bookmarks)))]
+    (doseq [[i [bookmark formatted-bookmark]] (map-indexed vector
+                                                (map vector bookmarks formatted-bookmarks))]
       (let [pr-url (when-let [base-branch (and include-prs? (get bookmarks (dec i)))]
-                     (git/find-pr bookmark base-branch))]
-        (println (format-bookmark i bookmark) (if pr-url (u/colorize :gray (str " (" pr-url ")")) ""))))))
+                     (git/find-pr bookmark base-branch))
+            padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
+        (println padded-bookmark (if pr-url (u/colorize :gray (str " (" pr-url ")")) ""))))))
 
 (defn create-prs []
   (let [bookmarks (git/parse-bookmark-tree (git/get-bookmark-tree))]
