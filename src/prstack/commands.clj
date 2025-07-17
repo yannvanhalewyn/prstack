@@ -4,10 +4,18 @@
     [prstack.git :as git]
     [prstack.utils :as u]))
 
-(defn format-bookmark [i bookmark]
+(defn- format-bookmark [i bookmark]
   (let [indent (str (apply str (repeat (* (dec i) 2) " ")) (when-not (zero? i) "└─ "))]
     (str (u/colorize :yellow indent)
          (u/colorize :blue bookmark))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Commands
+
+(defn list-stack []
+  (let [bookmarks (git/parse-bookmark-tree (git/get-bookmark-tree))]
+    (doseq [[i bookmark] (map-indexed vector bookmarks)]
+      (println (format-bookmark i bookmark)))))
 
 (defn create-prs []
   (let [bookmarks (git/parse-bookmark-tree (git/get-bookmark-tree))]

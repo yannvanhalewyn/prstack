@@ -17,6 +17,7 @@
   (println (utils/colorize :bold (utils/colorize :green "🚀 PR Stacker\n")))
 
   (case (first *command-line-args*)
+    "list" (commands/list-stack)
     "create" (commands/create-prs)
     "machete" (commands/write-machete-file)
     (do
