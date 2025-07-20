@@ -3,6 +3,9 @@
     [babashka.process :as p]
     [clojure.string :as str]))
 
+(defn find-first [pred coll]
+  (first (filter pred coll)))
+
 (def colors
   {:reset "\033[0m"
    :bold "\033[1m"

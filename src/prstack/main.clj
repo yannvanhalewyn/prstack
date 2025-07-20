@@ -4,15 +4,17 @@
     [prstack.commands.list :as list-command]
     [prstack.commands.machete :as machete-command]
     [prstack.commands.sync :as sync-command]
-    [prstack.utils :as utils]))
+    [prstack.utils :as u]))
+
+(def commands
+  [list-command/command
+   create-prs-command/command
+   sync-command/command
+   machete-command/command])
 
 (defn run! [args]
-  (let [command (first args)]
-    (case command
-      "list" (list-command/run (some #{"--include-prs"} args))
-      "create" (create-prs-command/run)
-      "sync" (sync-command/run)
-      "machete" (machete-command/run)
-      (do
-        (println (utils/colorize :red "Error") "unknown command" command)
-        (System/exit 1)))))
+  (if-let [command (u/find-first #(= (:name %) (first args)) commands)]
+    ((:exec command) (rest args))
+    (do
+      (println (u/colorize :red "Error") "unknown command" (first args))
+      (System/exit 1))))
