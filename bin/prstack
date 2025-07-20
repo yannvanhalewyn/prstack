@@ -11,19 +11,7 @@
 
 (require
   '[prstack.utils :as utils]
-  '[prstack.commands :as commands])
+  '[prstack.commands :as commands]
+  '[prstack.main :as main])
 
-(defn -main [& _args]
-  (let [args *command-line-args*
-        command (first args)]
-    (case command
-      "list" (commands/list-stack (some #{"--include-prs"} args))
-      "create" (commands/create-prs)
-      "sync" (commands/sync)
-      "machete" (commands/write-machete-file)
-      (do
-        (println (utils/colorize :red "Error") "unknown command" command)
-        (System/exit 1)))))
-
-(-main)
-
+(main/run! *command-line-args*)
