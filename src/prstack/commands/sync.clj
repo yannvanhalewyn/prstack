@@ -1,5 +1,6 @@
 (ns prstack.commands.sync
   (:require
+    [prstack.commands.create-prs :as create-prs-command]
     [prstack.git :as git]
     [prstack.ui :as ui]
     [prstack.utils :as u]))
@@ -20,4 +21,7 @@
   (println (u/colorize :yellow "Pushing local tracked branches..."))
   (u/shell-out ["jj" "git" "push" "--tracked"] {:echo? true})
 
-  (ui/print-bookmark-tree (git/parse-bookmark-tree (git/get-bookmark-tree))))
+  (ui/print-bookmark-tree (git/parse-bookmark-tree (git/get-bookmark-tree)))
+
+  (when (u/prompt "\nWould you like to create missing PRs?")
+    (create-prs-command/run)))
