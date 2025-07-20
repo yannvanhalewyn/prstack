@@ -12,9 +12,24 @@
    sync-command/command
    machete-command/command])
 
+(defn- print-help []
+  (println "Usage: prstack <command> [options]")
+  (println)
+  (println "Commands:")
+  (doseq [command commands]
+    (println (format "  %-10s %s" (:name command) (:description command))))
+  (println)
+  (println "Options:")
+  (println "  -h, --help  Show this help message and exit")
+  (println))
+
 (defn run! [args]
-  (if-let [command (u/find-first #(= (:name %) (first args)) commands)]
-    ((:exec command) (rest args))
-    (do
-      (println (u/colorize :red "Error") "unknown command" (first args))
-      (System/exit 1))))
+  (if (or (empty? args)
+          (some #{"-h" "--help"} args))
+    (print-help)
+    (if-let [command (u/find-first #(= (:name %) (first args)) commands)]
+      ((:exec command) (rest args))
+      (do
+        (println (u/colorize :red "Error") "Unknown command:" (first args) "\n")
+        (print-help)
+        (System/exit 1)))))
