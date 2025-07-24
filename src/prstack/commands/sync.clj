@@ -25,7 +25,10 @@
      (println (u/colorize :yellow "Pushing local tracked branches..."))
      (u/shell-out ["jj" "git" "push" "--tracked"] {:echo? true})
 
-     (ui/print-bookmark-tree (git/parse-bookmark-tree (git/get-bookmark-tree)))
+     (let [bookmark-tree (git/parse-bookmark-tree (git/get-bookmark-tree))]
+       (ui/print-bookmark-tree (git/parse-bookmark-tree (git/get-bookmark-tree)))
 
-     (when (u/prompt "\nWould you like to create missing PRs?")
-       ((:exec create-prs-command/command) args)))})
+       (if (> (count bookmark-tree) 1)
+         (when (u/prompt "\nWould you like to create missing PRs?")
+           ((:exec create-prs-command/command) args))
+         (println (u/colorize :green "\nNo missing PRs to create.")))))})

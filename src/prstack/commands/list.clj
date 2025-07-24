@@ -7,6 +7,7 @@
 (def command
   {:name "list"
    :description "Lists the current PR stack"
+   :flags [["--include-prs" "-I" "Also fetch a matching PR for each branch"]]
    :exec
    (fn list [args]
      (let [include-prs? (some #{"--include-prs"} args)
