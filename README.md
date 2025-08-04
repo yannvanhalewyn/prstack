@@ -6,14 +6,13 @@ A VCS-agnostic CLI tool for effortless PR stack management that adapts to your d
 
 Unlike traditional PR stack tools like [Git Machete](https://github.com/VirtusLab/git-machete) and [Graphite](https://graphite.dev/), PrStack doesn't require you to pre-define or maintain a fixed stack structure. Instead, it **dynamically discovers your current stack** by tracing from your current position back to the trunk branch.
 
-### Key Differences
+### How PrStack Differs
 
-| Feature | PrStack | Git Machete | Graphite |
-|---------|---------|-------------|----------|
-| **Stack Definition** | Dynamic discovery | Pre-defined in `.git/machete` | Explicit stack management |
-| **Branching Freedom** | Branch anywhere, anytime | Must follow defined structure | Structured workflow required |
-| **Stack Adaptation** | Automatic based on current position | Manual updates needed | Manual stack operations |
-| **VCS Support** | Git + Jujutsu | Git only | Git only |
+**[Git Machete](https://github.com/VirtusLab/git-machete)** requires you to explicitly define your branch relationships in a `.git/machete` file before you can manage your stack. This works well for planned, linear development but becomes cumbersome when you need to pivot, explore alternatives, or work on multiple features simultaneously. Every time your branching strategy changes, you must manually update the machete file to reflect the new structure.
+
+**[Graphite](https://graphite.dev/)** takes a more opinionated approach with explicit stack management commands. While powerful, it enforces a structured workflow where you must think about stack operations upfront. You create stacks, manage them explicitly, and follow Graphite's mental model of how development should flow. This can feel restrictive when inspiration strikes and you want to branch off in a new direction.
+
+**PrStack** embraces the chaos of real development. Instead of forcing you to pre-plan your branching strategy, it dynamically discovers your current stack by tracing from wherever you are back to the trunk. Want to branch off your feature branch to try a different approach? Just do it. Need to go back and create a hotfix branch three commits ago? No problem. PrStack adapts to whatever shape your development tree has taken, making stack management feel effortless rather than burdensome.
 
 ## How It Works
 
