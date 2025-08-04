@@ -21,7 +21,7 @@
            {:echo? true})
          (when (u/prompt (format "\nRebase on %s?" (u/colorize :blue "master")))
            (u/shell-out ["jj" "rebase" "-d" "master"] {:echo? true})))
-       (println (u/colorize :green "\nNo need to rebase, local master is already up to date with origin.")))
+       (println "No need to rebase, local master is already up to date with origin."))
 
      (println (u/colorize :yellow "\nPushing local tracked branches..."))
      (u/shell-out ["jj" "git" "push" "--tracked"] {:echo? true})
@@ -33,4 +33,4 @@
        (if (> (count bookmark-tree) 1)
          (when (u/prompt "Would you like to create missing PRs?")
            ((:exec create-prs-command/command) args))
-         (println (u/colorize :green "No missing PRs to create.")))))})
+         (println "No missing PRs to create."))))})
