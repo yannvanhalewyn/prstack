@@ -1,4 +1,4 @@
-(ns prstack.git
+(ns prstack.vcs
   (:require
     [babashka.process :as p]
     [clojure.string :as str]

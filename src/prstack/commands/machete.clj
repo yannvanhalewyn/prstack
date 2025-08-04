@@ -1,8 +1,8 @@
 (ns prstack.commands.machete
   (:require
     [clojure.string :as str]
-    [prstack.git :as git]
-    [prstack.utils :as u]))
+    [prstack.utils :as u]
+    [prstack.vcs :as vcs]))
 
 (defn- machete-entry [i bookmark]
   (str (apply str (repeat (* i 2) " ")) bookmark))
@@ -12,7 +12,7 @@
    :description "Writes the current PR stack to the .git/machete file"
    :exec
    (fn machete [_args]
-     (let [bookmarks (git/parse-bookmark-tree (git/get-bookmark-tree))
+     (let [bookmarks (vcs/parse-bookmark-tree (vcs/get-bookmark-tree))
            current-contents (slurp ".git/machete")
            added-contents (->> bookmarks
                             (drop 1)
