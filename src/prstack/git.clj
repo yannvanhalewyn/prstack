@@ -17,6 +17,11 @@
     (remove empty?)
     (reverse)))
 
+(defn master-changed? []
+  (let [local-master-id (u/run-cmd ["jj" "log" "-r" "master" "-T" "commit_id" "--no-graph"])
+        origin-master-id (u/run-cmd ["jj" "log" "-r" "master@origin" "-T" "commit_id" "--no-graph"])]
+    (not= local-master-id origin-master-id)))
+
 (defn create-pr! [head-branch base-branch]
   (->
     (p/shell {:inherit true}
