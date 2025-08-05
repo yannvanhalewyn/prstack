@@ -26,8 +26,10 @@
     (ensure-trunk-bookmark)))
 
 (defn master-changed? []
-  (let [local-master-id (u/run-cmd ["jj" "log" "-r" "master" "-T" "commit_id" "--no-graph"])
+  (let [local-master-id (u/run-cmd ["jj" "log" "-r" "fork_point(trunk() | @)" "-T" "commit_id" "--no-graph"])
         origin-master-id (u/run-cmd ["jj" "log" "-r" "master@origin" "-T" "commit_id" "--no-graph"])]
+    (println "local-master-id:" local-master-id
+      "origin-master-id:" origin-master-id)
     (not= local-master-id origin-master-id)))
 
 (defn create-pr! [head-branch base-branch]
