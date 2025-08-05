@@ -5,7 +5,14 @@
     [prstack.utils :as u]))
 
 (def bookmark-tree-command
-  ["jj" "log" "-r" "trunk()::@ & bookmarks()" "-T" "local_bookmarks ++ \"\n\"" "--no-graph"])
+  ["jj" "log" "-r" "fork_point(trunk() | @)::@ & bookmarks()" "-T" "local_bookmarks ++ \"\n\"" "--no-graph"])
+
+(defn- ensure-trunk-bookmark
+  "Sometimes the trunk bookmark has moved but the stack was not rebased."
+  [bookmarks]
+  (if (= (first bookmarks) "master")
+    bookmarks
+    (cons "master" bookmarks)))
 
 (defn get-bookmark-tree []
   (u/run-cmd bookmark-tree-command))
@@ -15,7 +22,8 @@
     (str/split-lines)
     (map str/trim)
     (remove empty?)
-    (reverse)))
+    (reverse)
+    (ensure-trunk-bookmark)))
 
 (defn master-changed? []
   (let [local-master-id (u/run-cmd ["jj" "log" "-r" "master" "-T" "commit_id" "--no-graph"])
