@@ -1,0 +1,3 @@
+- [ ] TODO verify unpushed branches (*) and prompt to push them.
+- [ ] TODO also check if branched is pushed before making PR! It's annoying if you lose the description
+- [ ] TODO work from MEGAMERGE, be aware of multiple branch paths

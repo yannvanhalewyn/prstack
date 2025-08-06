@@ -9,9 +9,10 @@
     (str (u/colorize :yellow indent)
          (u/colorize :blue bookmark))))
 
-(defn print-bookmark-tree [bookmarks]
-  (println (u/colorize :cyan "Detected the following stack of bookmarks:\n"))
-  (doseq [[i bookmark] (map-indexed vector bookmarks)]
-    (println (format-bookmark i bookmark)))
-  (println))
+(defn print-stacks [stacks]
+  (println (u/colorize :cyan "Detected the following stacks of bookmarks:\n"))
+  (doseq [stack stacks]
+    (doseq [[i bookmark] (map-indexed vector stack)]
+      (println (format-bookmark i bookmark)))
+    (println)))
 

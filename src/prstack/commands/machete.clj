@@ -12,9 +12,9 @@
    :description "Writes the current PR stack to the .git/machete file"
    :exec
    (fn machete [_args]
-     (let [bookmarks (vcs/parse-bookmark-tree (vcs/get-bookmark-tree))
+     (let [stack (vcs/parse-stack (vcs/get-stack))
            current-contents (slurp ".git/machete")
-           added-contents (->> bookmarks
+           added-contents (->> stack
                             (drop 1)
                             (map-indexed #(machete-entry (inc %1) %2))
                             (str/join "\n"))]

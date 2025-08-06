@@ -1,4 +1,5 @@
 .clj-kondo/.cache
+.clj-kondo/imports
 .lsp/.cache
 .prstack/
 .nrepl-port

@@ -4,20 +4,55 @@
     [clojure.string :as str]
     [prstack.utils :as u]))
 
-(def bookmark-tree-command
-  ["jj" "log" "-r" "fork_point(trunk() | @)::@ & bookmarks()" "-T" "local_bookmarks ++ \"\n\"" "--no-graph"])
+(defn bookmark-tree-command [ref]
+  ["jj" "log" "--no-graph"
+   "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
+   "-T" "local_bookmarks ++ \"\n\""])
 
 (defn- ensure-trunk-bookmark
   "Sometimes the trunk bookmark has moved but the stack was not rebased."
   [bookmarks]
-  (if (= (first bookmarks) "master")
+  (if (contains? #{"master" "main"} (first bookmarks))
     bookmarks
     (cons "master" bookmarks)))
 
-(defn get-bookmark-tree []
-  (u/run-cmd bookmark-tree-command))
+(defn get-stack
+  ([]
+   (get-stack "@"))
+  ([ref]
+   (u/run-cmd (bookmark-tree-command ref))))
 
-(defn parse-bookmark-tree [raw-output]
+(comment
+  (parse-stack (get-stack)))
+
+(def leaves-template
+  (str "\"{"  "\" ++ \"\\n\" ++"
+       "  \"\\\"commit-id\\\": \\\"\" ++ commit_id.short() ++ \"\\\",\" ++ \"\\n\" ++"
+       "  \"\\\"change-id\\\": \\\"\" ++ change_id.short() ++ \"\\\",\" ++ \"\\n\" ++"
+       "  \"\\\"bookmark-name\\\": \\\"\" ++ if(local_bookmarks, local_bookmarks.map(|b| b.name()).join(\",\"), \"\") ++ \"\\\",\" ++ \"\\n\" ++"
+       "  \"\\\"description\\\": \" ++ description.first_line().escape_json() ++ \"\\n\" ++"
+       "\"}\""))
+
+(defn get-leaves []
+  (->>
+    (u/run-cmd
+      ["jj" "log" "-r" "heads(bookmarks())" "-T" "description.first_line() ++ ';' ++ change_id.short() ++ ';' ++ bookmarks ++ '\n'" "--no-graph"])
+    (str/split-lines)
+    (map #(str/split % #"\;"))
+    (map #(zipmap [:description :change-id :bookmarks] %))
+    (map #(update % :bookmarks (fn [bm]
+                                 (str/split bm #" "))))))
+
+(comment
+  (get-leaves)
+
+  (map bb.json/read-str
+    (str/split-lines
+      (u/run-cmd
+        ["jj" "log" "-r" "heads(bookmarks())" "-T" "json(self) ++ '\n' ++ json(bookmarks)" "--no-graph"]
+        {:dir ",local/test-repo"}))))
+
+(defn parse-stack [raw-output]
   (->> raw-output
     (str/split-lines)
     (map str/trim)

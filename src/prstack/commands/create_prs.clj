@@ -4,16 +4,17 @@
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
+;; TODO also check if branched is pushed before making PR
 (def command
   {:name "create"
    :description "Creates missing PRs in the current stack"
    :exec
    (fn create-prs [_args]
-     (let [bookmarks (vcs/parse-bookmark-tree (vcs/get-bookmark-tree))]
-       (ui/print-bookmark-tree bookmarks)
+     (let [stack (vcs/parse-stack (vcs/get-stack))]
+       (ui/print-stacks [stack])
 
        (println (u/colorize :cyan "Let's create the PRs!\n"))
-       (doseq [[base-branch head-branch] (u/consecutive-pairs bookmarks)]
+       (doseq [[base-branch head-branch] (u/consecutive-pairs stack)]
          (let [pr-url (vcs/find-pr head-branch base-branch)]
            (if pr-url
              (println
