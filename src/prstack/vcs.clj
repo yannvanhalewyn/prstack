@@ -35,14 +35,16 @@
   [{:vcs-config/keys [trunk-bookmark]} stack]
   (if (= (str/replace (first stack) #"\*" "") trunk-bookmark)
     stack
-    (cons trunk-bookmark stack)))
+    (into [trunk-bookmark] stack)))
 
 (defn parse-stack [raw-output vcs-config]
   (->> raw-output
     (str/split-lines)
-    (map str/trim)
-    (remove empty?)
     (reverse)
+    (into []
+      (comp
+        (map str/trim)
+        (remove empty?)))
     (ensure-trunk-bookmark vcs-config)))
 
 (defn get-stack

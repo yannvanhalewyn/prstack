@@ -11,7 +11,7 @@
 
 (defn- into-stacks [vcs-config leaves]
   (into []
-    (map #(vcs/get-stack % vcs-config))
+    (map #(vcs/get-stack (first (:bookmarks %)) vcs-config))
     leaves))
 
 (def command
@@ -40,12 +40,13 @@
                                 (map vector stack formatted-bookmarks))]
              (let [pr-url (when-let [base-branch (and (:include-prs? opts)
                                                       (get stack (dec i)))]
-                            (println "FINDING PR")
                             (vcs/find-pr bookmark base-branch))
-                   _ (println
-                       :base-branch (get stack (dec i))
-                       :stack stack
-                       :index i)
                    padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
-               (println padded-bookmark (if pr-url (u/colorize :gray (str " (" pr-url ")")) "")))))
+               (println padded-bookmark (cond
+                                          pr-url
+                                          (u/colorize :gray (str " (" pr-url ")"))
+                                          (and (:include-prs? opts)
+                                               (not= bookmark (:vcs-config/trunk-bookmark vcs-config)))
+                                          (str (u/colorize :red "X") " No PR Found")
+                                          :else "")))))
          (println))))})
