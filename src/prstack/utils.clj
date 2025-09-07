@@ -19,10 +19,10 @@
 (defn colorize [color text]
   (str (colors color) text (colors :reset)))
 
-(defn run-cmd [cmd & [{:keys [echo?]}]]
+(defn run-cmd [cmd & [{:keys [echo? dir]}]]
   (when echo?
     (println (colorize :gray (str "$ " (str/join " " cmd)))))
-  (-> (p/process cmd {:out :string})
+  (-> (p/process cmd {:out :string :dir dir})
     p/check
     :out
     str/trim))

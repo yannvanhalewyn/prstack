@@ -1,0 +1,2 @@
+{:source-aliases #{:dev :test :build :mobid-bypass}
+ :cljfmt-config-path "cljfmt.edn"}

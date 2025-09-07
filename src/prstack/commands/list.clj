@@ -1,17 +1,18 @@
 (ns prstack.commands.list
   (:require
-   [prstack.ui :as ui]
-   [prstack.utils :as u]
-   [prstack.vcs :as vcs]))
+    [clojure.string :as str]
+    [prstack.ui :as ui]
+    [prstack.utils :as u]
+    [prstack.vcs :as vcs]))
 
 (defn parse-opts [args]
-  {:all? (some #{"--all"} args)
-   :include-prs? (some #{"--include-prs"} args)})
+  {:all? (boolean (some #{"--all"} args))
+   :include-prs? (boolean (some #{"--include-prs"} args))})
 
-(defn- into-stacks [leaves]
-  (doall
-   (for [leave leaves]
-     (vcs/parse-stack (vcs/get-stack (first (:bookmarks leave)))))))
+(defn- into-stacks [vcs-config leaves]
+  (into []
+    (map #(vcs/get-stack % vcs-config))
+    leaves))
 
 (def command
   {:name "list"
@@ -21,10 +22,11 @@
    :exec
    (fn list [args]
      (let [opts (parse-opts args)
+           vcs-config (vcs/config)
            stacks
            (if (:all? opts)
-             (into-stacks (vcs/get-leaves))
-             [(vcs/parse-stack (vcs/get-stack))])
+             (into-stacks vcs-config (vcs/get-leaves vcs-config))
+             [(vcs/get-stack vcs-config)])
            max-width
            (when-let [counts
                       (seq
@@ -35,10 +37,15 @@
          (let [formatted-bookmarks (map-indexed ui/format-bookmark stack)]
            (doseq [[i [bookmark formatted-bookmark]]
                    (map-indexed vector
-                     (map vector stack formatted-bookmarks))]
+                                (map vector stack formatted-bookmarks))]
              (let [pr-url (when-let [base-branch (and (:include-prs? opts)
                                                       (get stack (dec i)))]
+                            (println "FINDING PR")
                             (vcs/find-pr bookmark base-branch))
+                   _ (println
+                       :base-branch (get stack (dec i))
+                       :stack stack
+                       :index i)
                    padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
                (println padded-bookmark (if pr-url (u/colorize :gray (str " (" pr-url ")")) "")))))
          (println))))})

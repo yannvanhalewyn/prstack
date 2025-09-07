@@ -12,7 +12,8 @@
    :description "Writes the current PR stack to the .git/machete file"
    :exec
    (fn machete [_args]
-     (let [stack (vcs/parse-stack (vcs/get-stack))
+     (let [vcs-config (vcs/config)
+           stack (vcs/get-stack vcs-config)
            current-contents (slurp ".git/machete")
            added-contents (->> stack
                             (drop 1)

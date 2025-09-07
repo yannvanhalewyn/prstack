@@ -10,7 +10,8 @@
    :description "Creates missing PRs in the current stack"
    :exec
    (fn create-prs [_args]
-     (let [stack (vcs/parse-stack (vcs/get-stack))]
+     (let [vcs-config (vcs/config)
+           stack (vcs/get-stack vcs-config)]
        (ui/print-stacks [stack])
 
        (println (u/colorize :cyan "Let's create the PRs!\n"))

@@ -12,29 +12,36 @@
   (parse-opts ["--all"])
   (parse-opts []))
 
-(defn- into-stacks [leaves]
-  (doall
-    (for [leave leaves]
-      (vcs/parse-stack (vcs/get-stack (first (:bookmarks leave)))))))
+(defn- into-stacks [vcs-config leaves]
+  (into []
+    (map #(vcs/get-stack (first (:bookmarks %)) vcs-config))
+    leaves))
 
 (def command
   {:name "sync"
    :description "Syncs the current stack with the remote"
    :exec
    (fn sync [args]
-     (let [opts (parse-opts args)]
+     (let [opts (parse-opts args)
+           {:vcs-config/keys [trunk-bookmark] :as vcs-config} (vcs/config)]
+       (binding [*print-namespace-maps* false]
+         (println (u/colorize :yellow ":vcs-config") vcs-config))
        (println (u/colorize :yellow "\nFetching branches from remote..."))
        (u/shell-out ["jj" "git" "fetch"]
          {:echo? true})
 
-       (if (vcs/master-changed?)
+       (if (vcs/trunk-moved? vcs-config)
          (do
-           (println (u/colorize :yellow "\nBumping local master to remote master..."))
-           (u/shell-out ["jj" "bookmark" "set" "master" "-r" "master@origin"]
+           (println (u/colorize :yellow (format "\nBumping local %s to remote..."
+                                          trunk-bookmark)))
+           (u/shell-out ["jj" "bookmark" "set" trunk-bookmark
+                         "-r" (str trunk-bookmark "@origin")]
              {:echo? true})
-           (when (u/prompt (format "\nRebase on %s?" (u/colorize :blue "master")))
-             (u/shell-out ["jj" "rebase" "-d" "master"] {:echo? true})))
-         (println "No need to rebase, local master is already up to date with origin."))
+           (when (u/prompt (format "\nRebase on %s?" (u/colorize :blue trunk-bookmark)))
+             (u/shell-out ["jj" "rebase" "-d" trunk-bookmark]
+               {:echo? true})))
+         (println (format "No need to rebase, local %s is already up to date with remote."
+                    trunk-bookmark)))
 
        (println (u/colorize :yellow "\nPushing local tracked branches..."))
        (u/shell-out ["jj" "git" "push" "--tracked"] {:echo? true})
@@ -42,11 +49,13 @@
 
        (let [stacks
              (if (:all? opts)
-               (into-stacks (vcs/get-leaves))
-               [(vcs/parse-stack (vcs/get-stack))])]
+               (into-stacks vcs-config (vcs/get-leaves vcs-config))
+               [(vcs/get-stack vcs-config)])]
          (ui/print-stacks stacks)
          (doseq [stack stacks]
+           (println "Syncing stack:" (u/colorize :blue (last stack)))
            (if (> (count stack) 1)
              (when (u/prompt "Would you like to create missing PRs?")
                ((:exec create-prs-command/command) args))
-             (println "No missing PRs to create."))))))})
+             (println "No missing PRs to create."))
+           (println)))))})

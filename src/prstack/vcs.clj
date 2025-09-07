@@ -4,26 +4,57 @@
     [clojure.string :as str]
     [prstack.utils :as u]))
 
-(defn bookmark-tree-command [ref]
+(defn detect-trunk-bookmark
+  "Detects wether the trunk branch is named 'master' or 'main'"
+  []
+  (first
+    (into
+      []
+      (comp
+        (map #(str/replace % #"\*" ""))
+        (filter #{"master" "main"}))
+      (str/split-lines
+        (u/run-cmd
+          ["jj" "bookmark" "list"
+           "-T" "self ++ \"\n\""])))))
+
+(defn detect-trunk-bookmark! []
+  (or (detect-trunk-bookmark)
+      (throw (ex-info "Could not detect trunk bookmark" {}))))
+
+(comment (detect-trunk-bookmark!))
+
+(defn get-stack-command [ref]
   ["jj" "log" "--no-graph"
    "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
    "-T" "local_bookmarks ++ \"\n\""])
 
 (defn- ensure-trunk-bookmark
-  "Sometimes the trunk bookmark has moved but the stack was not rebased."
-  [bookmarks]
-  (if (contains? #{"master" "main"} (first bookmarks))
-    bookmarks
-    (cons "master" bookmarks)))
+  "Ensure the stack starts with the trunk bookmark. Sometimes the trunk
+  bookmark has moved and is not included in the stack output"
+  [{:vcs-config/keys [trunk-bookmark]} stack]
+  (if (= (str/replace (first stack) #"\*" "") trunk-bookmark)
+    stack
+    (cons trunk-bookmark stack)))
+
+(defn parse-stack [raw-output vcs-config]
+  (->> raw-output
+    (str/split-lines)
+    (map str/trim)
+    (remove empty?)
+    (reverse)
+    (ensure-trunk-bookmark vcs-config)))
 
 (defn get-stack
-  ([]
-   (get-stack "@"))
-  ([ref]
-   (u/run-cmd (bookmark-tree-command ref))))
+  ([vcs-config]
+   (get-stack "@" vcs-config))
+  ([ref vcs-config]
+   (parse-stack
+     (u/run-cmd (get-stack-command ref))
+     vcs-config)))
 
 (comment
-  (parse-stack (get-stack)))
+  (get-stack (config)))
 
 (def leaves-template
   (str "\"{"  "\" ++ \"\\n\" ++"
@@ -33,39 +64,35 @@
        "  \"\\\"description\\\": \" ++ description.first_line().escape_json() ++ \"\\n\" ++"
        "\"}\""))
 
-(defn get-leaves []
-  (->>
-    (u/run-cmd
-      ["jj" "log" "-r" "heads(bookmarks())" "-T" "description.first_line() ++ ';' ++ change_id.short() ++ ';' ++ bookmarks ++ '\n'" "--no-graph"])
-    (str/split-lines)
-    (map #(str/split % #"\;"))
-    (map #(zipmap [:description :change-id :bookmarks] %))
-    (map #(update % :bookmarks (fn [bm]
-                                 (str/split bm #" "))))))
-
-(comment
-  (get-leaves)
-
-  (map bb.json/read-str
+(defn get-leaves [{:vcs-config/keys [trunk-bookmark]}]
+  (into
+    []
+    (comp
+      (map #(str/split % #"\;"))
+      (map #(zipmap [:description :change-id :bookmarks] %))
+      (map #(update % :bookmarks
+              (fn [bm]
+                (str/split bm #" ")))))
     (str/split-lines
       (u/run-cmd
-        ["jj" "log" "-r" "heads(bookmarks())" "-T" "json(self) ++ '\n' ++ json(bookmarks)" "--no-graph"]
-        {:dir ",local/test-repo"}))))
+        ["jj" "log" "--no-graph"
+         "-r" (format "heads(bookmarks()) ~ %s" trunk-bookmark)
+         "-T" "separate(';', description.first_line(), change_id.short(), bookmarks) ++ '\n'"]))))
 
-(defn parse-stack [raw-output]
-  (->> raw-output
-    (str/split-lines)
-    (map str/trim)
-    (remove empty?)
-    (reverse)
-    (ensure-trunk-bookmark)))
+(comment
+  (get-leaves (config)))
 
-(defn master-changed? []
-  (let [local-master-id (u/run-cmd ["jj" "log" "-r" "fork_point(trunk() | @)" "-T" "commit_id" "--no-graph"])
-        origin-master-id (u/run-cmd ["jj" "log" "-r" "master@origin" "-T" "commit_id" "--no-graph"])]
-    (println "local-master-id:" local-master-id
-      "origin-master-id:" origin-master-id)
-    (not= local-master-id origin-master-id)))
+;; TODO vcs config
+(defn trunk-moved? [{:vcs-config/keys [trunk-bookmark] :as x}]
+  (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
+                                    "-r" "fork_point(trunk() | @)"
+                                    "-T" "commit_id"])
+        remote-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
+                                     "-r" (str trunk-bookmark "@origin")
+                                     "-T" "commit_id"])]
+    (println "Local Trunk ref" local-trunk-ref
+      "Remote Trunk ref" remote-trunk-ref)
+    (not= local-trunk-ref remote-trunk-ref)))
 
 (defn create-pr! [head-branch base-branch]
   (->
@@ -83,3 +110,11 @@
                 "--base" base-branch
                 "--limit" "1"
                 "--json" "url" "--jq" ".[0].url"])))
+
+(defn config
+  "Reads the VCS configuration"
+  []
+  {:vcs-config/trunk-bookmark (detect-trunk-bookmark!)})
+
+(comment
+  (config))
