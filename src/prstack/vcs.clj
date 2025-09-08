@@ -28,13 +28,34 @@
   (u/run-cmd ["jj" "git" "push" "-b" branch-name "--allow-new"]
     {:echo? true}))
 
+(defn find-megamerge [start-ref]
+  (-> (u/run-cmd ["jj" "log" "--no-graph"
+                  "-r" (format "ancestors(%s) & merges()" start-ref)
+                  "-T" "change_id.short()"]
+        {:dir ",local/test-repo"})
+    (str/trim)
+    (not-empty)))
+
+(defn parents [ref]
+  (->> (u/run-cmd ["jj" "log" "--no-graph"
+                   "-r" (format "parents(%s)" ref)
+                   "-T" "separate(';', change_id.short(), local_bookmarks, remote_bookmarks) ++ '\n'"]
+         {:dir ",local/test-repo"})
+    (str/split-lines)
+    (map #(str/split % #";"))
+    (map #(zipmap [:change/change-id :change/local-bookmarks :change/remote-bookmarks] %))))
+
+(comment
+  (for [change (some-> (find-megamerge "@") parents)]
+    (get-stack (:change/change-id change))))
+
 (defn get-stack-command [ref]
   ["jj" "log" "--no-graph"
    "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
    "-T" "separate(';', local_bookmarks, remote_bookmarks) ++ \"\n\""])
 
 (comment
- (u/run-cmd (get-stack-command "@")))
+  (u/run-cmd (get-stack-command "@")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Change
@@ -119,6 +140,11 @@
    (parse-stack
      (u/run-cmd (get-stack-command ref))
      vcs-config)))
+
+(comment
+  (str/split-lines
+    (u/run-cmd (get-stack-command "@")
+      {:dir ",local/test-repo"})))
 
 (comment
   (parse-stack (u/run-cmd (get-stack-command "test-bookmark"))
