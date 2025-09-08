@@ -7,9 +7,9 @@
    leaves]
   (into []
     (comp
-      (remove (comp #{trunk-bookmark} vcs/local-bookmark))
-      (remove (comp ignored-bookmarks vcs/local-bookmark))
-      (map #(vcs/get-stack (vcs/local-bookmark %) vcs-config)))
+      (remove (comp #{trunk-bookmark} vcs/local-branchname))
+      (remove (comp ignored-bookmarks vcs/local-branchname))
+      (map #(vcs/get-stack (vcs/local-branchname %) vcs-config)))
     leaves))
 
 (defn get-all-stacks [vcs-config config]

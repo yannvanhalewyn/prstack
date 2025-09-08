@@ -8,7 +8,7 @@
   [i change]
   (let [indent (str (apply str (repeat (* (dec i) 2) " ")) (when-not (zero? i) "└─ "))]
     (str (u/colorize :yellow indent)
-         (u/colorize :blue (vcs/local-bookmark change)))))
+         (u/colorize :blue (vcs/local-branchname change)))))
 
 (defn print-stacks [stacks vcs-config {:keys [include-prs?]}]
   (if (seq stacks)
@@ -26,8 +26,8 @@
                 (map-indexed vector
                   (map vector stack formatted-bookmarks))]
           (if include-prs?
-            (let [head-branch (vcs/local-bookmark change)
-                  pr-url (when-let [base-branch (vcs/local-bookmark (get stack (dec i)))]
+            (let [head-branch (vcs/local-branchname change)
+                  pr-url (when-let [base-branch (vcs/local-branchname (get stack (dec i)))]
                            (vcs/find-pr head-branch base-branch))
                   padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
               (println padded-bookmark

@@ -40,8 +40,13 @@
    [:change/local-bookmarks [:sequential :string]]
    [:change/remote-bookmarks [:sequential :string]]])
 
-(defn local-bookmark [change]
+(defn local-branchname [change]
   (first (:change/local-bookmarks change)))
+
+(defn remote-branchname [change]
+  (u/find-first
+    #(not (str/ends-with? % "@git"))
+    (:change/remote-bookmarks change)))
 
 (def ^:lsp/allow-unused Leaf
   [:map
@@ -79,9 +84,10 @@
   "Ensure the stack starts with the trunk bookmark. Sometimes the trunk
   bookmark has moved and is not included in the stack output"
   [{:vcs-config/keys [trunk-bookmark]} stack]
-  (if (= (str/replace (local-bookmark (first stack)) #"\*" "") trunk-bookmark)
+  (if (= (str/replace (local-branchname (first stack)) #"\*" "") trunk-bookmark)
     stack
-    (into [{:change/local-bookmarks [trunk-bookmark]}] stack)))
+    (into [{:change/local-bookmarks [trunk-bookmark]
+            :change/remote-bookmarks [(str trunk-bookmark "@origin")]}] stack)))
 
 (defn- parse-change [raw-line]
   (zipmap [:change/local-bookmarks :change/remote-bookmarks]
@@ -98,7 +104,7 @@
         ;;(map str/trim)
         ;;(remove empty?)
         (map parse-change)
-        (remove #(= (local-bookmark %) trunk-bookmark))))
+        (remove #(= (local-branchname %) trunk-bookmark))))
     (not-empty)
     (ensure-trunk-bookmark vcs-config)))
 
