@@ -1,6 +1,7 @@
 (ns prstack.commands.list
   (:require
     [prstack.config :as config]
+    [prstack.stack :as stack]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
@@ -8,13 +9,6 @@
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))
    :include-prs? (boolean (some #{"--include-prs"} args))})
-
-(defn- into-stacks [{:keys [ignored-bookmarks]} vcs-config leaves]
-  (into []
-    (comp
-      (remove (comp ignored-bookmarks #(first (:bookmarks %))))
-      (map #(vcs/get-stack (first (:bookmarks %)) vcs-config)))
-    leaves))
 
 (def command
   {:name "list"
@@ -28,8 +22,8 @@
            vcs-config (vcs/config)
            stacks
            (if (:all? opts)
-             (into-stacks config vcs-config (vcs/get-leaves vcs-config))
-             (into [] (remove nil?) [(vcs/get-stack vcs-config)]))
+             (stack/get-all-stacks vcs-config config)
+             (stack/get-current-stacks vcs-config))
            max-width
            (when-let [counts
                       (seq

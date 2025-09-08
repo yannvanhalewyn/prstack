@@ -2,6 +2,7 @@
   (:require
     [prstack.commands.create-prs :as create-prs-command]
     [prstack.config :as config]
+    [prstack.stack :as stack]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
@@ -12,13 +13,6 @@
 (comment
   (parse-opts ["--all"])
   (parse-opts []))
-
-(defn- into-stacks [{:keys [ignored-bookmarks]} vcs-config leaves]
-  (into []
-    (comp
-      (remove (comp ignored-bookmarks #(first (:bookmarks %))))
-      (map #(vcs/get-stack (first (:bookmarks %)) vcs-config)))
-    leaves))
 
 (def command
   {:name "sync"
@@ -51,8 +45,8 @@
 
        (let [stacks
              (if (:all? opts)
-               (into-stacks config vcs-config (vcs/get-leaves vcs-config))
-               (into [] (remove nil?) [(vcs/get-stack vcs-config)]))]
+               (stack/get-all-stacks vcs-config config)
+               (stack/get-current-stacks vcs-config))]
          (ui/print-stacks stacks)
          (doseq [stack stacks]
            (println "Syncing stack:" (u/colorize :blue (last stack)))
