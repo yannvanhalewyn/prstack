@@ -24,6 +24,10 @@
 
 (comment (detect-trunk-bookmark!))
 
+(defn push-branch [branch-name]
+  (u/run-cmd ["jj" "git" "push" "-b" branch-name "--allow-new"]
+    {:echo? true}))
+
 (defn get-stack-command [ref]
   ["jj" "log" "--no-graph"
    "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
