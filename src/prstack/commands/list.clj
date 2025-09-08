@@ -1,6 +1,6 @@
 (ns prstack.commands.list
   (:require
-    [clojure.string :as str]
+    [prstack.config :as config]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
@@ -9,9 +9,11 @@
   {:all? (boolean (some #{"--all"} args))
    :include-prs? (boolean (some #{"--include-prs"} args))})
 
-(defn- into-stacks [vcs-config leaves]
+(defn- into-stacks [{:keys [ignored-bookmarks]} vcs-config leaves]
   (into []
-    (map #(vcs/get-stack (first (:bookmarks %)) vcs-config))
+    (comp
+      (remove (comp ignored-bookmarks #(first (:bookmarks %))))
+      (map #(vcs/get-stack (first (:bookmarks %)) vcs-config)))
     leaves))
 
 (def command
@@ -22,22 +24,23 @@
    :exec
    (fn list [args]
      (let [opts (parse-opts args)
+           config (config/read-local)
            vcs-config (vcs/config)
            stacks
            (if (:all? opts)
-             (into-stacks vcs-config (vcs/get-leaves vcs-config))
+             (into-stacks config vcs-config (vcs/get-leaves vcs-config))
              (into [] (remove nil?) [(vcs/get-stack vcs-config)]))
            max-width
            (when-let [counts
                       (seq
-                       (mapcat #(map count (map-indexed ui/format-bookmark %))
-                               stacks))]
+                        (mapcat #(map count (map-indexed ui/format-bookmark %))
+                          stacks))]
              (apply max counts))]
        (doseq [stack stacks]
          (let [formatted-bookmarks (map-indexed ui/format-bookmark stack)]
            (doseq [[i [bookmark formatted-bookmark]]
                    (map-indexed vector
-                                (map vector stack formatted-bookmarks))]
+                     (map vector stack formatted-bookmarks))]
              (let [pr-url (when-let [base-branch (and (:include-prs? opts)
                                                       (get stack (dec i)))]
                             (vcs/find-pr bookmark base-branch))

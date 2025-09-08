@@ -84,7 +84,7 @@
       (u/run-cmd
         ["jj" "log" "--no-graph"
          "-r" (format "heads(bookmarks()) ~ %s" trunk-bookmark)
-         "-T" "separate(';', description.first_line(), change_id.short(), bookmarks) ++ '\n'"])
+         "-T" "separate(';', description.first_line(), change_id.short(), local_bookmarks) ++ '\n'"])
       (not-empty)
       (str/split-lines))))
 
