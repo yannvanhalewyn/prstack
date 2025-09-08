@@ -5,7 +5,8 @@
     [prstack.stack :as stack]
     [prstack.ui :as ui]
     [prstack.utils :as u]
-    [prstack.vcs :as vcs]))
+    [prstack.vcs :as vcs]
+    [prstack.commands.create-prs :as commands.create-prs]))
 
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))})
@@ -47,11 +48,11 @@
              (if (:all? opts)
                (stack/get-all-stacks vcs-config config)
                (stack/get-current-stacks vcs-config))]
-         (ui/print-stacks stacks)
+         (ui/print-stacks stacks vcs-config (assoc opts :include-prs? true))
          (doseq [stack stacks]
            (println "Syncing stack:" (u/colorize :blue (last stack)))
            (if (> (count stack) 1)
              (when (u/prompt "Would you like to create missing PRs?")
-               ((:exec create-prs-command/command) args))
+               (commands.create-prs/create-prs {:stack stack}))
              (println "No missing PRs to create."))
            (println)))))})

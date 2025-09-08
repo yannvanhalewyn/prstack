@@ -15,7 +15,10 @@
   (into-stacks config vcs-config (vcs/get-leaves vcs-config)))
 
 (defn get-current-stacks [vcs-config]
-  (or (some-> (vcs/get-stack vcs-config) vector) []))
+  (some-> (vcs/get-stack vcs-config) vector))
+
+(defn get-stack [ref vcs-config]
+  (vcs/get-stack ref vcs-config))
 
 (comment
   (get-current-stacks {:vcs-config/trunk-bookmark "main"})
