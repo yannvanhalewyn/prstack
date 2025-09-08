@@ -32,66 +32,20 @@
 (comment
  (u/run-cmd (get-stack-command "@")))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Change
+
 (def Change
   [:map
    [:change/local-bookmarks [:sequential :string]]
    [:change/remote-bookmarks [:sequential :string]]])
 
-(def Stack
-  [:vector Change])
+(defn local-bookmark [change]
+  (first (:change/local-bookmarks change)))
 
-(defn- ensure-trunk-bookmark
-  "Ensure the stack starts with the trunk bookmark. Sometimes the trunk
-  bookmark has moved and is not included in the stack output"
-  [{:vcs-config/keys [trunk-bookmark]} stack]
-  (if (= (str/replace (first (:change/local-bookmarks (first stack))) #"\*" "") trunk-bookmark)
-    stack
-    (into [{:change/local-bookmarks [trunk-bookmark]}] stack)))
-
-(defn- parse-change [raw-line]
-  (zipmap [:change/local-bookmarks :change/remote-bookmarks]
-    (for [val (str/split raw-line #";")]
-      (str/split val #" "))))
-
-(defn parse-stack
-  [raw-output {:vcs-config/keys [trunk-bookmark] :as vcs-config}]
-  (some->> raw-output
-    (str/split-lines)
-    (reverse)
-    (into []
-      (comp
-        ;;(map str/trim)
-        ;;(remove empty?)
-        (map parse-change)
-        (remove #(= (first (:change/local-bookmarks %)) trunk-bookmark))))
-    (not-empty)
-    (ensure-trunk-bookmark vcs-config)))
-
-(defn get-stack
-  ([vcs-config]
-   (get-stack "@" vcs-config))
-  ([ref vcs-config]
-   (parse-stack
-     (u/run-cmd (get-stack-command ref))
-     vcs-config)))
-
-(comment
-  (parse-stack (u/run-cmd (get-stack-command "test-bookmark"))
-    {:vcs-config/trunk-bookmark "main"})
-  (get-stack (config)))
-
-(def leaves-template
-  (str "\"{"  "\" ++ \"\\n\" ++"
-       "  \"\\\"commit-id\\\": \\\"\" ++ commit_id.short() ++ \"\\\",\" ++ \"\\n\" ++"
-       "  \"\\\"change-id\\\": \\\"\" ++ change_id.short() ++ \"\\\",\" ++ \"\\n\" ++"
-       "  \"\\\"bookmark-name\\\": \\\"\" ++ if(local_bookmarks, local_bookmarks.map(|b| b.name()).join(\",\"), \"\") ++ \"\\\",\" ++ \"\\n\" ++"
-       "  \"\\\"description\\\": \" ++ description.first_line().escape_json() ++ \"\\n\" ++"
-       "\"}\""))
-
-(def Leaf
+(def ^:lsp/allow-unused Leaf
   [:map
-   [:change/local-bookmarks [:vector :string]]
-   ])
+   [:change/local-bookmarks [:vector :string]]])
 
 (defn get-leaves [{:vcs-config/keys [trunk-bookmark]}]
   (into
@@ -115,7 +69,53 @@
 (comment
   (get-leaves (config)))
 
-(defn trunk-moved? [{:vcs-config/keys [trunk-bookmark] :as x}]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stack
+
+(def ^:lsp/allow-unused Stack
+  [:vector Change])
+
+(defn- ensure-trunk-bookmark
+  "Ensure the stack starts with the trunk bookmark. Sometimes the trunk
+  bookmark has moved and is not included in the stack output"
+  [{:vcs-config/keys [trunk-bookmark]} stack]
+  (if (= (str/replace (local-bookmark (first stack)) #"\*" "") trunk-bookmark)
+    stack
+    (into [{:change/local-bookmarks [trunk-bookmark]}] stack)))
+
+(defn- parse-change [raw-line]
+  (zipmap [:change/local-bookmarks :change/remote-bookmarks]
+    (for [val (str/split raw-line #";")]
+      (str/split val #" "))))
+
+(defn parse-stack
+  [raw-output {:vcs-config/keys [trunk-bookmark] :as vcs-config}]
+  (some->> raw-output
+    (str/split-lines)
+    (reverse)
+    (into []
+      (comp
+        ;;(map str/trim)
+        ;;(remove empty?)
+        (map parse-change)
+        (remove #(= (local-bookmark %) trunk-bookmark))))
+    (not-empty)
+    (ensure-trunk-bookmark vcs-config)))
+
+(defn get-stack
+  ([vcs-config]
+   (get-stack "@" vcs-config))
+  ([ref vcs-config]
+   (parse-stack
+     (u/run-cmd (get-stack-command ref))
+     vcs-config)))
+
+(comment
+  (parse-stack (u/run-cmd (get-stack-command "test-bookmark"))
+    {:vcs-config/trunk-bookmark "main"})
+  (get-stack (config)))
+
+(defn trunk-moved? [{:vcs-config/keys [trunk-bookmark]}]
   (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
                                     "-r" "fork_point(trunk() | @)"
                                     "-T" "commit_id"])
