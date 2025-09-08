@@ -7,7 +7,8 @@
 
 (defn create-prs [{:keys [stack]}]
   (println (u/colorize :cyan "Let's create the PRs!\n"))
-  (doseq [[base-branch head-branch] (u/consecutive-pairs stack)]
+  (doseq [[base-branch head-branch] (u/consecutive-pairs
+                                      (map #(first (:change/local-bookmarks %)) stack))]
     (let [pr-url (vcs/find-pr head-branch base-branch)]
       (if pr-url
         (println

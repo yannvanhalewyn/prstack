@@ -50,7 +50,7 @@
                (stack/get-current-stacks vcs-config))]
          (ui/print-stacks stacks vcs-config (assoc opts :include-prs? true))
          (doseq [stack stacks]
-           (println "Syncing stack:" (u/colorize :blue (last stack)))
+           (println "Syncing stack:" (u/colorize :blue (first (:change/local-bookmarks (last stack)))))
            (if (> (count stack) 1)
              (when (u/prompt "Would you like to create missing PRs?")
                (commands.create-prs/create-prs {:stack stack}))

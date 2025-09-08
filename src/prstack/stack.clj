@@ -3,12 +3,13 @@
     [prstack.vcs :as vcs]))
 
 (defn- into-stacks
-  [{:keys [ignored-bookmarks]} {:vcs-config/keys [trunk-bookmark] :as vcs-config} leaves]
+  [{:keys [ignored-bookmarks]} {:vcs-config/keys [trunk-bookmark] :as vcs-config}
+   leaves]
   (into []
     (comp
-      ;;(remove (comp #{trunk-bookmark} #(first (:bookmarks %))))
-      (remove (comp ignored-bookmarks #(first (:bookmarks %))))
-      (map #(vcs/get-stack (first (:bookmarks %)) vcs-config)))
+      (remove (comp #{trunk-bookmark} #(first (:change/local-bookmarks %))))
+      (remove (comp ignored-bookmarks #(first (:change/local-bookmarks %))))
+      (map #(vcs/get-stack (first (:change/local-bookmarks %)) vcs-config)))
     leaves))
 
 (defn get-all-stacks [vcs-config config]
@@ -22,7 +23,9 @@
 
 (comment
   (get-current-stacks {:vcs-config/trunk-bookmark "main"})
+  (get-stack "test-bookmark" {:vcs-config/trunk-bookmark "main"})
+  (get-all-stacks {:vcs-config/trunk-bookmark "main"} {:ignored-bookmarks #{}})
   (into-stacks
     {:ignored-bookmarks #{}}
     {:vcs-config/trunk-bookmark "main"}
-    [{:bookmarks ["main"]} ]))
+    [{:change/local-bookmarks ["main"]} ]))

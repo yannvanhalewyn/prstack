@@ -27,15 +27,31 @@
 (defn get-stack-command [ref]
   ["jj" "log" "--no-graph"
    "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
-   "-T" "local_bookmarks ++ \"\n\""])
+   "-T" "separate(';', local_bookmarks, remote_bookmarks) ++ \"\n\""])
+
+(comment
+ (u/run-cmd (get-stack-command "@")))
+
+(def Change
+  [:map
+   [:change/local-bookmarks [:sequential :string]]
+   [:change/remote-bookmarks [:sequential :string]]])
+
+(def Stack
+  [:vector Change])
 
 (defn- ensure-trunk-bookmark
   "Ensure the stack starts with the trunk bookmark. Sometimes the trunk
   bookmark has moved and is not included in the stack output"
   [{:vcs-config/keys [trunk-bookmark]} stack]
-  (if (= (str/replace (first stack) #"\*" "") trunk-bookmark)
+  (if (= (str/replace (first (:change/local-bookmarks (first stack))) #"\*" "") trunk-bookmark)
     stack
-    (into [trunk-bookmark] stack)))
+    (into [{:change/local-bookmarks [trunk-bookmark]}] stack)))
+
+(defn- parse-change [raw-line]
+  (zipmap [:change/local-bookmarks :change/remote-bookmarks]
+    (for [val (str/split raw-line #";")]
+      (str/split val #" "))))
 
 (defn parse-stack
   [raw-output {:vcs-config/keys [trunk-bookmark] :as vcs-config}]
@@ -44,9 +60,10 @@
     (reverse)
     (into []
       (comp
-        (map str/trim)
-        (remove empty?)
-        (remove #{trunk-bookmark})))
+        ;;(map str/trim)
+        ;;(remove empty?)
+        (map parse-change)
+        (remove #(= (first (:change/local-bookmarks %)) trunk-bookmark))))
     (not-empty)
     (ensure-trunk-bookmark vcs-config)))
 
@@ -59,7 +76,7 @@
      vcs-config)))
 
 (comment
-  (parse-stack "main"
+  (parse-stack (u/run-cmd (get-stack-command "test-bookmark"))
     {:vcs-config/trunk-bookmark "main"})
   (get-stack (config)))
 
@@ -71,13 +88,20 @@
        "  \"\\\"description\\\": \" ++ description.first_line().escape_json() ++ \"\\n\" ++"
        "\"}\""))
 
+(def Leaf
+  [:map
+   [:change/local-bookmarks [:vector :string]]
+   ])
+
 (defn get-leaves [{:vcs-config/keys [trunk-bookmark]}]
   (into
     []
     (comp
-      (map #(str/split % #"\;"))
-      (map #(zipmap [:description :change-id :bookmarks] %))
-      (map #(update % :bookmarks
+      (map #(zipmap [:change/description
+                     :change/change-id
+                     :change/local-bookmarks]
+              (str/split % #"\;")))
+      (map #(update % :change/local-bookmarks
               (fn [bm]
                 (str/split bm #" ")))))
     (some->
@@ -113,6 +137,7 @@
 
 (defn find-pr
   [head-branch base-branch]
+  ;;(println :find-pr head-branch base-branch)
   (not-empty
     (u/run-cmd ["gh" "pr" "list"
                 "--head" head-branch

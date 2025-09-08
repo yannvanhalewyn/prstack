@@ -3,12 +3,12 @@
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
-(defn format-bookmark
+(defn- format-change
   "Formats the bookmark as part of a stack at the given index"
-  [i bookmark]
+  [i change]
   (let [indent (str (apply str (repeat (* (dec i) 2) " ")) (when-not (zero? i) "└─ "))]
     (str (u/colorize :yellow indent)
-         (u/colorize :blue bookmark))))
+         (u/colorize :blue (first (:change/local-bookmarks change))))))
 
 (defn print-stacks [stacks vcs-config {:keys [include-prs?]}]
   (if (seq stacks)
@@ -17,25 +17,25 @@
   (let [max-width
         (when-let [counts
                    (seq
-                     (mapcat #(map count (map-indexed format-bookmark %))
+                     (mapcat #(map count (map-indexed format-change %))
                        stacks))]
           (apply max counts))]
     (doseq [stack stacks]
-      (let [formatted-bookmarks (map-indexed format-bookmark stack) ]
-        (doseq [[i [bookmark formatted-bookmark]]
+      (let [formatted-bookmarks (map-indexed format-change stack) ]
+        (doseq [[i [change formatted-bookmark]]
                 (map-indexed vector
                   (map vector stack formatted-bookmarks))]
           (if include-prs?
-            (let [pr-url (when-let [base-branch (get stack (dec i))]
-                           (vcs/find-pr bookmark base-branch))
+            (let [head-branch (first (:change/local-bookmarks change))
+                  pr-url (when-let [prev-change (get stack (dec i))]
+                           (vcs/find-pr head-branch (first (:change/local-bookmarks prev-change))))
                   padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
               (println padded-bookmark
                 (cond
                   pr-url
                   (u/colorize :gray (str " (" pr-url ")"))
-                  (not= bookmark (:vcs-config/trunk-bookmark vcs-config))
+                  (not= head-branch (:vcs-config/trunk-bookmark vcs-config))
                   (str (u/colorize :red "X") " No PR Found")
                   :else "")))
             (println formatted-bookmark))))
       (println))))
-
