@@ -1,17 +1,19 @@
 (ns prstack.main
   (:refer-clojure :exclude [run!])
   (:require
-    [prstack.commands.create-prs :as create-prs-command]
-    [prstack.commands.list :as list-command]
-    [prstack.commands.machete :as machete-command]
-    [prstack.commands.sync :as sync-command]
+    [prstack.commands.create-prs :as commands.create-prs]
+    [prstack.commands.list :as commands.list]
+    [prstack.commands.machete :as commands.machete]
+    [prstack.commands.status :as commands.status]
+    [prstack.commands.sync :as commands.sync]
     [prstack.utils :as u]))
 
 (def commands
-  [list-command/command
-   create-prs-command/command
-   sync-command/command
-   machete-command/command])
+  [commands.status/command
+   commands.list/command
+   commands.create-prs/command
+   commands.sync/command
+   commands.machete/command ])
 
 (defn- print-help []
   (println "Usage: prstack <command> [options]")
