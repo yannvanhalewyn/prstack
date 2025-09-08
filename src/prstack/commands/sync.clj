@@ -1,6 +1,7 @@
 (ns prstack.commands.sync
   (:require
     [prstack.commands.create-prs :as create-prs-command]
+    [prstack.config :as config]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
@@ -12,9 +13,11 @@
   (parse-opts ["--all"])
   (parse-opts []))
 
-(defn- into-stacks [vcs-config leaves]
+(defn- into-stacks [{:keys [ignored-bookmarks]} vcs-config leaves]
   (into []
-    (map #(vcs/get-stack (first (:bookmarks %)) vcs-config))
+    (comp
+      (remove (comp ignored-bookmarks #(first (:bookmarks %))))
+      (map #(vcs/get-stack (first (:bookmarks %)) vcs-config)))
     leaves))
 
 (def command
@@ -23,7 +26,8 @@
    :exec
    (fn sync [args]
      (let [opts (parse-opts args)
-           {:vcs-config/keys [trunk-bookmark] :as vcs-config} (vcs/config)]
+           {:vcs-config/keys [trunk-bookmark] :as vcs-config} (vcs/config)
+           config (config/read-local)]
        (binding [*print-namespace-maps* false]
          (println (u/colorize :yellow ":vcs-config") vcs-config))
        (println (u/colorize :yellow "\nFetching branches from remote..."))
@@ -49,7 +53,7 @@
 
        (let [stacks
              (if (:all? opts)
-               (into-stacks vcs-config (vcs/get-leaves vcs-config))
+               (into-stacks config vcs-config (vcs/get-leaves vcs-config))
                [(vcs/get-stack vcs-config)])]
          (ui/print-stacks stacks)
          (doseq [stack stacks]
