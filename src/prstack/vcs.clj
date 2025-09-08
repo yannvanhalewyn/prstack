@@ -98,8 +98,9 @@
         remote-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
                                      "-r" (str trunk-bookmark "@origin")
                                      "-T" "commit_id"])]
-    (println "Local Trunk ref" local-trunk-ref
-      "Remote Trunk ref" remote-trunk-ref)
+    (println (u/colorize :yellow "\nChecking if trunk moved"))
+    (println (u/colorize :cyan (str "local " trunk-bookmark)) local-trunk-ref)
+    (println (u/colorize :cyan (str "remote " trunk-bookmark)) remote-trunk-ref)
     (not= local-trunk-ref remote-trunk-ref)))
 
 (defn create-pr! [head-branch base-branch]

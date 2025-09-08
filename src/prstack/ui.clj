@@ -10,7 +10,9 @@
          (u/colorize :blue bookmark))))
 
 (defn print-stacks [stacks]
-  (println (u/colorize :cyan "Detected the following stacks of bookmarks:\n"))
+  (if (seq stacks)
+    (println (u/colorize :cyan "Detected the following stacks of bookmarks:\n"))
+    (println (u/colorize :cyan "No stacks detetected")))
   (doseq [stack stacks]
     (doseq [[i bookmark] (map-indexed vector stack)]
       (println (format-bookmark i bookmark)))
