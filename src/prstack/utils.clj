@@ -16,8 +16,12 @@
    :red "\033[31m"
    :gray "\033[90m"})
 
-(defn colorize [color text]
-  (str (colors color) text (colors :reset)))
+(def colorize
+  (if (System/getenv "NO_COLORS")
+    (fn [_color text]
+      text)
+    (fn [color text]
+      (str (colors color) text (colors :reset)))))
 
 (defn run-cmd [cmd & [{:keys [echo? dir]}]]
   (when echo?
