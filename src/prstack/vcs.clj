@@ -37,14 +37,17 @@
     stack
     (into [trunk-bookmark] stack)))
 
-(defn parse-stack [raw-output vcs-config]
-  (->> raw-output
+(defn parse-stack
+  [raw-output {:vcs-config/keys [trunk-bookmark] :as vcs-config}]
+  (some->> raw-output
     (str/split-lines)
     (reverse)
     (into []
       (comp
         (map str/trim)
-        (remove empty?)))
+        (remove empty?)
+        (remove #{trunk-bookmark})))
+    (not-empty)
     (ensure-trunk-bookmark vcs-config)))
 
 (defn get-stack
@@ -56,6 +59,8 @@
      vcs-config)))
 
 (comment
+  (parse-stack "main"
+    {:vcs-config/trunk-bookmark "main"})
   (get-stack (config)))
 
 (def leaves-template
@@ -75,16 +80,17 @@
       (map #(update % :bookmarks
               (fn [bm]
                 (str/split bm #" ")))))
-    (str/split-lines
+    (some->
       (u/run-cmd
         ["jj" "log" "--no-graph"
          "-r" (format "heads(bookmarks()) ~ %s" trunk-bookmark)
-         "-T" "separate(';', description.first_line(), change_id.short(), bookmarks) ++ '\n'"]))))
+         "-T" "separate(';', description.first_line(), change_id.short(), bookmarks) ++ '\n'"])
+      (not-empty)
+      (str/split-lines))))
 
 (comment
   (get-leaves (config)))
 
-;; TODO vcs config
 (defn trunk-moved? [{:vcs-config/keys [trunk-bookmark] :as x}]
   (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
                                     "-r" "fork_point(trunk() | @)"

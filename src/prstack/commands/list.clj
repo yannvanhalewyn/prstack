@@ -26,7 +26,7 @@
            stacks
            (if (:all? opts)
              (into-stacks vcs-config (vcs/get-leaves vcs-config))
-             [(vcs/get-stack vcs-config)])
+             (into [] (remove nil?) [(vcs/get-stack vcs-config)]))
            max-width
            (when-let [counts
                       (seq
