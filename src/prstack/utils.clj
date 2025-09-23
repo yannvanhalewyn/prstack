@@ -39,3 +39,10 @@
 
 (defn consecutive-pairs [coll]
   (map vector coll (rest coll)))
+
+(defn vectorize [x]
+  (cond
+    (vector? x) x
+    (sequential? x) (vec x)
+    (nil? x) []
+    :else (vector x)))

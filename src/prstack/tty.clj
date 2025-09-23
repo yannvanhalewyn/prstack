@@ -2,7 +2,8 @@
   (:require
     [babashka.process :as p]
     [clojure.string :as str]
-    [clojure.tools.logging :as log])
+    [clojure.tools.logging :as log]
+    [prstack.utils :as u])
   (:import
     [java.util.concurrent CancellationException]))
 
@@ -43,14 +44,17 @@
    :yellow "\033[33m"
    :cyan "\033[36m"
    :red "\033[31m"
-   :gray "\033[90m"})
+   :gray "\033[90m"
+   :bg-light-gray "\033[47m"
+   :bg-gray "\033[100m"})
 
 (def colorize
   (if (System/getenv "NO_COLORS")
-    (fn [_color text]
+    (fn [_ text]
       text)
-    (fn [color text]
-      (str (colors color) text (colors :reset)))))
+    (fn [color-keys text]
+      (let [color-codes (str/join "" (map colors (u/vectorize color-keys)))]
+        (str color-codes text (colors :reset))))))
 
 ;; Terminal state management
 (defn run-in-raw-mode [f]
@@ -142,7 +146,6 @@
   (let [handlers (reverse handlers)]
     (swap! running-ui assoc ::keydown-handler
       (fn [k]
-        (log/debug "Keydown:" k)
         (loop [[cur & others] handlers]
           (when (and (not (cur k)) (seq others))
             (recur others)))))))
@@ -156,9 +159,6 @@
     (register-key-handlers (keep :on-key-press (::handlers render)))
     (add-watch state ::renderer
       (fn [_ _ _ new-state]
-        (spit "target/dev.log" (str "State changed"
-                                (with-out-str (clojure.pprint/pprint new-state)))
-          :append true)
         (let [render (render-tree components new-state)]
           (refresh-screen! (::lines render))
           (register-key-handlers (keep :on-key-press (::handlers render))))))))
