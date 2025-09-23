@@ -1,6 +1,7 @@
 (ns prstack.main
   (:refer-clojure :exclude [run!])
   (:require
+    [prstack.app :as app]
     [prstack.commands.create-prs :as commands.create-prs]
     [prstack.commands.list :as commands.list]
     [prstack.commands.machete :as commands.machete]
@@ -18,6 +19,8 @@
 (defn- print-help []
   (println "Usage: prstack <command> [options]")
   (println)
+  (println "When no <command> is specified, an interactive TTY app is started")
+  (println)
   (println "Commands:")
   (doseq [command commands]
     (println (format "  %-10s %s" (:name command) (:description command))))
@@ -27,9 +30,12 @@
   (println))
 
 (defn ^:lsp/allow-unused run! [args]
-  (if (or (empty? args)
-          (some #{"-h" "--help"} args))
+  (cond
+    (some #{"-h" "--help"} args)
     (print-help)
+    (empty? args)
+    (app/run!)
+    :else
     (if-let [command (u/find-first #(= (:name %) (first args)) commands)]
       ((:exec command) (rest args))
       (do

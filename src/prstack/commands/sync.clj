@@ -3,7 +3,7 @@
     [prstack.commands.create-prs :as commands.create-prs]
     [prstack.config :as config]
     [prstack.stack :as stack]
-    [prstack.tty :as tty]
+    [prstack.tty2 :as tty]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))

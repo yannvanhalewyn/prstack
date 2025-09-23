@@ -1,7 +1,7 @@
 (ns prstack.commands.create-prs
   (:require
     [prstack.stack :as stack]
-    [prstack.tty :as tty]
+    [prstack.tty2 :as tty]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
