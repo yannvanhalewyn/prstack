@@ -1,12 +1,12 @@
 (ns prstack.commands.sync
   (:require
-    [prstack.commands.create-prs :as create-prs-command]
+    [prstack.commands.create-prs :as commands.create-prs]
     [prstack.config :as config]
     [prstack.stack :as stack]
+    [prstack.tty :as tty]
     [prstack.ui :as ui]
     [prstack.utils :as u]
-    [prstack.vcs :as vcs]
-    [prstack.commands.create-prs :as commands.create-prs]))
+    [prstack.vcs :as vcs]))
 
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))})
@@ -34,7 +34,7 @@
            (u/shell-out ["jj" "bookmark" "set" trunk-bookmark
                          "-r" (str trunk-bookmark "@origin")]
              {:echo? true})
-           (when (u/prompt (format "\nRebase on %s?" (u/colorize :blue trunk-bookmark)))
+           (when (tty/prompt-yes (format "\nRebase on %s?" (u/colorize :blue trunk-bookmark)))
              (u/shell-out ["jj" "rebase" "-d" trunk-bookmark]
                {:echo? true})))
          (println (format "Local %s is already up to date with remote. No need to rebase"
@@ -52,7 +52,7 @@
          (doseq [stack stacks]
            (println "Syncing stack:" (u/colorize :blue (first (:change/local-bookmarks (last stack)))))
            (if (> (count stack) 1)
-             (when (u/prompt "Would you like to create missing PRs?")
+             (when (tty/prompt-yes "Would you like to create missing PRs?")
                (commands.create-prs/create-prs {:stack stack}))
              (println "No missing PRs to create."))
            (println)))))})

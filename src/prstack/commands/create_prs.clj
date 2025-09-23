@@ -1,6 +1,7 @@
 (ns prstack.commands.create-prs
   (:require
     [prstack.stack :as stack]
+    [prstack.tty :as tty]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
@@ -8,12 +9,12 @@
 (defn- ensure-remote-branch [change msg]
   (or (vcs/remote-branchname change)
       (let [branchname (vcs/local-branchname change)]
-        (when (u/prompt (str msg (format " Push %s?" (u/colorize :blue branchname))))
+        (when (tty/prompt-yes (str msg (format " Push %s?" (u/colorize :blue branchname))))
           (vcs/push-branch branchname)
           true))))
 
 (defn- prompt-and-create-prs! [head-branch base-branch]
-  (when (u/prompt
+  (when (tty/prompt-yes
           (format "Create a PR for %s onto %s?"
             (u/colorize :blue head-branch)
             (u/colorize :blue base-branch)))
@@ -23,23 +24,22 @@
 (defn create-prs [{:keys [stack]}]
   (if (seq stack)
     (do
-     (println (u/colorize :cyan "Let's create the PRs!\n"))
-     (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
-       (let [head-branch (vcs/local-branchname next-change)
-             base-branch (vcs/local-branchname cur-change)
-             pr-url (vcs/find-pr head-branch base-branch)]
-         (println (u/colorize :yellow "Checking remote branches"))
-         (if pr-url
-           (println
-             (format "PR already exists for %s onto %s, skipping. (%s)"
-               (u/colorize :blue head-branch)
-               (u/colorize :blue base-branch)
-               (u/colorize :gray pr-url)))
-           (do
-             (u/colorize :yellow "Checking remote branches")
-             (when (ensure-remote-branch cur-change "Base branch not pushed to remote.")
-               (when (ensure-remote-branch next-change "Head branch not pushed to remote.")
-                 (prompt-and-create-prs! head-branch base-branch))))))))
+      (println (u/colorize :cyan "Let's create the PRs!\n"))
+      (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
+        (let [head-branch (vcs/local-branchname next-change)
+              base-branch (vcs/local-branchname cur-change)
+              pr-url (vcs/find-pr head-branch base-branch)]
+          (if pr-url
+            (println
+              (format "PR already exists for %s onto %s, skipping. (%s)"
+                (u/colorize :blue head-branch)
+                (u/colorize :blue base-branch)
+                (u/colorize :gray pr-url)))
+            (do
+              (u/colorize :yellow "Checking remote branches")
+              (when (ensure-remote-branch cur-change "Base branch not pushed to remote.")
+                (when (ensure-remote-branch next-change "Head branch not pushed to remote.")
+                  (prompt-and-create-prs! head-branch base-branch))))))))
     (println (u/colorize :cyan "No PRs to create"))))
 
 ;; TODO also check if branched is pushed before making PR

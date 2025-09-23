@@ -33,7 +33,9 @@
               (println padded-bookmark
                 (cond
                   pr-url
-                  (u/colorize :gray (str " (" pr-url ")"))
+                  (str (u/colorize :green "✔") " PR Found"
+                       (u/colorize :gray (str " (" pr-url ")")))
+                  ;; Show if 'needs push'
                   (not= head-branch (:vcs-config/trunk-bookmark vcs-config))
                   (str (u/colorize :red "X") " No PR Found")
                   :else "")))

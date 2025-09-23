@@ -37,15 +37,5 @@
   (-> (p/shell cmd {:inherit :true})
     p/check))
 
-(defn read-first-char []
-  (when-let [input (read-line)]
-    (when (seq input)
-      (first input))))
-
-(defn prompt [prompt]
-  (print prompt " (y/n): ")
-  (flush)
-  (= (read-first-char) \y))
-
 (defn consecutive-pairs [coll]
   (map vector coll (rest coll)))

@@ -6,5 +6,19 @@
 - [ ] Add marker indicating current stack when '--all'
 - [ ] Add a 'ref' option to run command from other leaf
 - [ ] ~Default reviewers in `.prstack.edn`?
+- [ ] ~Add `--dry-run` flags to preview actions
+- [ ] ~Implement `--yes` flag to skip prompts for automation
+- [ ] ~Add ignored branches to local config
+- [ ] ~Interesting idea: maybe someday a VS code integration
 
 Idea: UX improvement, print stack number and make it so it can refer to it in other commands
+
+- [ ] Add config at `~/.config/prstack/config.edn`
+
+```clojure
+{:github {:default-reviewers ["@team/reviewers"]
+          :draft-prs? false}
+ :jujutsu {:log-template "commit_id.short() ++ \" \" ++ description.first_line()"}
+ :notifications {:enabled true
+                 :success-sound true}}
+```
