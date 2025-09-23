@@ -156,8 +156,9 @@
     (register-key-handlers (keep :on-key-press (::handlers render)))
     (add-watch state ::renderer
       (fn [_ _ _ new-state]
-        (log/debug "State changed"
-          (with-out-str (clojure.pprint/pprint new-state)))
+        (spit "target/dev.log" (str "State changed"
+                                (with-out-str (clojure.pprint/pprint new-state)))
+          :append true)
         (let [render (render-tree components new-state)]
           (refresh-screen! (::lines render))
           (register-key-handlers (keep :on-key-press (::handlers render))))))))

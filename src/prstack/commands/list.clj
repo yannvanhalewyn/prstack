@@ -3,7 +3,6 @@
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.ui :as ui]
-    [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
 (defn parse-opts [args]

@@ -174,6 +174,7 @@
 (defn find-pr
   [head-branch base-branch]
   ;;(println :find-pr head-branch base-branch)
+  (spit "target/dev.log" (str "Fetching PR for " head-branch " onto " base-branch) :append true)
   (not-empty
     (u/run-cmd ["gh" "pr" "list"
                 "--head" head-branch
