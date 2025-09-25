@@ -22,3 +22,5 @@ Idea: UX improvement, print stack number and make it so it can refer to it in ot
  :notifications {:enabled true
                  :success-sound true}}
 ```
+
+Checkout https://www.textualize.io/blog/7-things-ive-learned-building-a-modern-tui-framework/

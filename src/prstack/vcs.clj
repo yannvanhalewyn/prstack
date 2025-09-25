@@ -52,7 +52,7 @@
 (defn get-stack-command [ref]
   ["jj" "log" "--no-graph"
    "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
-   "-T" "separate(';', local_bookmarks, remote_bookmarks) ++ \"\n\""])
+   "-T" "separate(';', change_id.short(), commit_id, local_bookmarks, remote_bookmarks) ++ \"\n\""])
 
 (comment
   (u/run-cmd (get-stack-command "@")))
@@ -62,27 +62,38 @@
 
 (def Change
   [:map
+   [:change/description :string]
+   [:change/change-id :string]
+   [:change/commit-sha :string]
    [:change/local-bookmarks [:sequential :string]]
    [:change/remote-bookmarks [:sequential :string]]])
 
+(defn- remove-asterisk-from-branch-name [branch-name]
+  (when branch-name
+    (str/replace branch-name #"\*$" "")))
+
 (defn local-branchname [change]
-  (first (:change/local-bookmarks change)))
+  (remove-asterisk-from-branch-name
+    (first (:change/local-bookmarks change))))
 
 (defn remote-branchname [change]
-  (u/find-first
-    #(not (str/ends-with? % "@git"))
-    (:change/remote-bookmarks change)))
+  (remove-asterisk-from-branch-name
+    (u/find-first
+      #(not (str/ends-with? % "@git"))
+      (:change/remote-bookmarks change))))
 
 (def ^:lsp/allow-unused Leaf
   [:map
    [:change/local-bookmarks [:vector :string]]])
 
+;; TODO align this parser with 'parse-change'
 (defn get-leaves [{:vcs-config/keys [trunk-bookmark]}]
   (into
     []
     (comp
       (map #(zipmap [:change/description
                      :change/change-id
+                     :change/commit-sha
                      :change/local-bookmarks]
               (str/split % #"\;")))
       (map #(update % :change/local-bookmarks
@@ -92,7 +103,7 @@
       (u/run-cmd
         ["jj" "log" "--no-graph"
          "-r" (format "heads(bookmarks()) ~ %s" trunk-bookmark)
-         "-T" "separate(';', description.first_line(), change_id.short(), local_bookmarks) ++ '\n'"])
+         "-T" "separate(';', description.first_line(), change_id.short(), commit_id, local_bookmarks) ++ '\n'"])
       (not-empty)
       (str/split-lines))))
 
@@ -115,9 +126,14 @@
             :change/remote-bookmarks [(str trunk-bookmark "@origin")]}] stack)))
 
 (defn- parse-change [raw-line]
-  (zipmap [:change/local-bookmarks :change/remote-bookmarks]
-    (for [val (str/split raw-line #";")]
-      (str/split val #" "))))
+  (->
+    (zipmap [:change/change-id
+             :change/commit-sha
+             :change/local-bookmarks
+             :change/remote-bookmarks]
+      (str/split raw-line #";"))
+    (update :change/local-bookmarks #(str/split % #" "))
+    (update :change/remote-bookmarks #(str/split % #" "))))
 
 (defn parse-stack
   [raw-output {:vcs-config/keys [trunk-bookmark] :as vcs-config}]

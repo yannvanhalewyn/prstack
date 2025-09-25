@@ -4,7 +4,8 @@
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.tty :as tty]
-    [prstack.vcs :as vcs]))
+    [prstack.vcs :as vcs]
+    [prstack.utils :as u]))
 
 (defonce app-state
   (atom {::stack-selection-idx 0
@@ -30,6 +31,13 @@
         {:pr/url
          (vcs/find-pr head-branch base-branch)}))))
 
+(defmethod dispatch! :event/run-diff
+  [[_ from-sha to-sha]]
+  (tty/close!
+    {:after-close
+     #(u/shell-out ["/Users/yannvanhalewyn/repos/nvim-macos-x86_64/bin/nvim" "-c"
+                    (str "DiffviewOpen " from-sha "..." to-sha)])}))
+
 (defn- render-stacks
   [{:keys [stacks vcs-config] ::keys [prs]}]
   (if (empty? stacks)
@@ -47,6 +55,15 @@
                         #(min (dec (count flatstack)) (inc %)))
              (int \k) (swap! app-state update ::stack-selection-idx
                         #(max 0 (dec %)))
+             (int \d)
+             (when-not (>= (::stack-selection-idx state*) (count flatstack))
+               (let [selected-change (nth flatstack (::stack-selection-idx state*))
+                     prev-change (nth flatstack (inc (::stack-selection-idx state*)))]
+                 (dispatch! [:event/run-diff
+                             (or
+                               (:change/commit-sha prev-change)
+                               (vcs/local-branchname prev-change))
+                             (:change/commit-sha selected-change)])))
              (int \o)
              (let [selected-change (nth flatstack (::stack-selection-idx state*))
                    head-branch (vcs/local-branchname selected-change)
@@ -103,17 +120,13 @@
         stacks (mapv (comp vec reverse) (stack/get-current-stacks vcs-config))]
     (swap! app-state assoc ::stacks stacks)
     (tty/run-ui!
-      (try
-        (tty/render! app-state
-          (tty/component
-            {:on-key-press #(when (= % (int \q))
-                              (tty/close!))}
-            (fn [state]
-              (render-stacks
-                {:stacks stacks
-                 ::prs (::prs state)
-                 :vcs-config vcs-config
-                 :include-prs? true}))))
-        #_
-          (catch Exception e
-            (println "EXCEPTION" (java.time.Instant/now)))))))
+      (tty/render! app-state
+        (tty/component
+          {:on-key-press #(when (= % (int \q))
+                            (tty/close!))}
+          (fn [state]
+            (render-stacks
+              {:stacks stacks
+               ::prs (::prs state)
+               :vcs-config vcs-config
+               :include-prs? true})))))))

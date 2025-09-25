@@ -182,7 +182,7 @@
         (reset! running-ui {::close-fns [#(future-cancel key-handler)]})
         (f)
         @key-handler
-        (catch CancellationException _e)
+        (catch CancellationException _e) ;; The keyhandler can get cancelled
         (finally
           (exit-fullscreen!)
           (doseq [f (::after-close-fns @running-ui)]
@@ -194,7 +194,6 @@
   ([{:keys [after-close]}]
    (when after-close
      (swap! running-ui update ::after-close-fns conj after-close))
-
    (let [close-fns (::close-fns @running-ui)]
      (doseq [f close-fns]
        (f)))))
