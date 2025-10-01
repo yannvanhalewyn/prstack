@@ -56,6 +56,15 @@
       (let [color-codes (str/join "" (map colors (u/vectorize color-keys)))]
         (str color-codes text (colors :reset))))))
 
+;; Terminal dimensions
+(defn get-terminal-size []
+  (let [result (-> (p/shell {:out :string} "stty size")
+                 :out str/trim)]
+    (when-not (str/blank? result)
+      (let [[rows cols] (str/split result #" ")]
+        {:rows (Integer/parseInt rows)
+         :cols (Integer/parseInt cols)}))))
+
 ;; Terminal state management
 (defn run-in-raw-mode [f]
   (let [original-state (-> (p/shell {:out :string} "stty -g")
@@ -132,12 +141,28 @@
                   ["foo"]])
     {}))
 
+(defn add-padding
+  "Adds padding around lines based on terminal size"
+  [lines & [{:keys [top bottom left right] :or {top 1 bottom 1 left 2 right 2}}]]
+  (let [{:keys [rows cols]} (get-terminal-size)]
+    (when (and rows cols)
+      (let [max-content-width (- cols left right)
+            padded-lines (map #(str (str/join (repeat left " "))
+                                   (if (> (count %) max-content-width)
+                                     (subs % 0 max-content-width)
+                                     %)
+                                   (str/join (repeat right " "))) lines)
+            top-padding (repeat top "")
+            bottom-padding (repeat bottom "")]
+        (concat top-padding padded-lines bottom-padding)))))
+
 (defn refresh-screen!
-  "Renders lines to terminal"
+  "Renders lines to terminal with padding"
   [lines]
   (clear-screen!)
-  (doseq [line lines]
-    (print line "\r\n"))
+  (let [padded-lines (or (add-padding lines) lines)]
+    (doseq [line padded-lines]
+      (print line "\r\n")))
   (flush))
 
 (def ^:private running-ui (atom nil))

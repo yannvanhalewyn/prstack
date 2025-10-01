@@ -1,11 +1,12 @@
 (ns prstack.app
   (:require
     [clojure.java.browse :as browse]
+    [clojure.string :as str]
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.tty :as tty]
-    [prstack.vcs :as vcs]
-    [prstack.utils :as u]))
+    [prstack.utils :as u]
+    [prstack.vcs :as vcs]))
 
 (defonce app-state
   (atom {::stack-selection-idx 0
@@ -114,6 +115,14 @@
 
                       :else ""))))])))))
 
+(defn- render-keybindings []
+  (let [{:keys [cols]} (tty/get-terminal-size)
+        separator (str/join (repeat (or cols 80) "\u2500"))
+        keybindings ["j/k: Navigate" "d: Diff" "o: Open PR" "q: Quit"]]
+    [""
+     (tty/colorize :gray separator)
+     (tty/colorize :gray (str/join "  " keybindings))]))
+
 (defn run! []
   (let [config (config/read-local)
         vcs-config (vcs/config)
@@ -125,8 +134,9 @@
           {:on-key-press #(when (= % (int \q))
                             (tty/close!))}
           (fn [state]
-            (render-stacks
-              {:stacks stacks
-               ::prs (::prs state)
-               :vcs-config vcs-config
-               :include-prs? true})))))))
+            [(render-stacks
+               {:stacks stacks
+                ::prs (::prs state)
+                :vcs-config vcs-config
+                :include-prs? true})
+             (render-keybindings)]))))))
