@@ -35,12 +35,27 @@
         {:pr/url
          (vcs/find-pr head-branch base-branch)}))))
 
+(defmethod dispatch! :event/open-pr
+  [_evt]
+  (let [state @app-state
+        flatstack (apply concat @(:app-state/all-stacks state))
+        selected-change (nth flatstack (:app-state/selected-item-idx state))
+        head-branch (vcs/local-branchname selected-change)
+        base-branch (vcs/local-branchname (nth flatstack (inc (:app-state/selected-item-idx state))))]
+    (when-let [url (get-in state [:app-state/prs head-branch base-branch :pr/url])]
+      (browse/browse-url url))))
+
 (defmethod dispatch! :event/run-diff
   [[_ from-sha to-sha]]
-  (tty/close!
-    {:after-close
-     #(u/shell-out ["/Users/yannvanhalewyn/repos/nvim-macos-x86_64/bin/nvim" "-c"
-                    (str "DiffviewOpen " from-sha "..." to-sha)])}))
+  (swap! app-state assoc ::run-in-fg
+    #(u/shell-out ["/Users/yannvanhalewyn/repos/nvim-macos-x86_64/bin/nvim" "-c"
+                   (str "DiffviewOpen " from-sha "..." to-sha)]))
+  (tty/close!))
+
+(defmethod dispatch! :event/sync
+  [_evt]
+  (swap! app-state assoc ::run-in-fg #((:exec commands.sync/command) []))
+  (tty/close!))
 
 (defmethod dispatch! :event/select-tab
   [[_ tab-idx]]
@@ -53,35 +68,30 @@
     (tty/component
       {:on-key-press
        (fn [key]
-         (let [state* @app-state
-               flatstack (apply concat stacks)]
+         (let [state* @app-state ]
            (condp = key
              ;; Arrow keys are actually the following sequence
              ;; 27 91 68 (map char [27 91 68])
              ;; So need to keep a stack of recent keys to check for up/down
              (int \j) (swap! app-state update :app-state/selected-item-idx
-                        #(min (dec (count flatstack)) (inc %)))
+                        #(min (dec (count (apply concat stacks))) (inc %)))
              (int \k) (swap! app-state update :app-state/selected-item-idx
                         #(max 0 (dec %)))
              (int \d)
-             (when-not (>= (:app-state/selected-item-idx state*) (count flatstack))
-               (let [selected-change (nth flatstack (:app-state/selected-item-idx state*))
-                     prev-change (nth flatstack (inc (:app-state/selected-item-idx state*)))]
-                 (dispatch! [:event/run-diff
-                             (or
-                               (:change/commit-sha prev-change)
-                               (vcs/local-branchname prev-change))
-                             (:change/commit-sha selected-change)])))
+             (let [flatstack (apply concat stacks)]
+               (when-not (>= (:app-state/selected-item-idx state*) (count flatstack))
+                 (let [
+                       selected-change (nth flatstack (:app-state/selected-item-idx state*))
+                       prev-change (nth flatstack (inc (:app-state/selected-item-idx state*)))]
+                   (dispatch! [:event/run-diff
+                               (or
+                                 (:change/commit-sha prev-change)
+                                 (vcs/local-branchname prev-change))
+                               (:change/commit-sha selected-change)]))))
              (int \o)
-             (let [selected-change (nth flatstack (:app-state/selected-item-idx state*))
-                   head-branch (vcs/local-branchname selected-change)
-                   base-branch (vcs/local-branchname (nth flatstack (inc (:app-state/selected-item-idx state*))))]
-               (when-let [url (get-in state* [:app-state/prs head-branch base-branch :pr/url])]
-                 (browse/browse-url url)))
+             (dispatch! [:event/open-pr])
              (int \s)
-             (tty/close!
-               {:after-close
-                #((:exec commands.sync/command) [])})
+             (dispatch! [:event/sync])
              nil)))}
       (fn [state]
         (let [max-width
@@ -171,7 +181,7 @@
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)
         separator (str/join (repeat (or cols 80) "\u2500"))
-        keybindings ["1/2/3: Switch tabs" "j/k: Navigate" "d: Diff" "o: Open PR" "s: Sync" "q: Quit"]]
+        keybindings ["[0-9]: Switch tabs" "j/k: Navigate" "d: Diff" "o: Open PR" "s: Sync" "q: Quit"]]
     [""
      (tty/colorize :gray separator)
      (tty/colorize :gray (str/join "  " keybindings))]))
@@ -188,18 +198,23 @@
        :app-state/all-stacks
        (delay
          (mapv (comp vec reverse) (stack/get-all-stacks vcs-config config)))})
-    (tty/run-ui!
-      (tty/render! app-state
-        (tty/component
-          {:on-key-press
-           (fn [key]
-             (cond
-               (= key (int \q)) (tty/close!)
-               (= key (int \1)) (dispatch! [:event/select-tab 0])
-               (= key (int \2)) (dispatch! [:event/select-tab 1])
-               (= key (int \3)) (dispatch! [:event/select-tab 2])))}
-          (fn [state]
-            (tty/block
-              [(render-tabs state)
-               (render-tab-content state)
-               (render-keybindings)])))))))
+    (loop []
+      (tty/run-ui!
+        (tty/render! app-state
+          (tty/component
+            {:on-key-press
+             (fn [key]
+               (cond
+                 (= key (int \q)) (tty/close!)
+                 (= key (int \1)) (dispatch! [:event/select-tab 0])
+                 (= key (int \2)) (dispatch! [:event/select-tab 1])
+                 (= key (int \3)) (dispatch! [:event/select-tab 2])))}
+            (fn [state]
+              (tty/block
+                [(render-tabs state)
+                 (render-tab-content state)
+                 (render-keybindings)])))))
+      (when-let [run-in-fg (::run-in-fg @app-state)]
+        (run-in-fg)
+        (swap! app-state dissoc ::run-in-fg nil)
+        (recur)))))

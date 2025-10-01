@@ -1,6 +1,7 @@
 (ns prstack.tty
   (:require
     [clojure.string :as str]
+    [clojure.tools.logging :as log]
     [prstack.utils :as u])
   (:import
     [java.util.concurrent CancellationException]))
@@ -219,20 +220,14 @@
         (f)
         @key-handler
         (catch CancellationException _e) ;; The keyhandler can get cancelled
+        (catch Exception e
+          (log/error "Error running UI" e))
         (finally
-          (exit-fullscreen!)
-          (doseq [f (::after-close-fns @running-ui)]
-            (f)))))))
+          (exit-fullscreen!))))))
 
-(defn close!
-  ([]
-   (close! {}))
-  ([{:keys [after-close]}]
-   (when after-close
-     (swap! running-ui update ::after-close-fns conj after-close))
-   (let [close-fns (::close-fns @running-ui)]
-     (doseq [f close-fns]
-       (f)))))
+(defn close! []
+  (doseq [f (::close-fns @running-ui)]
+    (f)))
 
 (defmacro run-ui! [& body]
   `(with-running-ui (fn [] ~@body)))
