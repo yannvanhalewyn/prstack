@@ -134,9 +134,10 @@
           {:on-key-press #(when (= % (int \q))
                             (tty/close!))}
           (fn [state]
-            [(render-stacks
-               {:stacks stacks
-                ::prs (::prs state)
-                :vcs-config vcs-config
-                :include-prs? true})
-             (render-keybindings)]))))))
+            (tty/block
+              [(render-stacks
+                 {:stacks stacks
+                  ::prs (::prs state)
+                  :vcs-config vcs-config
+                  :include-prs? true})
+               (render-keybindings)])))))))

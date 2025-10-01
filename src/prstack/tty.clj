@@ -141,28 +141,34 @@
                   ["foo"]])
     {}))
 
-(defn add-padding
-  "Adds padding around lines based on terminal size"
-  [lines & [{:keys [top bottom left right] :or {top 1 bottom 1 left 2 right 2}}]]
-  (let [{:keys [rows cols]} (get-terminal-size)]
-    (when (and rows cols)
-      (let [max-content-width (- cols left right)
-            padded-lines (map #(str (str/join (repeat left " "))
-                                   (if (> (count %) max-content-width)
-                                     (subs % 0 max-content-width)
-                                     %)
-                                   (str/join (repeat right " "))) lines)
-            top-padding (repeat top "")
-            bottom-padding (repeat bottom "")]
-        (concat top-padding padded-lines bottom-padding)))))
+(defn block
+  "Creates a block component with padding around its children"
+  ([children]
+   (block {} children))
+  ([{:keys [top bottom left right] :or {top 1 bottom 1 left 2 right 2}} children]
+   (component
+     (fn [state]
+       (let [rendered-children (render-tree children state)
+             lines (::lines rendered-children)
+             {:keys [rows cols]} (get-terminal-size)]
+         (if (and rows cols)
+           (let [max-content-width (- cols left right)
+                 padded-lines (map #(str (str/join (repeat left " "))
+                                        (if (> (count %) max-content-width)
+                                          (subs % 0 max-content-width)
+                                          %)
+                                        (str/join (repeat right " "))) lines)
+                 top-padding (repeat top "")
+                 bottom-padding (repeat bottom "")]
+             (concat top-padding padded-lines bottom-padding))
+           lines))))))
 
 (defn refresh-screen!
-  "Renders lines to terminal with padding"
+  "Renders lines to terminal"
   [lines]
   (clear-screen!)
-  (let [padded-lines (or (add-padding lines) lines)]
-    (doseq [line padded-lines]
-      (print line "\r\n")))
+  (doseq [line lines]
+    (print line "\r\n"))
   (flush))
 
 (def ^:private running-ui (atom nil))
