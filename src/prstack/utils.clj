@@ -31,6 +31,14 @@
     :out
     str/trim))
 
+(defn shell [cmd & [{:keys [echo? dir]}]]
+  (when echo?
+    (println (colorize :gray (str "$ " (str/join " " cmd)))))
+  (-> (p/shell cmd {:out :string :dir dir})
+    p/check
+    :out
+    str/trim))
+
 (defn shell-out [cmd & [{:keys [echo?]}]]
   (when echo?
     (println (colorize :gray (str "$ " (str/join " " cmd)))))

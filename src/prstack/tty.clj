@@ -1,8 +1,6 @@
 (ns prstack.tty
   (:require
-    [babashka.process :as p]
     [clojure.string :as str]
-    [clojure.tools.logging :as log]
     [prstack.utils :as u])
   (:import
     [java.util.concurrent CancellationException]))
@@ -58,22 +56,20 @@
 
 ;; Terminal dimensions
 (defn get-terminal-size []
-  (let [result (-> (p/shell {:out :string} "stty size")
-                 :out str/trim)]
+  (let [result (u/shell ["stty" "size"])]
     (when-not (str/blank? result)
-      (let [[rows cols] (str/split result #" ")]
+      (when-let [[rows cols] (str/split result #" ")]
         {:rows (Integer/parseInt rows)
          :cols (Integer/parseInt cols)}))))
 
 ;; Terminal state management
 (defn run-in-raw-mode [f]
-  (let [original-state (-> (p/shell {:out :string} "stty -g")
-                         :out str/trim)]
+  (let [original-state (u/shell ["stty" "-g"])]
     (try
-      (p/shell "stty raw -echo")
+      (u/shell ["stty" "raw" "echo"])
       (f)
       (finally
-        (p/shell (str "stty " original-state))))))
+        (u/shell ["stty" original-state])))))
 
 (defmacro in-raw-mode [& body]
   `(run-in-raw-mode (fn [] ~@body)))
@@ -112,15 +108,15 @@
      (string? comp)
      (update acc ::lines conj comp)
 
-      (fn? comp)
-      (let [result (comp state)]
-        (if (and (map? result) (contains? result ::lines))
+     (fn? comp)
+     (let [result (comp state)]
+       (if (and (map? result) (contains? result ::lines))
           ;; Function returned a render result map with lines and handlers
-          (-> acc
-              (update ::lines concat (::lines result))
-              (update ::handlers concat (::handlers result)))
+         (-> acc
+           (update ::lines concat (::lines result))
+           (update ::handlers concat (::handlers result)))
           ;; Function returned normal content, process it normally
-          (render-tree result state acc)))
+         (render-tree result state acc)))
 
      (sequential? comp)
      (reduce #(render-tree %2 state %1) acc comp)
@@ -154,23 +150,21 @@
    (block {} children))
   ([{:keys [top bottom left right] :or {top 1 bottom 1 left 2 right 2}} children]
    (fn [state]
-     (let [rendered-children (render-tree children state)
-           lines (::lines rendered-children)
-           handlers (::handlers rendered-children)
-           {:keys [rows cols]} (get-terminal-size)
-           padded-lines (if (and rows cols)
-                          (let [max-content-width (- cols left right)
-                                content-lines (map #(str (str/join (repeat left " "))
-                                                         (if (> (count %) max-content-width)
-                                                           (subs % 0 max-content-width)
-                                                           %)
-                                                         (str/join (repeat right " "))) lines)
-                                top-padding (repeat top "")
-                                bottom-padding (repeat bottom "")]
-                            (concat top-padding content-lines bottom-padding))
-                          lines)]
-       {::lines padded-lines
-        ::handlers handlers}))))
+     (-> (render-tree children state)
+       (update ::lines
+         (fn [lines]
+           (if-let [{:keys [rows cols]} (get-terminal-size)]
+             (let [max-content-width (- cols left right)]
+               (concat
+                 (repeat top "")
+                 (for [line lines]
+                   (str (str/join (repeat left " "))
+                        (if (> (count line) max-content-width)
+                          (subs line 0 max-content-width)
+                          line)
+                        (str/join (repeat right " "))))
+                 (repeat bottom "")))
+             lines)))))))
 
 (defn refresh-screen!
   "Renders lines to terminal"
