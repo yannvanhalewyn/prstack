@@ -112,8 +112,15 @@
      (string? comp)
      (update acc ::lines conj comp)
 
-     (fn? comp)
-     (render-tree (comp state) state acc)
+      (fn? comp)
+      (let [result (comp state)]
+        (if (and (map? result) (contains? result ::lines))
+          ;; Function returned a render result map with lines and handlers
+          (-> acc
+              (update ::lines concat (::lines result))
+              (update ::handlers concat (::handlers result)))
+          ;; Function returned normal content, process it normally
+          (render-tree result state acc)))
 
      (sequential? comp)
      (reduce #(render-tree %2 state %1) acc comp)
@@ -146,22 +153,24 @@
   ([children]
    (block {} children))
   ([{:keys [top bottom left right] :or {top 1 bottom 1 left 2 right 2}} children]
-   (component
-     (fn [state]
-       (let [rendered-children (render-tree children state)
-             lines (::lines rendered-children)
-             {:keys [rows cols]} (get-terminal-size)]
-         (if (and rows cols)
-           (let [max-content-width (- cols left right)
-                 padded-lines (map #(str (str/join (repeat left " "))
-                                        (if (> (count %) max-content-width)
-                                          (subs % 0 max-content-width)
-                                          %)
-                                        (str/join (repeat right " "))) lines)
-                 top-padding (repeat top "")
-                 bottom-padding (repeat bottom "")]
-             (concat top-padding padded-lines bottom-padding))
-           lines))))))
+   (fn [state]
+     (let [rendered-children (render-tree children state)
+           lines (::lines rendered-children)
+           handlers (::handlers rendered-children)
+           {:keys [rows cols]} (get-terminal-size)
+           padded-lines (if (and rows cols)
+                          (let [max-content-width (- cols left right)
+                                content-lines (map #(str (str/join (repeat left " "))
+                                                         (if (> (count %) max-content-width)
+                                                           (subs % 0 max-content-width)
+                                                           %)
+                                                         (str/join (repeat right " "))) lines)
+                                top-padding (repeat top "")
+                                bottom-padding (repeat bottom "")]
+                            (concat top-padding content-lines bottom-padding))
+                          lines)]
+       {::lines padded-lines
+        ::handlers handlers}))))
 
 (defn refresh-screen!
   "Renders lines to terminal"
