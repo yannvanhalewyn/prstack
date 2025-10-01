@@ -2,6 +2,7 @@
   (:require
     [clojure.java.browse :as browse]
     [clojure.string :as str]
+    [prstack.commands.sync :as commands.sync]
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.tty :as tty]
@@ -71,6 +72,10 @@
                    base-branch (vcs/local-branchname (nth flatstack (inc (::stack-selection-idx state*))))]
                (when-let [url (get-in state* [::prs head-branch base-branch :pr/url])]
                  (browse/browse-url url)))
+             (int \s)
+             (tty/close!
+               {:after-close
+                #((:exec commands.sync/command) [])})
              nil)))}
       (fn [state]
         (let [max-width
