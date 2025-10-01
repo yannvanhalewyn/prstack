@@ -42,9 +42,11 @@
    :yellow "\033[33m"
    :cyan "\033[36m"
    :red "\033[31m"
+   :white "\033[37m"
    :gray "\033[90m"
    :bg-light-gray "\033[47m"
-   :bg-gray "\033[100m"})
+   :bg-gray "\033[100m"
+   :bg-blue "\033[44m"})
 
 (def colorize
   (if (System/getenv "NO_COLORS")
