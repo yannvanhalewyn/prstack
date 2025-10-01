@@ -54,7 +54,7 @@
       {:on-key-press
        (fn [key]
          (let [state* @app-state
-               flatstack (apply concat (:app-state/stacks state*))]
+               flatstack (apply concat stacks)]
            (condp = key
              ;; Arrow keys are actually the following sequence
              ;; 27 91 68 (map char [27 91 68])
@@ -139,21 +139,16 @@
 (defn- render-current-stacks-tab
   [state]
   (render-stacks
-    {:stacks (:app-state/stacks state)
+    {:stacks @(:app-state/stacks state)
      :prs (:app-state/prs state)
      :vcs-config (:app-state/vcs-config state)}))
 
 (defn- render-my-stacks-tab
-  [{:app-state/keys [config vcs-config]}]
-  (spit "target/dev.logs" {:vcs-config vcs-config :config config})
-  (let [all-stacks (stack/get-all-stacks vcs-config config)]
-    (tty/component
-      {}
-      (fn [_]
-        ["My Stacks View"
-         ""
-         (tty/colorize :cyan "This shows stacks created by you")
-         (tty/colorize :gray "Feature coming soon...")]))))
+  [{:app-state/keys [all-stacks vcs-config prs]}]
+  (render-stacks
+    {:stacks @all-stacks
+     :prs prs
+     :vcs-config vcs-config}))
 
 (defn- render-all-stacks-tab
   [{:app-state/keys [config vcs-config]}]
@@ -183,12 +178,16 @@
 
 (defn run! []
   (let [config (config/read-local)
-        vcs-config (vcs/config)
-        stacks (mapv (comp vec reverse) (stack/get-current-stacks vcs-config))]
+        vcs-config (vcs/config)]
     (swap! app-state merge
-      {:app-state/stacks stacks
-       :app-state/config config
-       :app-state/vcs-config vcs-config})
+      {:app-state/config config
+       :app-state/vcs-config vcs-config
+       :app-state/stacks
+       (delay
+         (mapv (comp vec reverse) (stack/get-current-stacks vcs-config)))
+       :app-state/all-stacks
+       (delay
+         (mapv (comp vec reverse) (stack/get-all-stacks vcs-config config)))})
     (tty/run-ui!
       (tty/render! app-state
         (tty/component
