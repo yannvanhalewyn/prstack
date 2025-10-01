@@ -11,7 +11,8 @@
 
 (defonce app-state
   (atom {::stack-selection-idx 0
-         ::prs {}}))
+         ::prs {}
+         ::selected-tab 0}))
 
 (defn- format-change
   "Formats the bookmark as part of a stack at the given index"
@@ -39,6 +40,10 @@
     {:after-close
      #(u/shell-out ["/Users/yannvanhalewyn/repos/nvim-macos-x86_64/bin/nvim" "-c"
                     (str "DiffviewOpen " from-sha "..." to-sha)])}))
+
+(defmethod dispatch! :event/select-tab
+  [[_ tab-idx]]
+  (swap! app-state assoc ::selected-tab tab-idx))
 
 (defn- render-stacks
   [{:keys [stacks vcs-config] ::keys [prs]}]
@@ -120,10 +125,52 @@
 
                       :else ""))))])))))
 
+(defn- render-tabs
+  [selected-tab]
+  (let [tabs ["Current Stacks" "My Stacks" "All Stacks"]
+        render-tab (fn [idx label]
+                     (if (= idx selected-tab)
+                       (str (tty/colorize :bg-blue (tty/colorize :white (str " " label " "))))
+                       (str (tty/colorize :gray (str " " label " ")))))]
+    (cons (str/join " " (map-indexed render-tab tabs))
+      "")))
+
+(defn- render-current-stacks-tab
+  [{:keys [stacks vcs-config] ::keys [prs]}]
+  (render-stacks {:stacks stacks ::prs prs :vcs-config vcs-config}))
+
+(defn- render-my-stacks-tab
+  [{:keys [stacks vcs-config] ::keys [prs]}]
+  (tty/component
+    {}
+    (fn [_]
+      ["My Stacks View"
+       ""
+       (tty/colorize :cyan "This shows stacks created by you")
+       (tty/colorize :gray "Feature coming soon...")])))
+
+(defn- render-all-stacks-tab
+  [{:keys [stacks vcs-config] ::keys [prs]}]
+  (tty/component
+    {}
+    (fn [_]
+      ["All Stacks View"
+       ""
+       (tty/colorize :cyan "This shows all stacks in the repository")
+       (tty/colorize :gray "Feature coming soon...")])))
+
+(defn- render-tab-content
+  [selected-tab data]
+  (case selected-tab
+    0 (render-current-stacks-tab data)
+    1 (render-my-stacks-tab data)
+    2 (render-all-stacks-tab data)
+    (render-current-stacks-tab data)))
+
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)
         separator (str/join (repeat (or cols 80) "\u2500"))
-        keybindings ["j/k: Navigate" "d: Diff" "o: Open PR" "q: Quit"]]
+        keybindings ["1/2/3: Switch tabs" "j/k: Navigate" "d: Diff" "o: Open PR" "s: Sync" "q: Quit"]]
     [""
      (tty/colorize :gray separator)
      (tty/colorize :gray (str/join "  " keybindings))]))
@@ -136,13 +183,26 @@
     (tty/run-ui!
       (tty/render! app-state
         (tty/component
-          {:on-key-press #(when (= % (int \q))
-                            (tty/close!))}
+          {:on-key-press
+           (fn [key]
+             (cond
+               (= key (int \q)) (tty/close!)
+               (= key (int \1)) (dispatch! [:event/select-tab 0])
+               (= key (int \2)) (dispatch! [:event/select-tab 1])
+               (= key (int \3)) (dispatch! [:event/select-tab 2])))}
           (fn [state]
-            (tty/block
-              [(render-stacks
-                 {:stacks stacks
-                  ::prs (::prs state)
-                  :vcs-config vcs-config
-                  :include-prs? true})
-               (render-keybindings)])))))))
+            (let [selected-tab (::selected-tab state)
+                  tab-data {:stacks stacks
+                            ::prs (::prs state)
+                            :vcs-config vcs-config}]
+              ;;(tty/block
+              ;;  [(render-stacks
+              ;;     {:stacks stacks
+              ;;      ::prs (::prs state)
+              ;;      :vcs-config vcs-config
+              ;;      :include-prs? true})
+              ;;   (render-keybindings)])
+              (tty/block
+                [(render-tabs selected-tab)
+                 (render-tab-content selected-tab tab-data)
+                 (render-keybindings)]))))))))
