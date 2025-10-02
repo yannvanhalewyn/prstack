@@ -27,14 +27,14 @@
                   (map vector stack formatted-bookmarks))]
           (if include-prs?
             (let [head-branch (vcs/local-branchname change)
-                  pr-url (when-let [base-branch (vcs/local-branchname (get stack (dec i)))]
-                           (vcs/find-pr head-branch base-branch))
+                  pr (when-let [base-branch (vcs/local-branchname (get stack (dec i)))]
+                       (vcs/find-pr head-branch base-branch))
                   padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
               (println padded-bookmark
                 (cond
-                  pr-url
+                  pr
                   (str (u/colorize :green "✔") " PR Found"
-                       (u/colorize :gray (str " (" pr-url ")")))
+                       (u/colorize :gray (str " (" (:pr/number pr) ")")))
                   ;; TODO Show if 'needs push'
                   (not= head-branch (:vcs-config/trunk-bookmark vcs-config))
                   (str (u/colorize :red "X") " No PR Found")

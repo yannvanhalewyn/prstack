@@ -80,7 +80,8 @@
       {:http/status :status/pending})
     (future
       (swap! app-state assoc-in (pr-path head-branch base-branch)
-        {:pr/url (vcs/find-pr head-branch base-branch)}))))
+        (or (vcs/find-pr head-branch base-branch)
+            {:missing true})))))
 
 (defmethod dispatch! :event/refresh
   [_evt]

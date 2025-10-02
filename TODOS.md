@@ -12,6 +12,7 @@
 - [ ] ~Interesting idea: maybe someday a VS code integration
 
 Idea: UX improvement, print stack number and make it so it can refer to it in other commands
+Idea: Support other merge bases than main, where multiple PRs are stacked on a merge branch
 
 - [ ] Add config at `~/.config/prstack/config.edn`
 

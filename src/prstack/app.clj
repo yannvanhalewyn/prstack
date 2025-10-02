@@ -71,10 +71,11 @@
                          (tty/colorize :gray "Fetching...")
 
                          (:pr/url pr-info)
-                         (str (tty/colorize :green "✔") " PR Found"
-                              (tty/colorize :gray (str " (" (:pr/url pr-info) ")")))
+                         (str (tty/colorize :green "✔") " PR Found "
+                              (tty/colorize :blue (str "#" (:pr/number pr-info)))
+                              " " (:pr/title pr-info))
                          ;; TODO Show if 'needs push'
-                         (contains? pr-info :pr/url)
+                         (:missing pr-info)
                          (str (tty/colorize :red "X") " No PR Found")
 
                          :else ""))))

@@ -1,5 +1,7 @@
 (ns prstack.vcs
+  (:refer-clojure :exclude [parents])
   (:require
+    [babashka.json :as json]
     [babashka.process :as p]
     [clojure.string :as str]
     [prstack.utils :as u]))
@@ -189,12 +191,16 @@
 (defn find-pr
   [head-branch base-branch]
   (spit "target/dev.log" (str "Fetching PR for " head-branch " onto " base-branch "\n") :append true)
-  (not-empty
-    (u/run-cmd ["gh" "pr" "list"
-                "--head" head-branch
-                "--base" base-branch
-                "--limit" "1"
-                "--json" "url" "--jq" ".[0].url"])))
+  (some->
+    (json/read-str
+      (not-empty
+        (u/run-cmd ["gh" "pr" "list"
+                    "--head" head-branch
+                    "--base" base-branch
+                    "--limit" "1"
+                    "--json" "title,number,url" "--jq" ".[0]"]
+          {:dir "/Users/yannvanhalewyn/spronq/arqiver"})))
+    (update-keys #(keyword "pr" (name %)))))
 
 (defn config
   "Reads the VCS configuration"
@@ -202,4 +208,5 @@
   {:vcs-config/trunk-bookmark (detect-trunk-bookmark!)})
 
 (comment
-  (config))
+  (config)
+  (find-pr "yann/upgrade-tailwindcss" "master"))

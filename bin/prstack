@@ -6,8 +6,20 @@
                   java.io.File.
                   .getParent))
 
-(require '[babashka.classpath :as cp])
-(cp/add-classpath (str script-dir "/src"))
+(require '[babashka.classpath :as cp]
+         '[babashka.deps :as deps])
+
+;; Load dependencies from the bb.edn file in the script directory
+(let [bb-edn-path (str script-dir "/bb.edn")
+      bb-edn-content (when (.exists (java.io.File. bb-edn-path))
+                       (read-string (slurp bb-edn-path)))]
+  (when bb-edn-content
+    ;; Add paths to classpath
+    (doseq [path (:paths bb-edn-content)]
+      (cp/add-classpath (str script-dir "/" path)))
+    ;; Add dependencies
+    (when (:deps bb-edn-content)
+      (deps/add-deps {:deps (:deps bb-edn-content)}))))
 
 (require
   '[prstack.utils :as utils]

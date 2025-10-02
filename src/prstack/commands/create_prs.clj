@@ -28,13 +28,13 @@
       (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
         (let [head-branch (vcs/local-branchname next-change)
               base-branch (vcs/local-branchname cur-change)
-              pr-url (vcs/find-pr head-branch base-branch)]
-          (if pr-url
+              pr (vcs/find-pr head-branch base-branch)]
+          (if pr
             (println
               (format "PR already exists for %s onto %s, skipping. (%s)"
                 (u/colorize :blue head-branch)
                 (u/colorize :blue base-branch)
-                (u/colorize :gray pr-url)))
+                (u/colorize :gray (str "#" (:pr/number pr)))))
             (do
               (u/colorize :yellow "Checking remote branches")
               (when (ensure-remote-branch cur-change "Base branch not pushed to remote.")
