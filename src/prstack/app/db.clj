@@ -56,13 +56,12 @@
 (defn find-pr [state head-branch base-branch]
   (get-in state [:app-state/prs head-branch base-branch]))
 
-(defn current-pr-url [state]
+(defn current-pr [state]
   (when-let [{:keys [selected-change prev-change]}
              (selected-and-prev-change state)]
-    (:pr/url
-      (find-pr state
-        (vcs/local-branchname selected-change)
-        (vcs/local-branchname prev-change)))))
+    (find-pr state
+      (vcs/local-branchname selected-change)
+      (vcs/local-branchname prev-change))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
@@ -91,8 +90,19 @@
 
 (defmethod dispatch! :event/open-pr
   [_evt]
-  (when-let [url (current-pr-url @app-state)]
+  (when-let [url (:pr/url (current-pr @app-state))]
     (browse/browse-url url)))
+
+(defmethod dispatch! :event/create-pr
+  [_evt]
+  (when-let [{:keys [selected-change prev-change]}
+             (and (not (:pr/url (current-pr @app-state)))
+                  (selected-and-prev-change @app-state))]
+    (swap! app-state assoc :app-state/run-in-fg
+      #(vcs/create-pr!
+         (vcs/local-branchname selected-change)
+         (vcs/local-branchname prev-change)))
+    (tty/close!)))
 
 (defmethod dispatch! :event/sync
   [_evt]

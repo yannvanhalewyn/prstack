@@ -31,6 +31,7 @@
          (int \k) (app.db/dispatch! [:event/move-up])
          (int \d) (app.db/dispatch! [:event/run-diff])
          (int \o) (app.db/dispatch! [:event/open-pr])
+         (int \c) (app.db/dispatch! [:event/create-pr])
          (int \s) (app.db/dispatch! [:event/sync])
          nil))}
     (fn [state]
@@ -108,7 +109,7 @@
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)
         separator (str/join (repeat (or cols 80) "\u2500"))
-        keybindings ["[0-9]: Switch tabs" "j/k: Navigate" "d: Diff" "o: Open PR" "s: Sync" "q: Quit"]]
+        keybindings ["[0-9]: Switch tabs" "j/k: Navigate" "d: Diff" "o: Open PR" "c: Create PR" "s: Sync" "q: Quit"]]
     [""
      (tty/colorize :gray separator)
      (tty/colorize :gray (str/join "  " keybindings))]))
