@@ -222,6 +222,7 @@
 (defn register-key-handler [f]
   (future
     (loop []
+      (spit "target/dev.log" (str "Key handler " "\n") :append true)
       (f (.read System/in))
       (recur))))
 

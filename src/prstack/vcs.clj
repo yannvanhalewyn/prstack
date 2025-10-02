@@ -33,16 +33,14 @@
 (defn find-megamerge [start-ref]
   (-> (u/run-cmd ["jj" "log" "--no-graph"
                   "-r" (format "ancestors(%s) & merges()" start-ref)
-                  "-T" "change_id.short()"]
-        {:dir ",local/test-repo"})
+                  "-T" "change_id.short()"])
     (str/trim)
     (not-empty)))
 
 (defn parents [ref]
   (->> (u/run-cmd ["jj" "log" "--no-graph"
                    "-r" (format "parents(%s)" ref)
-                   "-T" "separate(';', change_id.short(), local_bookmarks, remote_bookmarks) ++ '\n'"]
-         {:dir ",local/test-repo"})
+                   "-T" "separate(';', change_id.short(), local_bookmarks, remote_bookmarks) ++ '\n'"])
     (str/split-lines)
     (map #(str/split % #";"))
     (map #(zipmap [:change/change-id :change/local-bookmarks :change/remote-bookmarks] %))))
@@ -181,8 +179,22 @@
     (not= local-trunk-ref remote-trunk-ref)))
 
 (defn create-pr! [head-branch base-branch]
-  (u/shell-out
+  (comment ;; This works as expected
+   (u/shell-out
+     ["echo" "pr" "create" "--head" head-branch "--base" base-branch]
+     {:echo? true})
+   (println (.read System/in))
+   (Thread/sleep 5000))
+  ;; This doesn't
+  (u/shell-out-interactive
     ["gh" "pr" "create" "--head" head-branch "--base" base-branch]
+    {:echo? true}))
+
+(defn merge-pr! [pr-number]
+  ;; This fails using jujutsu after the fact, because there is no branch.
+  ;; maybe choose not to delete local branch?
+  (u/shell-out
+    ["gh" "pr" "merge" pr-number]
     {:echo? true}))
 
 (defn find-pr
@@ -195,8 +207,7 @@
                     "--head" head-branch
                     "--base" base-branch
                     "--limit" "1"
-                    "--json" "title,number,url" "--jq" ".[0]"]
-          {:dir "/Users/yannvanhalewyn/spronq/arqiver"})))
+                    "--json" "title,number,url" "--jq" ".[0]"])))
     (update-keys #(keyword "pr" (name %)))))
 
 (defn config

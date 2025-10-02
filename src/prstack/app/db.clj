@@ -5,6 +5,7 @@
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.tty :as tty]
+    [prstack.tty2 :as tty2]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
@@ -34,6 +35,10 @@
       [0 []]
       stacks)))
 
+(defn- largest-ui-index [stacks]
+  (when-let [indexes (seq (keep :ui/idx (stack/leaves stacks)))]
+    (apply max indexes)))
+
 (comment
   (assoc-ui-indices
     [[{:change/local-bookmarks ["main"]}
@@ -51,10 +56,12 @@
 
 (defn selected-and-prev-change [state]
   (let [leaves (stack/leaves (displayed-stacks state))
-        idx (:app-state/selected-item-idx state)]
-    (when (< idx (dec (count leaves)))
-      {:selected-change (nth leaves idx)
-       :prev-change (nth leaves (inc idx))})))
+        idx (:app-state/selected-item-idx state)
+        pairs (u/consecutive-pairs leaves)]
+    (when-let [[selected-change prev-change]
+               (u/find-first #(= (:ui/idx (first %)) idx) pairs)]
+      {:selected-change selected-change
+       :prev-change prev-change})))
 
 (defn pr-path [head-branch base-branch]
   [:app-state/prs head-branch base-branch])
@@ -138,6 +145,18 @@
           (vcs/create-pr! head-branch base-branch)))
       (tty/close!))))
 
+(defmethod dispatch! :event/merge-pr
+  [_evt]
+  (when-let [current-pr (current-pr @app-state)]
+    (swap! app-state assoc :app-state/run-in-fg
+      (fn []
+        (when (tty2/prompt-yes
+                (format "Would you like to merge PR %s %s?"
+                  (tty/colorize :blue (str "#" (:pr/number current-pr)))
+                  (:pr/title current-pr)))
+          (vcs/merge-pr! (:pr/number current-pr)))))
+    (tty/close!)))
+
 (defmethod dispatch! :event/sync
   [_evt]
   (swap! app-state assoc :app-state/run-in-fg
@@ -155,9 +174,9 @@
 
 (defmethod dispatch! :event/move-down
   [_evt]
-  (swap! app-state update :app-state/selected-item-idx
-    #(min (apply max (keep :ui/idx (stack/leaves (displayed-stacks @app-state))))
-       (inc %))))
+  (when-let [largest-idx (largest-ui-index (displayed-stacks @app-state))]
+    (swap! app-state update :app-state/selected-item-idx
+      #(min largest-idx (inc %)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subscriptions
