@@ -1,19 +1,12 @@
 (ns prstack.app
   (:refer-clojure :exclude [run!])
   (:require
-    [clojure.java.browse :as browse]
     [clojure.string :as str]
-    [prstack.commands.sync :as commands.sync]
+    [prstack.app.db :as app.db]
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.tty :as tty]
-    [prstack.utils :as u]
     [prstack.vcs :as vcs]))
-
-(defonce app-state
-  (atom {:app-state/selected-item-idx 0
-         :app-state/prs {}
-         :app-state/selected-tab 0}))
 
 (defn- format-change
   "Formats the bookmark as part of a stack at the given index"
@@ -25,95 +18,6 @@
         " \ue0a0 ")
       (vcs/local-branchname change))))
 
-(defn- assoc-ui-indices
-  "Takes a list of stacks, and assoc's a `:ui/idx` key to every change in each
-  stack in order."
-  [stacks]
-  (second
-   (reduce
-     (fn [[idx ret] stack]
-       (let [[idx stack]
-             (reduce (fn [[idx ret] change]
-                       [(inc idx) (conj ret (assoc change :ui/idx idx))])
-               [idx []]
-               stack)]
-         [idx (conj ret stack)]))
-     [0 []]
-     stacks)))
-
-(comment
-  (assoc-ui-indices
-    [[{:change/local-bookmarks ["main"]} {:change/local-bookmarks ["test"]}]
-     [{:change/local-bookmarks ["main"]} {:change/local-bookmarks ["test2"]}]]))
-
-(defn displayed-stacks [state]
-  (assoc-ui-indices
-    (stack/reverse-stacks
-      (case (:app-state/selected-tab state)
-        0 @(:app-state/current-stacks state)
-        1 @(:app-state/all-stacks state)
-        @(:app-state/all-stacks state)))))
-
-(defmulti dispatch! (fn [[evt]] evt))
-
-(defmethod dispatch! :event/fetch-pr
-  [[_ head-branch base-branch]]
-  (when-not (get-in @app-state [:app-state/prs head-branch base-branch])
-    (future
-      (swap! app-state update :app-state/prs assoc-in [head-branch base-branch]
-        {:pr/url
-         (vcs/find-pr head-branch base-branch)}))))
-
-(defmethod dispatch! :event/run-diff
-  [_evt]
-  (let [state @app-state
-        leaves (stack/leaves (displayed-stacks state))
-        idx (:app-state/selected-item-idx state)]
-   (when (< idx (dec (count leaves)))
-     (let [selected-change (nth leaves idx)
-           prev-change (nth leaves (inc idx))
-           from-ref
-           (or
-             (:change/commit-sha prev-change)
-             (vcs/local-branchname prev-change))
-           to-ref (:change/commit-sha selected-change)]
-       (swap! app-state assoc ::run-in-fg
-         #(u/shell-out ["/Users/yannvanhalewyn/repos/nvim-macos-x86_64/bin/nvim" "-c"
-                        (str "DiffviewOpen " from-ref "..." to-ref)]))
-       (tty/close!)))))
-
-(defmethod dispatch! :event/open-pr
-  [_evt]
-  (let [state @app-state
-        leaves (stack/leaves (displayed-stacks state))
-        head-branch (vcs/local-branchname
-                      (nth leaves (:app-state/selected-item-idx state)))
-        base-branch (vcs/local-branchname
-                      (nth leaves (inc (:app-state/selected-item-idx state))))]
-    (println {:head-branch head-branch :base-branch base-branch})
-    (when-let [url (get-in state [:app-state/prs head-branch base-branch :pr/url])]
-      (browse/browse-url url))))
-
-(defmethod dispatch! :event/sync
-  [_evt]
-  (swap! app-state assoc ::run-in-fg #((:exec commands.sync/command) []))
-  (tty/close!))
-
-(defmethod dispatch! :event/select-tab
-  [[_ tab-idx]]
-  (swap! app-state assoc :app-state/selected-tab tab-idx))
-
-(defmethod dispatch! :event/move-up
-  [_evt]
-  (swap! app-state update :app-state/selected-item-idx
-    #(max 0 (dec %))))
-
-(defmethod dispatch! :event/move-down
-  [_evt]
-  (swap! app-state update :app-state/selected-item-idx
-    #(min (dec (count (stack/leaves (displayed-stacks @app-state))))
-       (inc %))))
-
 (defn- render-stacks
   []
   (tty/component
@@ -123,14 +27,14 @@
          ;; Arrow keys are actually the following sequence
          ;; 27 91 68 (map char [27 91 68])
          ;; So need to keep a stack of recent keys to check for up/down
-         (int \j) (dispatch! [:event/move-down])
-         (int \k) (dispatch! [:event/move-up])
-         (int \d) (dispatch! [:event/run-diff])
-         (int \o) (dispatch! [:event/open-pr])
-         (int \s) (dispatch! [:event/sync])
+         (int \j) (app.db/dispatch! [:event/move-down])
+         (int \k) (app.db/dispatch! [:event/move-up])
+         (int \d) (app.db/dispatch! [:event/run-diff])
+         (int \o) (app.db/dispatch! [:event/open-pr])
+         (int \s) (app.db/dispatch! [:event/sync])
          nil))}
     (fn [state]
-      (if-let [stacks (seq (displayed-stacks state))]
+      (if-let [stacks (seq (app.db/displayed-stacks state))]
         (let [max-width
               (when-let [counts
                          (seq
@@ -151,7 +55,7 @@
              (let [head-branch (vcs/local-branchname change)
                    base-branch (vcs/local-branchname (get stack (inc (:ui/idx change))))
                    pr-info (when base-branch
-                             (dispatch! [:event/fetch-pr head-branch base-branch])
+                             (app.db/dispatch! [:event/fetch-pr head-branch base-branch])
                              (or (get-in (:app-state/prs state) [head-branch base-branch])
                                  {:http/status :pending}))
                    padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
@@ -212,28 +116,28 @@
 (defn run! []
   (let [config (config/read-local)
         vcs-config (vcs/config)]
-    (swap! app-state merge
+    (swap! app.db/app-state merge
       {:app-state/config config
        :app-state/vcs-config vcs-config
        :app-state/current-stacks (delay (stack/get-current-stacks vcs-config))
        :app-state/all-stacks (delay (stack/get-all-stacks vcs-config config))})
     (loop []
       (tty/run-ui!
-        (tty/render! app-state
+        (tty/render! app.db/app-state
           (tty/component
             {:on-key-press
              (fn [key]
                (cond
                  (= key (int \q)) (tty/close!)
-                 (= key (int \1)) (dispatch! [:event/select-tab 0])
-                 (= key (int \2)) (dispatch! [:event/select-tab 1])
-                 (= key (int \3)) (dispatch! [:event/select-tab 2])))}
+                 (= key (int \1)) (app.db/dispatch! [:event/select-tab 0])
+                 (= key (int \2)) (app.db/dispatch! [:event/select-tab 1])
+                 (= key (int \3)) (app.db/dispatch! [:event/select-tab 2])))}
             (fn [state]
               (tty/block
                 [(render-tabs state)
                  (render-tab-content state)
                  (render-keybindings)])))))
-      (when-let [run-in-fg (::run-in-fg @app-state)]
-        (swap! app-state dissoc ::run-in-fg nil)
+      (when-let [run-in-fg (:app-state/run-in-fg @app.db/app-state)]
+        (swap! app.db/app-state dissoc :app-state/run-in-fg nil)
         (run-in-fg)
         (recur)))))
