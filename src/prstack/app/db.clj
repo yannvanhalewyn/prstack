@@ -24,7 +24,9 @@
       (fn [[idx ret] stack]
         (let [[idx stack]
               (reduce (fn [[idx ret] change]
-                        [(inc idx) (conj ret (assoc change :ui/idx idx))])
+                        (if (= change (last stack))
+                          [idx (conj ret change)]
+                          [(inc idx) (conj ret (assoc change :ui/idx idx))]))
                 [idx []]
                 stack)]
           [idx (conj ret stack)]))
@@ -135,7 +137,7 @@
 (defmethod dispatch! :event/move-down
   [_evt]
   (swap! app-state update :app-state/selected-item-idx
-    #(min (dec (count (stack/leaves (displayed-stacks @app-state))))
+    #(min (apply max (keep :ui/idx (stack/leaves (displayed-stacks @app-state))))
        (inc %))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
