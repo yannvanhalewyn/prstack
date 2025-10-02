@@ -74,12 +74,20 @@
 (defmethod dispatch! :event/fetch-pr
   [[_ head-branch base-branch]]
   (when base-branch
-    (when-not (find-pr @app-state head-branch base-branch)
+    (swap! app-state assoc-in (pr-path head-branch base-branch)
+      {:http/status :status/pending})
+    (future
       (swap! app-state assoc-in (pr-path head-branch base-branch)
-        {:http/status :status/pending})
-      (future
-        (swap! app-state assoc-in (pr-path head-branch base-branch)
-          {:pr/url (vcs/find-pr head-branch base-branch)})))))
+        {:pr/url (vcs/find-pr head-branch base-branch)}))))
+
+(defmethod dispatch! :event/refresh
+  [_evt]
+  (doseq [stack (displayed-stacks @app-state)]
+    (doseq [[i change] (map-indexed vector stack)]
+      (let [head-branch (vcs/local-branchname change)
+            base-branch (vcs/local-branchname (get stack (inc i)))]
+        (when base-branch
+          (dispatch! [:event/fetch-pr head-branch base-branch]))))))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
@@ -135,5 +143,8 @@
 
 (defn sub-pr [head-branch base-branch]
   (when base-branch
-    (dispatch! [:event/fetch-pr head-branch base-branch])
+    (let [pr-info (get-in @app-state (pr-path head-branch base-branch))]
+      (when-not pr-info
+        (dispatch! [:event/fetch-pr head-branch base-branch]))
+      pr-info)
     (get-in @app-state (pr-path head-branch base-branch))))

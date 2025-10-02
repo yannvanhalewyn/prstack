@@ -108,10 +108,28 @@
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)
         separator (str/join (repeat (or cols 80) "\u2500"))
-        keybindings ["[0-9]: Switch tabs" "j/k: Navigate" "d: Diff" "o: Open PR" "c: Create PR" "s: Sync" "q: Quit"]]
+        keybindings
+        [{:keybind/display "0-9"
+          :keybind/name "Switch tabs"}
+         {:keybind/display "j/k"
+          :keybind/name "Navigate"}
+         {:keybind/display "d"
+          :keybind/name "Diff"}
+         {:keybind/display "o"
+          :keybind/name "Open PR"}
+         {:keybind/display "c"
+          :keybind/name "Create PR"}
+         {:keybind/display "s"
+          :keybind/name "Sync"}
+         {:keybind/display "r"
+          :keybind/name "Refresh"}
+         {:keybind/display "q"
+          :keybind/name "Quit"}]]
     [""
      (tty/colorize :gray separator)
-     (tty/colorize :gray (str/join "  " keybindings))]))
+     (tty/colorize :gray (str/join "  "
+                           (for [kb keybindings]
+                             (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
 
 (defn run! []
   (let [config (config/read-local)
@@ -129,6 +147,7 @@
              (fn [key]
                (cond
                  (= key (int \q)) (tty/close!)
+                 (= key (int \r)) (app.db/dispatch! [:event/refresh])
                  (= key (int \1)) (app.db/dispatch! [:event/select-tab 0])
                  (= key (int \2)) (app.db/dispatch! [:event/select-tab 1])
                  (= key (int \3)) (app.db/dispatch! [:event/select-tab 2])))}
