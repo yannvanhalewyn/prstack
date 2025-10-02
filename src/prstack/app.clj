@@ -39,33 +39,32 @@
         (let [max-width
               (when-let [counts
                          (seq
-                           (mapcat (fn [stack]
-                                     (->> stack
-                                       (map #(format-change
-                                               {:change %
-                                                :vcs-config (:app-state/vcs-config state)}))
-                                       (map count)))
+                           (mapcat
+                             (fn [stack]
+                               (->> stack
+                                 (map #(format-change
+                                         {:change %
+                                          :vcs-config (:app-state/vcs-config state)}))
+                                 (map count)))
                              stacks))]
                 (apply max counts))]
           [(tty/colorize :cyan (str "\uf51e " "Stack"))
            (for [stack stacks
-                 [change formatted-bookmark]
+                 [i [change formatted-bookmark]]
                  (->> stack
                    (map #(format-change {:change % :vcs-config (:app-state/vcs-config state)}))
-                   (map vector stack))]
+                   (map vector stack)
+                   (map-indexed vector))]
              (let [head-branch (vcs/local-branchname change)
-                   base-branch (vcs/local-branchname (get stack (inc (:ui/idx change))))
-                   pr-info (when base-branch
-                             (app.db/dispatch! [:event/fetch-pr head-branch base-branch])
-                             (or (get-in (:app-state/prs state) [head-branch base-branch])
-                                 {:http/status :pending}))
+                   base-branch (vcs/local-branchname (get stack (inc i)))
+                   pr-info (app.db/sub-pr head-branch base-branch)
                    padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
                (str (if (= (:ui/idx change) (:app-state/selected-item-idx state))
                       (tty/colorize :bg-gray padded-bookmark)
                       padded-bookmark)
                     " "
                     (cond
-                      (= (:http/status pr-info) :pending)
+                      (= (:http/status pr-info) :status/pending)
                       (tty/colorize :gray "Fetching...")
 
                       (:pr/url pr-info)

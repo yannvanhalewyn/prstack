@@ -53,8 +53,11 @@
       {:selected-change (nth leaves idx)
        :prev-change (nth leaves (inc idx))})))
 
+(defn pr-path [head-branch base-branch]
+  [:app-state/prs head-branch base-branch])
+
 (defn find-pr [state head-branch base-branch]
-  (get-in state [:app-state/prs head-branch base-branch]))
+  (get-in state (pr-path head-branch base-branch)))
 
 (defn current-pr [state]
   (when-let [{:keys [selected-change prev-change]}
@@ -70,10 +73,13 @@
 
 (defmethod dispatch! :event/fetch-pr
   [[_ head-branch base-branch]]
-  (when-not (find-pr @app-state head-branch base-branch)
-    (future
-      (swap! app-state update :app-state/prs assoc-in [head-branch base-branch]
-        {:pr/url (vcs/find-pr head-branch base-branch)}))))
+  (when base-branch
+    (when-not (find-pr @app-state head-branch base-branch)
+      (swap! app-state assoc-in (pr-path head-branch base-branch)
+        {:http/status :status/pending})
+      (future
+        (swap! app-state assoc-in (pr-path head-branch base-branch)
+          {:pr/url (vcs/find-pr head-branch base-branch)})))))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
@@ -123,3 +129,11 @@
   (swap! app-state update :app-state/selected-item-idx
     #(min (dec (count (stack/leaves (displayed-stacks @app-state))))
        (inc %))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subscriptions
+
+(defn sub-pr [head-branch base-branch]
+  (when base-branch
+    (dispatch! [:event/fetch-pr head-branch base-branch])
+    (get-in @app-state (pr-path head-branch base-branch))))

@@ -26,7 +26,12 @@
 (defn get-stack [ref vcs-config]
   (vcs/get-stack ref vcs-config))
 
-(defn reverse-stacks [stacks]
+(defn reverse-stacks
+  "Reverses the order of the changes in every stack. Stacks are represented in
+  ascending order, from trunk to each change. When rendering in the UI, we want
+  to display them in descending order, with latest change at the top and trunk
+  at the bottom."
+  [stacks]
   (mapv (comp vec reverse) stacks))
 
 (defn leaves [stacks]
