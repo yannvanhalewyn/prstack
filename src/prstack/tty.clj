@@ -211,9 +211,13 @@
     (register-key-handlers (keep :on-key-press (::handlers render)))
     (add-watch state ::renderer
       (fn [_ _ _ new-state]
-        (let [render (render-tree components new-state)]
-          (refresh-screen! (::lines render))
-          (register-key-handlers (keep :on-key-press (::handlers render))))))))
+        ;; A bit dirty for now, cleaner would be to remove the watcher when
+        ;; unmounting. Likely I need some kind of mount method that unbinds the
+        ;; refresh watcher
+        (when-not (::closed? @running-ui)
+          (let [render (render-tree components new-state)]
+            (refresh-screen! (::lines render))
+            (register-key-handlers (keep :on-key-press (::handlers render)))))))))
 
 (defn register-key-handler [f]
   (future
@@ -246,7 +250,8 @@
 
 (defn close! []
   (doseq [f (::close-fns @running-ui)]
-    (f)))
+    (f))
+  (swap! running-ui assoc ::closed? true))
 
 (defmacro run-ui! [& body]
   `(with-running-ui (fn [] ~@body)))
