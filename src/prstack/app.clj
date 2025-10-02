@@ -25,6 +25,35 @@
         " \ue0a0 ")
       (vcs/local-branchname change))))
 
+(defn- assoc-ui-indices
+  "Takes a list of stacks, and assoc's a `:ui/idx` key to every change in each
+  stack in order."
+  [stacks]
+  (second
+   (reduce
+     (fn [[idx ret] stack]
+       (let [[idx stack]
+             (reduce (fn [[idx ret] change]
+                       [(inc idx) (conj ret (assoc change :ui/idx idx))])
+               [idx []]
+               stack)]
+         [idx (conj ret stack)]))
+     [0 []]
+     stacks)))
+
+(comment
+  (assoc-ui-indices
+    [[{:change/local-bookmarks ["main"]} {:change/local-bookmarks ["test"]}]
+     [{:change/local-bookmarks ["main"]} {:change/local-bookmarks ["test2"]}]]))
+
+(defn displayed-stacks [state]
+  (assoc-ui-indices
+    (stack/reverse-stacks
+      (case (:app-state/selected-tab state)
+        0 @(:app-state/current-stacks state)
+        1 @(:app-state/all-stacks state)
+        @(:app-state/all-stacks state)))))
+
 (defmulti dispatch! (fn [[evt]] evt))
 
 (defmethod dispatch! :event/fetch-pr
@@ -35,14 +64,34 @@
         {:pr/url
          (vcs/find-pr head-branch base-branch)}))))
 
+(defmethod dispatch! :event/run-diff
+  [_evt]
+  (let [state @app-state]
+   (when-not (>= (:app-state/selected-item-idx state) 1)
+     (let [leaves (stack/leaves (displayed-stacks state))
+           selected-change (nth leaves (:app-state/selected-item-idx state))
+           prev-change (nth leaves (dec (:app-state/selected-item-idx state)))
+           from-ref
+           (or
+             (:change/commit-sha prev-change)
+             (vcs/local-branchname prev-change))
+           to-ref (:change/commit-sha selected-change)]
+       (swap! app-state assoc ::run-in-fg
+         #(u/shell-out ["/Users/yannvanhalewyn/repos/nvim-macos-x86_64/bin/nvim" "-c"
+                        (str "DiffviewOpen " from-ref "..." to-ref)]))
+       (tty/close!)))))
+
 (defmethod dispatch! :event/open-pr
   [_evt]
   (let [state @app-state
-        flatstack (apply concat @(:app-state/all-stacks state))
-        selected-change (nth flatstack (:app-state/selected-item-idx state))
-        head-branch (vcs/local-branchname selected-change)
-        base-branch (vcs/local-branchname (nth flatstack (inc (:app-state/selected-item-idx state))))]
+        leaves (stack/leaves (displayed-stacks state))
+        head-branch (vcs/local-branchname
+                      (nth leaves (:app-state/selected-item-idx state)))
+        base-branch (vcs/local-branchname
+                      (nth leaves (inc (:app-state/selected-item-idx state))))]
+    (println {:head-branch head-branch :base-branch base-branch})
     (when-let [url (get-in state [:app-state/prs head-branch base-branch :pr/url])]
+      #_
       (browse/browse-url url))))
 
 (defmethod dispatch! :event/run-diff
@@ -63,37 +112,23 @@
 
 (defn- render-stacks
   [{:keys [stacks vcs-config prs]}]
-  (if (empty? stacks)
-    (tty/colorize :cyan "No stacks detetected")
-    (tty/component
-      {:on-key-press
-       (fn [key]
-         (let [state* @app-state ]
-           (condp = key
-             ;; Arrow keys are actually the following sequence
-             ;; 27 91 68 (map char [27 91 68])
-             ;; So need to keep a stack of recent keys to check for up/down
-             (int \j) (swap! app-state update :app-state/selected-item-idx
-                        #(min (dec (count (apply concat stacks))) (inc %)))
-             (int \k) (swap! app-state update :app-state/selected-item-idx
-                        #(max 0 (dec %)))
-             (int \d)
-             (let [flatstack (apply concat stacks)]
-               (when-not (>= (:app-state/selected-item-idx state*) (count flatstack))
-                 (let [
-                       selected-change (nth flatstack (:app-state/selected-item-idx state*))
-                       prev-change (nth flatstack (inc (:app-state/selected-item-idx state*)))]
-                   (dispatch! [:event/run-diff
-                               (or
-                                 (:change/commit-sha prev-change)
-                                 (vcs/local-branchname prev-change))
-                               (:change/commit-sha selected-change)]))))
-             (int \o)
-             (dispatch! [:event/open-pr])
-             (int \s)
-             (dispatch! [:event/sync])
-             nil)))}
-      (fn [state]
+  (tty/component
+    {:on-key-press
+     (fn [key]
+       (condp = key
+         ;; Arrow keys are actually the following sequence
+         ;; 27 91 68 (map char [27 91 68])
+         ;; So need to keep a stack of recent keys to check for up/down
+         (int \j) (swap! app-state update :app-state/selected-item-idx
+                    #(min (dec (count (apply concat stacks))) (inc %)))
+         (int \k) (swap! app-state update :app-state/selected-item-idx
+                    #(max 0 (dec %)))
+         (int \d) (dispatch! [:event/run-diff])
+         (int \o) (dispatch! [:event/open-pr])
+         (int \s) (dispatch! [:event/sync])
+         nil))}
+    (fn [state]
+      (if-let [stacks (seq (displayed-stacks state))]
         (let [max-width
               (when-let [counts
                          (seq
@@ -107,19 +142,18 @@
                 (apply max counts))]
           [(tty/colorize :cyan (str "\uf51e " "Stack"))
            (for [stack stacks
-                 [i [change formatted-bookmark]]
+                 [change formatted-bookmark]
                  (->> stack
                    (map #(format-change {:change % :vcs-config vcs-config}))
-                   (map vector stack)
-                   (map-indexed vector))]
+                   (map vector stack))]
              (let [head-branch (vcs/local-branchname change)
-                   base-branch (vcs/local-branchname (get stack (inc i)))
+                   base-branch (vcs/local-branchname (get stack (inc (:ui/idx change))))
                    pr-info (when base-branch
                              (dispatch! [:event/fetch-pr head-branch base-branch])
                              (or (get-in prs [head-branch base-branch])
                                  {:http/status :pending}))
                    padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
-               (str (if (= i (:app-state/selected-item-idx state))
+               (str (if (= (:ui/idx change) (:app-state/selected-item-idx state))
                       (tty/colorize :bg-gray padded-bookmark)
                       padded-bookmark)
                     " "
@@ -134,7 +168,8 @@
                       (contains? pr-info :pr/url)
                       (str (tty/colorize :red "X") " No PR Found")
 
-                      :else ""))))])))))
+                      :else ""))))])
+        (tty/colorize :cyan "No stacks detetected")))))
 
 (defn- render-tabs
   [{:app-state/keys [selected-tab]}]
@@ -149,7 +184,7 @@
 (defn- render-current-stacks-tab
   [state]
   (render-stacks
-    {:stacks @(:app-state/stacks state)
+    {:stacks @(:app-state/current-stacks state)
      :prs (:app-state/prs state)
      :vcs-config (:app-state/vcs-config state)}))
 
@@ -192,12 +227,8 @@
     (swap! app-state merge
       {:app-state/config config
        :app-state/vcs-config vcs-config
-       :app-state/stacks
-       (delay
-         (mapv (comp vec reverse) (stack/get-current-stacks vcs-config)))
-       :app-state/all-stacks
-       (delay
-         (mapv (comp vec reverse) (stack/get-all-stacks vcs-config config)))})
+       :app-state/current-stacks (delay (stack/get-current-stacks vcs-config))
+       :app-state/all-stacks (delay (stack/get-all-stacks vcs-config config))})
     (loop []
       (tty/run-ui!
         (tty/render! app-state

@@ -221,6 +221,10 @@
         @key-handler
         (catch CancellationException _e) ;; The keyhandler can get cancelled
         (catch Exception e
+          (spit "target/dev.log"
+            (str "Error running UI: " e "\n"
+                 (with-out-str (clojure.stacktrace/print-stack-trace e)))
+            :append true)
           (log/error "Error running UI" e))
         (finally
           (exit-fullscreen!))))))

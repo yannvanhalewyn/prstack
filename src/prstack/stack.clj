@@ -2,6 +2,11 @@
   (:require
     [prstack.vcs :as vcs]))
 
+(def ^:lsp/allow-unused Stack
+  ;; Every leaf is a bookmark change. The stack of changes is ordered from
+  ;; trunk change to each leaf
+  [:sequential vcs/Change])
+
 (defn- into-stacks
   [{:keys [ignored-bookmarks]} {:vcs-config/keys [trunk-bookmark] :as vcs-config}
    leaves]
@@ -20,6 +25,12 @@
 
 (defn get-stack [ref vcs-config]
   (vcs/get-stack ref vcs-config))
+
+(defn reverse-stacks [stacks]
+  (mapv (comp vec reverse) stacks))
+
+(defn leaves [stacks]
+  (apply concat stacks))
 
 (comment
   (get-current-stacks {:vcs-config/trunk-bookmark "main"})
