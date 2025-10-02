@@ -1,5 +1,4 @@
 (ns prstack.main
-  (:refer-clojure :exclude [run!])
   (:require
     [prstack.app :as app]
     [prstack.commands.create-prs :as commands.create-prs]
@@ -29,7 +28,7 @@
   (println "  -h, --help  Show this help message and exit")
   (println))
 
-(defn ^:lsp/allow-unused run! [args]
+(defn -main [& args]
   (cond
     (some #{"-h" "--help"} args)
     (print-help)

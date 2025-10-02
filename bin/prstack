@@ -13,4 +13,4 @@
   '[prstack.utils :as utils]
   '[prstack.main :as main])
 
-(main/run! *command-line-args*)
+(apply main/-main *command-line-args*)

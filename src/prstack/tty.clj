@@ -206,7 +206,7 @@
       (f (.read System/in))
       (recur))))
 
-(defn- with-running-ui
+(defn with-running-ui
   "Runs function with UI system active"
   [f]
   (let [key-handler (register-key-handler
@@ -223,7 +223,7 @@
         (catch Exception e
           (spit "target/dev.log"
             (str "Error running UI: " e "\n"
-                 (with-out-str (clojure.stacktrace/print-stack-trace e)))
+                 (with-out-str (.printStackTrace e)))
             :append true)
           (log/error "Error running UI" e))
         (finally
