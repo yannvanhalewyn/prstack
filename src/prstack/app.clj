@@ -66,11 +66,12 @@
 
 (defmethod dispatch! :event/run-diff
   [_evt]
-  (let [state @app-state]
-   (when-not (>= (:app-state/selected-item-idx state) 1)
-     (let [leaves (stack/leaves (displayed-stacks state))
-           selected-change (nth leaves (:app-state/selected-item-idx state))
-           prev-change (nth leaves (dec (:app-state/selected-item-idx state)))
+  (let [state @app-state
+        leaves (stack/leaves (displayed-stacks state))
+        idx (:app-state/selected-item-idx state)]
+   (when (< idx (dec (count leaves)))
+     (let [selected-change (nth leaves idx)
+           prev-change (nth leaves (inc idx))
            from-ref
            (or
              (:change/commit-sha prev-change)
@@ -91,15 +92,7 @@
                       (nth leaves (inc (:app-state/selected-item-idx state))))]
     (println {:head-branch head-branch :base-branch base-branch})
     (when-let [url (get-in state [:app-state/prs head-branch base-branch :pr/url])]
-      #_
       (browse/browse-url url))))
-
-(defmethod dispatch! :event/run-diff
-  [[_ from-sha to-sha]]
-  (swap! app-state assoc ::run-in-fg
-    #(u/shell-out ["/Users/yannvanhalewyn/repos/nvim-macos-x86_64/bin/nvim" "-c"
-                   (str "DiffviewOpen " from-sha "..." to-sha)]))
-  (tty/close!))
 
 (defmethod dispatch! :event/sync
   [_evt]
@@ -110,8 +103,19 @@
   [[_ tab-idx]]
   (swap! app-state assoc :app-state/selected-tab tab-idx))
 
+(defmethod dispatch! :event/move-up
+  [_evt]
+  (swap! app-state update :app-state/selected-item-idx
+    #(max 0 (dec %))))
+
+(defmethod dispatch! :event/move-down
+  [_evt]
+  (swap! app-state update :app-state/selected-item-idx
+    #(min (dec (count (stack/leaves (displayed-stacks @app-state))))
+       (inc %))))
+
 (defn- render-stacks
-  [{:keys [stacks vcs-config prs]}]
+  [{:keys [vcs-config prs]}]
   (tty/component
     {:on-key-press
      (fn [key]
@@ -119,10 +123,8 @@
          ;; Arrow keys are actually the following sequence
          ;; 27 91 68 (map char [27 91 68])
          ;; So need to keep a stack of recent keys to check for up/down
-         (int \j) (swap! app-state update :app-state/selected-item-idx
-                    #(min (dec (count (apply concat stacks))) (inc %)))
-         (int \k) (swap! app-state update :app-state/selected-item-idx
-                    #(max 0 (dec %)))
+         (int \j) (dispatch! [:event/move-down])
+         (int \k) (dispatch! [:event/move-up])
          (int \d) (dispatch! [:event/run-diff])
          (int \o) (dispatch! [:event/open-pr])
          (int \s) (dispatch! [:event/sync])
@@ -136,7 +138,7 @@
                                      (->> stack
                                        (map #(format-change
                                                {:change %
-                                                :vcs-config vcs-config}))
+                                                :vcs-config (:app-state/vcs-config state)}))
                                        (map count)))
                              stacks))]
                 (apply max counts))]
@@ -246,6 +248,6 @@
                  (render-tab-content state)
                  (render-keybindings)])))))
       (when-let [run-in-fg (::run-in-fg @app-state)]
-        (run-in-fg)
         (swap! app-state dissoc ::run-in-fg nil)
+        (run-in-fg)
         (recur)))))
