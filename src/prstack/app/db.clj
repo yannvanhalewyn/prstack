@@ -2,6 +2,7 @@
   (:require
     [clojure.java.browse :as browse]
     [prstack.commands.sync :as commands.sync]
+    [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.tty :as tty]
     [prstack.utils :as u]
@@ -73,6 +74,16 @@
 
 (defmulti dispatch! (fn [[evt]] evt))
 
+(defmethod dispatch! :event/read-local-repo
+  [_evt]
+  (let [config (config/read-local)
+        vcs-config (vcs/config)]
+    (swap! app-state merge
+      {:app-state/config config
+       :app-state/vcs-config vcs-config
+       :app-state/current-stacks (delay (stack/get-current-stacks vcs-config))
+       :app-state/all-stacks (delay (stack/get-all-stacks vcs-config config))})))
+
 (defmethod dispatch! :event/fetch-pr
   [[_ head-branch base-branch]]
   (when base-branch
@@ -85,6 +96,7 @@
 
 (defmethod dispatch! :event/refresh
   [_evt]
+  (dispatch! [:event/read-local-repo])
   (doseq [stack (displayed-stacks @app-state)]
     (doseq [[cur-change prev-change] (u/consecutive-pairs stack)]
       (when prev-change

@@ -139,31 +139,25 @@
                              (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
 
 (defn run! []
-  (let [config (config/read-local)
-        vcs-config (vcs/config)]
-    (swap! app.db/app-state merge
-      {:app-state/config config
-       :app-state/vcs-config vcs-config
-       :app-state/current-stacks (delay (stack/get-current-stacks vcs-config))
-       :app-state/all-stacks (delay (stack/get-all-stacks vcs-config config))})
-    (loop []
-      (tty/run-ui!
-        (tty/render! app.db/app-state
-          (tty/component
-            {:on-key-press
-             (fn [key]
-               (cond
-                 (= key (int \q)) (tty/close!)
-                 (= key (int \r)) (app.db/dispatch! [:event/refresh])
-                 (= key (int \1)) (app.db/dispatch! [:event/select-tab 0])
-                 (= key (int \2)) (app.db/dispatch! [:event/select-tab 1])
-                 (= key (int \3)) (app.db/dispatch! [:event/select-tab 2])))}
-            (fn [state]
-              (tty/block
-                [(render-tabs state)
-                 (render-tab-content state)
-                 (render-keybindings)])))))
-      (when-let [run-in-fg (:app-state/run-in-fg @app.db/app-state)]
-        (swap! app.db/app-state dissoc :app-state/run-in-fg nil)
-        (run-in-fg)
-        (recur)))))
+  (app.db/dispatch! [:event/read-local-repo])
+  (loop []
+    (tty/run-ui!
+      (tty/render! app.db/app-state
+        (tty/component
+          {:on-key-press
+           (fn [key]
+             (cond
+               (= key (int \q)) (tty/close!)
+               (= key (int \r)) (app.db/dispatch! [:event/refresh])
+               (= key (int \1)) (app.db/dispatch! [:event/select-tab 0])
+               (= key (int \2)) (app.db/dispatch! [:event/select-tab 1])
+               (= key (int \3)) (app.db/dispatch! [:event/select-tab 2])))}
+          (fn [state]
+            (tty/block
+              [(render-tabs state)
+               (render-tab-content state)
+               (render-keybindings)])))))
+    (when-let [run-in-fg (:app-state/run-in-fg @app.db/app-state)]
+      (swap! app.db/app-state dissoc :app-state/run-in-fg nil)
+      (run-in-fg)
+      (recur))))
