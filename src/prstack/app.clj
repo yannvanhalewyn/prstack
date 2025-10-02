@@ -115,7 +115,7 @@
        (inc %))))
 
 (defn- render-stacks
-  [{:keys [vcs-config prs]}]
+  []
   (tty/component
     {:on-key-press
      (fn [key]
@@ -146,13 +146,13 @@
            (for [stack stacks
                  [change formatted-bookmark]
                  (->> stack
-                   (map #(format-change {:change % :vcs-config vcs-config}))
+                   (map #(format-change {:change % :vcs-config (:app-state/vcs-config state)}))
                    (map vector stack))]
              (let [head-branch (vcs/local-branchname change)
                    base-branch (vcs/local-branchname (get stack (inc (:ui/idx change))))
                    pr-info (when base-branch
                              (dispatch! [:event/fetch-pr head-branch base-branch])
-                             (or (get-in prs [head-branch base-branch])
+                             (or (get-in (:app-state/prs state) [head-branch base-branch])
                                  {:http/status :pending}))
                    padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
                (str (if (= (:ui/idx change) (:app-state/selected-item-idx state))
@@ -183,25 +183,11 @@
     [(str/join "  |  " (map-indexed render-tab tabs))
      ""]))
 
-(defn- render-current-stacks-tab
-  [state]
-  (render-stacks
-    {:stacks @(:app-state/current-stacks state)
-     :prs (:app-state/prs state)
-     :vcs-config (:app-state/vcs-config state)}))
-
-(defn- render-my-stacks-tab
-  [{:app-state/keys [all-stacks vcs-config prs]}]
-  (render-stacks
-    {:stacks @all-stacks
-     :prs prs
-     :vcs-config vcs-config}))
-
 (defn- render-all-stacks-tab
-  [{:app-state/keys [config vcs-config]}]
+  []
   (tty/component
     {}
-    (fn [_]
+    (fn [_state]
       ["All Stacks View"
        ""
        (tty/colorize :cyan "This shows all stacks in the repository")
@@ -210,10 +196,10 @@
 (defn- render-tab-content
   [state]
   (case (:app-state/selected-tab state)
-    0 (render-current-stacks-tab state)
-    1 (render-my-stacks-tab state)
-    2 (render-all-stacks-tab state)
-    (render-current-stacks-tab state)))
+    0 (render-stacks)
+    1 (render-stacks)
+    2 (render-all-stacks-tab)
+    (render-stacks)))
 
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)
