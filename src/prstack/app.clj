@@ -6,17 +6,19 @@
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.tty :as tty]
+    [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
 (defn- format-change
   "Formats the bookmark as part of a stack at the given index"
-  [{:keys [vcs-config change]}]
-  (let [branchname (vcs/local-branchname change) ]
-    (str
-      (if (= branchname (:vcs-config/trunk-bookmark vcs-config))
-        " \ue729 " #_"└─" #_" \ueb06 "  #_" \ueafc "
-        " \ue0a0 ")
-      (vcs/local-branchname change))))
+  ([change]
+   (format-change change {}))
+  ([change {:keys [trunk?]}]
+   (str
+     (if trunk?
+       " \ue729 " #_"└─" #_" \ueb06 "  #_" \ueafc "
+       " \ue0a0 ")
+     (vcs/local-branchname change))))
 
 (defn- render-stacks
   []
@@ -41,40 +43,44 @@
                          (seq
                            (mapcat
                              (fn [stack]
-                               (->> stack
-                                 (map #(format-change
-                                         {:change %
-                                          :vcs-config (:app-state/vcs-config state)}))
-                                 (map count)))
+                               (map (comp count format-change) stack))
                              stacks))]
                 (apply max counts))]
-          [(tty/colorize :cyan (str "\uf51e " "Stack"))
-           (for [stack stacks
-                 [i [change formatted-bookmark]]
-                 (->> stack
-                   (map #(format-change {:change % :vcs-config (:app-state/vcs-config state)}))
-                   (map vector stack)
-                   (map-indexed vector))]
-             (let [head-branch (vcs/local-branchname change)
-                   base-branch (vcs/local-branchname (get stack (inc i)))
-                   pr-info (app.db/sub-pr head-branch base-branch)
-                   padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
-               (str (if (= (:ui/idx change) (:app-state/selected-item-idx state))
-                      (tty/colorize :bg-gray padded-bookmark)
-                      padded-bookmark)
-                    " "
-                    (cond
-                      (= (:http/status pr-info) :status/pending)
-                      (tty/colorize :gray "Fetching...")
+          (for [[i stack] (u/indexed stacks)]
+            (concat
+              [(tty/colorize :cyan
+                 ;; TODO better detect current stack in megamerges for example
+                 (str "\uf51e " (if (zero? i) "Current Stack" "Other Stack")))]
+              (for [[cur-change prev-change]
+                    (u/consecutive-pairs
+                      (for [change stack]
+                        (assoc change
+                          :ui/formatted-change
+                          (format-change change))))]
+                (let [pr-info (app.db/sub-pr
+                                (vcs/local-branchname cur-change)
+                                (vcs/local-branchname prev-change))
+                      padded-bookmark (format (str "%-" max-width "s")
+                                        (:ui/formatted-change cur-change))]
+                  (str (if (= (:ui/idx cur-change) (:app-state/selected-item-idx state))
+                         (tty/colorize :bg-gray padded-bookmark)
+                         padded-bookmark)
+                       " "
+                       (cond
+                         (= (:http/status pr-info) :status/pending)
+                         (tty/colorize :gray "Fetching...")
 
-                      (:pr/url pr-info)
-                      (str (tty/colorize :green "✔") " PR Found"
-                           (tty/colorize :gray (str " (" (:pr/url pr-info) ")")))
-                      ;; TODO Show if 'needs push'
-                      (contains? pr-info :pr/url)
-                      (str (tty/colorize :red "X") " No PR Found")
+                         (:pr/url pr-info)
+                         (str (tty/colorize :green "✔") " PR Found"
+                              (tty/colorize :gray (str " (" (:pr/url pr-info) ")")))
+                         ;; TODO Show if 'needs push'
+                         (contains? pr-info :pr/url)
+                         (str (tty/colorize :red "X") " No PR Found")
 
-                      :else ""))))])
+                         :else ""))))
+              [(format-change (last stack) {:trunk? true})]
+              (when-not (= i (dec (count stacks)))
+                [""]))))
         (tty/colorize :cyan "No stacks detetected")))))
 
 (defn- render-tabs

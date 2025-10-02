@@ -40,7 +40,9 @@
 (comment
   (get-current-stacks {:vcs-config/trunk-bookmark "main"})
   (get-stack "test-branch" {:vcs-config/trunk-bookmark "main"})
-  (get-all-stacks {:vcs-config/trunk-bookmark "main"} {:ignored-bookmarks #{}})
+  (get-all-stacks
+    {:vcs-config/trunk-bookmark "main"}
+    {:ignored-bookmarks #{}})
   (into-stacks
     {:ignored-bookmarks #{}}
     {:vcs-config/trunk-bookmark "main"}

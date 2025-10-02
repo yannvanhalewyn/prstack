@@ -83,11 +83,11 @@
 (defmethod dispatch! :event/refresh
   [_evt]
   (doseq [stack (displayed-stacks @app-state)]
-    (doseq [[i change] (map-indexed vector stack)]
-      (let [head-branch (vcs/local-branchname change)
-            base-branch (vcs/local-branchname (get stack (inc i)))]
-        (when base-branch
-          (dispatch! [:event/fetch-pr head-branch base-branch]))))))
+    (doseq [[cur-change prev-change] (u/consecutive-pairs stack)]
+      (when prev-change
+        (dispatch! [:event/fetch-pr
+                    (vcs/local-branchname cur-change)
+                    (vcs/local-branchname prev-change)])))))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
@@ -142,9 +142,13 @@
 ;; Subscriptions
 
 (defn sub-pr [head-branch base-branch]
+  ;;(spit "target/dev.log" (str "sub-pr " head-branch " " base-branch "\n") :append true)
   (when base-branch
     (let [pr-info (get-in @app-state (pr-path head-branch base-branch))]
       (when-not pr-info
         (dispatch! [:event/fetch-pr head-branch base-branch]))
       pr-info)
     (get-in @app-state (pr-path head-branch base-branch))))
+
+(comment
+  (displayed-stacks @app-state))

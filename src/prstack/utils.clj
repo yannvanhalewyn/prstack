@@ -54,3 +54,6 @@
     (sequential? x) (vec x)
     (nil? x) []
     :else (vector x)))
+
+(defn indexed [x]
+  (map-indexed vector x))
