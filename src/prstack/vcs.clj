@@ -103,7 +103,7 @@
       (u/run-cmd
         ["jj" "log" "--no-graph"
          "-r" (format "heads(bookmarks()) ~ %s" trunk-bookmark)
-         "-T" "separate(';', description.first_line(), change_id.short(), commit_id, local_bookmarks) ++ '\n'"])
+         "-T" "separate(';', coalesce(description.first_line(), ' '), change_id.short(), commit_id, local_bookmarks) ++ '\n'"])
       (not-empty)
       (str/split-lines))))
 
@@ -160,10 +160,9 @@
 (comment
   (str/split-lines
     (u/run-cmd (get-stack-command "@")
-      {:dir ",local/test-repo"})))
-
-(comment
-  (parse-stack (u/run-cmd (get-stack-command "test-bookmark"))
+      {:dir ",local/test-repo"}))
+  ;; Neeeds to have a 'test-branch' in current stack
+  (parse-stack (u/run-cmd (get-stack-command "test-branch"))
     {:vcs-config/trunk-bookmark "main"})
   (get-stack (config)))
 
