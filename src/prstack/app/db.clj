@@ -127,15 +127,21 @@
   (when-let [{:keys [selected-change prev-change]}
              (and (not (:pr/url (current-pr @app-state)))
                   (selected-and-prev-change @app-state))]
-    (swap! app-state assoc :app-state/run-in-fg
-      #(vcs/create-pr!
-         (vcs/local-branchname selected-change)
-         (vcs/local-branchname prev-change)))
-    (tty/close!)))
+    (let [head-branch (vcs/local-branchname selected-change)
+          base-branch (vcs/local-branchname prev-change)]
+      (swap! app-state assoc :app-state/run-in-fg
+        (fn []
+          (println "Creating PR for"
+            (tty/colorize :blue head-branch)
+            " onto "
+            (tty/colorize :blue base-branch))
+          (vcs/create-pr! head-branch base-branch)))
+      (tty/close!))))
 
 (defmethod dispatch! :event/sync
   [_evt]
-  (swap! app-state assoc :app-state/run-in-fg #((:exec commands.sync/command) []))
+  (swap! app-state assoc :app-state/run-in-fg
+    #((:exec commands.sync/command) []))
   (tty/close!))
 
 (defmethod dispatch! :event/select-tab
@@ -157,7 +163,6 @@
 ;; Subscriptions
 
 (defn sub-pr [head-branch base-branch]
-  ;;(spit "target/dev.log" (str "sub-pr " head-branch " " base-branch "\n") :append true)
   (when base-branch
     (let [pr-info (get-in @app-state (pr-path head-branch base-branch))]
       (when-not pr-info

@@ -34,6 +34,7 @@
          (int \d) (app.db/dispatch! [:event/run-diff])
          (int \o) (app.db/dispatch! [:event/open-pr])
          (int \c) (app.db/dispatch! [:event/create-pr])
+         (int \m) (app.db/dispatch! [:event/merge-pr])
          (int \s) (app.db/dispatch! [:event/sync])
          nil))}
     (fn [state]
@@ -126,6 +127,8 @@
           :keybind/name "Open PR"}
          {:keybind/display "c"
           :keybind/name "Create PR"}
+         {:keybind/display "m"
+          :keybind/name "Merge PR"}
          {:keybind/display "s"
           :keybind/name "Sync"}
          {:keybind/display "r"

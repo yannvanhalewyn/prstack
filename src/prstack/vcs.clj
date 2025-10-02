@@ -181,12 +181,9 @@
     (not= local-trunk-ref remote-trunk-ref)))
 
 (defn create-pr! [head-branch base-branch]
-  (->
-    (p/shell {:inherit true}
-      "gh" "pr" "create" "--head" head-branch "--base" base-branch)
-    p/check
-    :out
-    slurp))
+  (u/shell-out
+    ["gh" "pr" "create" "--head" head-branch "--base" base-branch]
+    {:echo? true}))
 
 (defn find-pr
   [head-branch base-branch]
