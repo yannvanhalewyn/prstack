@@ -1,6 +1,7 @@
 (ns prstack.commands.create-prs
   (:require
     [bb-tty.tty :as tty]
+    [prstack.github :as github]
     [prstack.stack :as stack]
     [prstack.ui :as ui]
     [prstack.utils :as u]
@@ -18,7 +19,7 @@
           (format "Create a PR for %s onto %s?"
             (u/colorize :blue head-branch)
             (u/colorize :blue base-branch)))
-    (vcs/create-pr! head-branch base-branch)
+    (github/create-pr! head-branch base-branch)
     (println (u/colorize :green "\n✅ Created PR ... \n"))))
 
 (defn create-prs [{:keys [stack]}]
@@ -28,7 +29,7 @@
       (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
         (let [head-branch (vcs/local-branchname next-change)
               base-branch (vcs/local-branchname cur-change)
-              pr (vcs/find-pr head-branch base-branch)]
+              pr (github/find-pr head-branch base-branch)]
           (if pr
             (println
               (format "PR already exists for %s onto %s, skipping. (%s)"

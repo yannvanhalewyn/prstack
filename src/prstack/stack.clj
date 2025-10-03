@@ -2,10 +2,18 @@
   (:require
     [prstack.vcs :as vcs]))
 
+(def Change
+  [:map
+   [:change/description :string]
+   [:change/change-id :string]
+   [:change/commit-sha :string]
+   [:change/local-bookmarks [:sequential :string]]
+   [:change/remote-bookmarks [:sequential :string]]])
+
 (def ^:lsp/allow-unused Stack
   ;; Every leaf is a bookmark change. The stack of changes is ordered from
   ;; trunk change to each leaf
-  [:sequential vcs/Change])
+  [:sequential Change])
 
 (defn- into-stacks
   [{:keys [ignored-bookmarks]} {:vcs-config/keys [trunk-bookmark] :as vcs-config}

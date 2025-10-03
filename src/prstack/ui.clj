@@ -1,7 +1,8 @@
 (ns prstack.ui
   (:require
-    [prstack.utils :as u]
-    [prstack.vcs :as vcs]))
+   [prstack.github :as github]
+   [prstack.utils :as u]
+   [prstack.vcs :as vcs]))
 
 (defn- format-change
   "Formats the bookmark as part of a stack at the given index"
@@ -28,7 +29,7 @@
           (if include-prs?
             (let [head-branch (vcs/local-branchname change)
                   pr (when-let [base-branch (vcs/local-branchname (get stack (dec i)))]
-                       (vcs/find-pr head-branch base-branch))
+                       (github/find-pr head-branch base-branch))
                   padded-bookmark (format (str "%-" max-width "s") formatted-bookmark)]
               (println padded-bookmark
                 (cond

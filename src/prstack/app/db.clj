@@ -6,6 +6,7 @@
     [clojure.java.browse :as browse]
     [prstack.commands.sync :as commands.sync]
     [prstack.config :as config]
+    [prstack.github :as github]
     [prstack.stack :as stack]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
@@ -99,7 +100,7 @@
       {:http/status :status/pending})
     (future
       (swap! app-state assoc-in (pr-path head-branch base-branch)
-        (or (vcs/find-pr head-branch base-branch)
+        (or (github/find-pr head-branch base-branch)
             {:missing true})))))
 
 (defmethod dispatch! :event/refresh
@@ -143,7 +144,7 @@
             (ansi/colorize :blue head-branch)
             " onto "
             (ansi/colorize :blue base-branch))
-          (vcs/create-pr! head-branch base-branch)))
+          (github/create-pr! head-branch base-branch)))
       (tui/close!))))
 
 (defmethod dispatch! :event/merge-pr
@@ -156,7 +157,7 @@
                   (format "Would you like to merge PR %s %s?"
                     (ansi/colorize :blue (str "#" (:pr/number current-pr)))
                     (:pr/title current-pr)))
-            (vcs/merge-pr! (:pr/number current-pr)))))
+            (github/merge-pr! (:pr/number current-pr)))))
       (tui/close!))))
 
 (defmethod dispatch! :event/sync
