@@ -100,6 +100,18 @@ Creates missing PRs for the current stack:
 ### `prstack machete`
 Exports current stack to `.git/machete` format for compatibility with Git Machete tools.
 
+## Configuration
+
+PrStack can be configured using a `.prstack/config.edn` file in your repository root:
+
+```clojure
+{:ignored-branches #{"staging" "experimental" "temp-branch"}}
+```
+
+### Configuration Options
+
+- **`:ignored-branches`** - A set of branch names to exclude from stack discovery and operations. Useful for filtering out temporary, experimental, or staging branches that shouldn't be part of your PR workflow.
+
 ## Installation
 
 ```bash
