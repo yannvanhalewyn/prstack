@@ -1,6 +1,5 @@
 (ns prstack.tty
   (:require
-    [clojure.core.async :as a]
     [clojure.string :as str]
     [clojure.tools.logging :as log]
     [prstack.utils :as u]))
@@ -218,8 +217,8 @@
 
 (defn run-event-loop! [f]
   (let [running? (atom true)
-        event-loop-chan
-        (a/thread
+        event-loop
+        (future
           (loop []
             (when @running?
               (let [key (.read System/in)]
@@ -228,12 +227,12 @@
                 (f key)
                 (recur))))
           (spit "target/dev.log" (str "Stopping event loop\n") :append true))]
-    [event-loop-chan #(reset! running? false)]))
+    [event-loop #(reset! running? false)]))
 
 (defn with-running-ui
   "Runs function with UI system active"
   [f]
-  (let [[event-loop-chan stop-event-loop]
+  (let [[event-loop stop-event-loop]
         (run-event-loop!
           (fn [k]
             (when-let [f (::keydown-handler @running-ui)]
@@ -244,7 +243,7 @@
         (reset! running-ui
           {::close-fns [stop-event-loop]})
         (f)
-        (a/<!! event-loop-chan)
+        @event-loop
         (catch Exception e
           (spit "target/dev.log"
             (str "Error running UI: " e "\n"
