@@ -1,6 +1,14 @@
+![PrStack TUI](.github/prstack_tui.png)
+
 # PrStack
 
-A VCS-agnostic CLI tool for effortless PR stack management that adapts to your development workflow.
+A VCS-agnostic CLI and TUI app for effortless PR stack management that embraces the chaos of day-to-day development.
+
+## CLI + TUI: Your Choice
+
+PrStack offers two ways to work:
+- **TUI App**: Run `prstack` for an interactive terminal interface to detect, navigate, and manage your stacks with visual diffs, PR creation, merging, and more
+- **CLI Commands**: Use individual commands like `prstack sync` for quick, scriptable operations in your existing workflow
 
 ## Philosophy: Freedom from Fixed Stacks
 
@@ -57,7 +65,16 @@ PrStack supports multiple version control systems:
 
 Since [Jujutsu](https://github.com/martinvonz/jj) is branchless by design, PrStack continues this philosophy by constantly adapting to the current shape of your development tree, rather than forcing you into rigid branch structures.
 
-## Commands
+## Usage
+
+### TUI App
+Run `prstack` without arguments to launch the interactive TUI:
+- Detect and navigate through your PR stacks
+- View visual diffs between branches
+- Create, refresh, and merge PRs interactively
+- Full stack management in a terminal interface
+
+### CLI Commands
 
 ### `prstack sync`
 Syncs your current stack with the remote:
