@@ -43,10 +43,10 @@
 
 (comment
   (assoc-ui-indices
-    [[{:change/local-bookmarks ["main"]}
-      {:change/local-bookmarks ["feature-a"]}]
-     [{:change/local-bookmarks ["main"]}
-      {:change/local-bookmarks ["hotfix"]}]]))
+    [[{:change/local-branches ["main"]}
+      {:change/local-branches ["feature-a"]}]
+     [{:change/local-branches ["main"]}
+      {:change/local-branches ["hotfix"]}]]))
 
 (defn displayed-stacks [state]
   (assoc-ui-indices

@@ -10,7 +10,7 @@
     [prstack.vcs :as vcs]))
 
 (defn- format-change
-  "Formats the bookmark as part of a stack at the given index"
+  "Formats the branch as part of a stack at the given index"
   ([change]
    (format-change change {}))
   ([change {:keys [trunk?]}]
@@ -61,11 +61,11 @@
                 (let [pr-info (app.db/sub-pr
                                 (vcs/local-branchname cur-change)
                                 (vcs/local-branchname prev-change))
-                      padded-bookmark (format (str "%-" max-width "s")
+                      padded-branch (format (str "%-" max-width "s")
                                         (:ui/formatted-change cur-change))]
                   (str (if (= (:ui/idx cur-change) (:app-state/selected-item-idx state))
-                         (ansi/colorize :bg-gray padded-bookmark)
-                         padded-bookmark)
+                         (ansi/colorize :bg-gray padded-branch)
+                         padded-branch)
                        " "
                        (cond
                          (= (:http/status pr-info) :status/pending)

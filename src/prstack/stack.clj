@@ -7,21 +7,21 @@
    [:change/description :string]
    [:change/change-id :string]
    [:change/commit-sha :string]
-   [:change/local-bookmarks [:sequential :string]]
-   [:change/remote-bookmarks [:sequential :string]]])
+   [:change/local-branches [:sequential :string]]
+   [:change/remote-branches [:sequential :string]]])
 
 (def ^:lsp/allow-unused Stack
-  ;; Every leaf is a bookmark change. The stack of changes is ordered from
+  ;; Every leaf is a change. The stack of changes is ordered from
   ;; trunk change to each leaf
   [:sequential Change])
 
 (defn- into-stacks
-  [{:keys [ignored-bookmarks]} {:vcs-config/keys [trunk-bookmark] :as vcs-config}
+  [{:keys [ignored-branches]} {:vcs-config/keys [trunk-branch] :as vcs-config}
    leaves]
   (into []
     (comp
-      (remove (comp #{trunk-bookmark} vcs/local-branchname))
-      (remove (comp ignored-bookmarks vcs/local-branchname))
+      (remove (comp #{trunk-branch} vcs/local-branchname))
+      (remove (comp ignored-branches vcs/local-branchname))
       (map #(vcs/get-stack (vcs/local-branchname %) vcs-config)))
     leaves))
 
@@ -46,12 +46,12 @@
   (apply concat stacks))
 
 (comment
-  (get-current-stacks {:vcs-config/trunk-bookmark "main"})
-  (get-stack "test-branch" {:vcs-config/trunk-bookmark "main"})
+  (get-current-stacks {:vcs-config/trunk-branch "main"})
+  (get-stack "test-branch" {:vcs-config/trunk-branch "main"})
   (get-all-stacks
-    {:vcs-config/trunk-bookmark "main"}
-    {:ignored-bookmarks #{}})
+    {:vcs-config/trunk-branch "main"}
+    {:ignored-branches #{}})
   (into-stacks
-    {:ignored-bookmarks #{}}
-    {:vcs-config/trunk-bookmark "main"}
-    [{:change/local-bookmarks ["main"]} ]))
+    {:ignored-branches #{}}
+    {:vcs-config/trunk-branch "main"}
+    [{:change/local-branches ["main"]} ]))

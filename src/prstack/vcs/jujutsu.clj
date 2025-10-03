@@ -7,7 +7,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
 
-(defn detect-trunk-bookmark
+(defn detect-trunk-branch
   "Detects wether the trunk branch is named 'master' or 'main'"
   []
   (first
@@ -21,14 +21,14 @@
           ["jj" "bookmark" "list"
            "-T" "self ++ \"\n\""])))))
 
-(defn detect-trunk-bookmark! []
-  (or (detect-trunk-bookmark)
-      (throw (ex-info "Could not detect trunk bookmark" {}))))
+(defn detect-trunk-branch! []
+  (or (detect-trunk-branch)
+      (throw (ex-info "Could not detect trunk branch" {}))))
 
 (defn config
   "Reads the VCS configuration"
   []
-  {:vcs-config/trunk-bookmark (detect-trunk-bookmark!)})
+  {:vcs-config/trunk-branch (detect-trunk-branch!)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Basic operations
@@ -50,18 +50,18 @@
                    "-T" "separate(';', change_id.short(), local_bookmarks, remote_bookmarks) ++ '\n'"])
     (str/split-lines)
     (map #(str/split % #";"))
-    (map #(zipmap [:change/change-id :change/local-bookmarks :change/remote-bookmarks] %))))
+    (map #(zipmap [:change/change-id :change/local-branches :change/remote-branches] %))))
 
-(defn trunk-moved? [{:vcs-config/keys [trunk-bookmark]}]
+(defn trunk-moved? [{:vcs-config/keys [trunk-branch]}]
   (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
                                     "-r" "fork_point(trunk() | @)"
                                     "-T" "commit_id"])
         remote-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
-                                     "-r" (str trunk-bookmark "@origin")
+                                     "-r" (str trunk-branch "@origin")
                                      "-T" "commit_id"])]
     (println (u/colorize :yellow "\nChecking if trunk moved"))
-    (println (u/colorize :cyan (str "local " trunk-bookmark)) local-trunk-ref)
-    (println (u/colorize :cyan (str "remote " trunk-bookmark)) remote-trunk-ref)
+    (println (u/colorize :cyan (str "local " trunk-branch)) local-trunk-ref)
+    (println (u/colorize :cyan (str "remote " trunk-branch)) remote-trunk-ref)
     (not= local-trunk-ref remote-trunk-ref)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -73,17 +73,17 @@
 
 (defn local-branchname [change]
   (remove-asterisk-from-branch-name
-    (first (:change/local-bookmarks change))))
+    (first (:change/local-branches change))))
 
 (defn remote-branchname [change]
   (remove-asterisk-from-branch-name
     (u/find-first
       #(not (str/ends-with? % "@git"))
-      (:change/remote-bookmarks change))))
+      (:change/remote-branches change))))
 
 (def ^:lsp/allow-unused Leaf
   [:map
-   [:change/local-bookmarks [:vector :string]]])
+   [:change/local-branches [:vector :string]]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Stack operations
@@ -93,47 +93,47 @@
    "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
    "-T" "separate(';', change_id.short(), commit_id, local_bookmarks, remote_bookmarks) ++ \"\n\""])
 
-(defn get-leaves [{:vcs-config/keys [trunk-bookmark]}]
+(defn get-leaves [{:vcs-config/keys [trunk-branch]}]
   (into
     []
     (comp
       (map #(zipmap [:change/description
                      :change/change-id
                      :change/commit-sha
-                     :change/local-bookmarks]
+                     :change/local-branches]
               (str/split % #"\;")))
-      (map #(update % :change/local-bookmarks
+      (map #(update % :change/local-branches
               (fn [bm]
                 (str/split bm #" ")))))
     (some->
       (u/run-cmd
         ["jj" "log" "--no-graph"
-         "-r" (format "heads(bookmarks()) ~ %s" trunk-bookmark)
+         "-r" (format "heads(bookmarks()) ~ %s" trunk-branch)
          "-T" "separate(';', coalesce(description.first_line(), ' '), change_id.short(), commit_id, local_bookmarks) ++ '\n'"])
       (not-empty)
       (str/split-lines))))
 
-(defn- ensure-trunk-bookmark
-  "Ensure the stack starts with the trunk bookmark. Sometimes the trunk
+(defn- ensure-trunk-branch
+  "Ensure the stack starts with the trunk branch. Sometimes the trunk
   bookmark has moved and is not included in the stack output"
-  [{:vcs-config/keys [trunk-bookmark]} stack]
-  (if (= (str/replace (local-branchname (first stack)) #"\*" "") trunk-bookmark)
+  [{:vcs-config/keys [trunk-branch]} stack]
+  (if (= (str/replace (local-branchname (first stack)) #"\*" "") trunk-branch)
     stack
-    (into [{:change/local-bookmarks [trunk-bookmark]
-            :change/remote-bookmarks [(str trunk-bookmark "@origin")]}] stack)))
+    (into [{:change/local-branches [trunk-branch]
+            :change/remote-branches [(str trunk-branch "@origin")]}] stack)))
 
 (defn- parse-change [raw-line]
   (->
     (zipmap [:change/change-id
              :change/commit-sha
-             :change/local-bookmarks
-             :change/remote-bookmarks]
+             :change/local-branches
+             :change/remote-branches]
       (str/split raw-line #";"))
-    (update :change/local-bookmarks #(str/split % #" "))
-    (update :change/remote-bookmarks #(str/split % #" "))))
+    (update :change/local-branches #(str/split % #" "))
+    (update :change/remote-branches #(str/split % #" "))))
 
 (defn parse-stack
-  [raw-output {:vcs-config/keys [trunk-bookmark] :as vcs-config}]
+  [raw-output {:vcs-config/keys [trunk-branch] :as vcs-config}]
   (some->> raw-output
     (str/split-lines)
     (reverse)
@@ -142,9 +142,9 @@
         ;;(map str/trim)
         ;;(remove empty?)
         (map parse-change)
-        (remove #(= (local-branchname %) trunk-bookmark))))
+        (remove #(= (local-branchname %) trunk-branch))))
     (not-empty)
-    (ensure-trunk-bookmark vcs-config)))
+    (ensure-trunk-branch vcs-config)))
 
 (defn get-stack
   ([vcs-config]
@@ -155,7 +155,7 @@
      vcs-config)))
 
 (comment
-  (detect-trunk-bookmark!)
+  (detect-trunk-branch!)
   (config)
   (get-leaves (config))
   (get-stack (config))
@@ -167,4 +167,4 @@
       {:dir ",local/test-repo"}))
   ;; Neeeds to have a 'test-branch' in current stack
   (parse-stack (u/run-cmd (get-stack-command "test-branch"))
-    {:vcs-config/trunk-bookmark "main"}))
+    {:vcs-config/trunk-branch "main"}))

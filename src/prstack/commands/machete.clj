@@ -4,8 +4,8 @@
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
-(defn- machete-entry [i bookmark]
-  (str (apply str (repeat (* i 2) " ")) bookmark))
+(defn- machete-entry [i branch]
+  (str (apply str (repeat (* i 2) " ")) branch))
 
 (def command
   {:name "machete"
