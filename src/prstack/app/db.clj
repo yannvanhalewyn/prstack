@@ -148,15 +148,16 @@
 
 (defmethod dispatch! :event/merge-pr
   [_evt]
-  (when-let [current-pr (current-pr @app-state)]
-    (swap! app-state assoc :app-state/run-in-fg
-      (fn []
-        (when (tty/prompt-yes
-                (format "Would you like to merge PR %s %s?"
-                  (ansi/colorize :blue (str "#" (:pr/number current-pr)))
-                  (:pr/title current-pr)))
-          (vcs/merge-pr! (:pr/number current-pr)))))
-    (tui/close!)))
+  (let [current-pr (current-pr @app-state)]
+    (when (and current-pr (not (:missing current-pr)))
+      (swap! app-state assoc :app-state/run-in-fg
+        (fn []
+          (when (tty/prompt-yes
+                  (format "Would you like to merge PR %s %s?"
+                    (ansi/colorize :blue (str "#" (:pr/number current-pr)))
+                    (:pr/title current-pr)))
+            (vcs/merge-pr! (:pr/number current-pr)))))
+      (tui/close!))))
 
 (defmethod dispatch! :event/sync
   [_evt]
