@@ -1,6 +1,7 @@
 (ns prstack.github
   (:require
     [babashka.json :as json]
+    [clojure.string :as str]
     [prstack.utils :as u]))
 
 (def ^:lsp/allow-unused PR
@@ -21,13 +22,15 @@
     {:pr/title (:title json-output)
      :pr/number (:number json-output)
      :pr/url (:url json-output)
-     :pr/status (case (:reviewDecision json-output)
-                  "APPROVED" :pr.status/approved
-                  "CHANGES_REQUESTED" :pr.status/changes-requested
-                  "REVIEW_REQUIRED" :pr.status/review-required
-                  (if (nil? (:reviewDecision json-output))
-                    :pr.status/unknown
-                    :pr.status/other))}))
+     :pr/status
+     (let [state (:state (first (:latestReviews json-output)))]
+       (case (:state (first (:latestReviews json-output)))
+         "APPROVED" :pr.status/approved
+         "CHANGES_REQUESTED" :pr.status/changes-requested
+         "REVIEW_REQUIRED" :pr.status/review-required
+         (if (str/blank? state)
+           :pr.status/unknown
+           :pr.status/other)))}))
 
 (defn find-pr
   "Find a PR using the GitHub CLI"
@@ -40,7 +43,8 @@
                     "--head" head-branch
                     "--base" base-branch
                     "--limit" "1"
-                    "--json" "title,number,url,reviewDecision" "--jq" ".[0]"])))))
+                    "--json" "title,number,url,latestReviews" "--jq" ".[0]"]
+          {:dir "/Users/yannvanhalewyn/spronq/arqiver"})))))
 
 (defn create-pr!
   "Create a PR using the GitHub CLI"

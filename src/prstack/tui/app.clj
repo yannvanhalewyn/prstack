@@ -147,8 +147,8 @@
                               (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
 
 (defn run! []
-  (db/dispatch! [:event/read-local-repo])
   (loop []
+    (db/dispatch! [:event/read-local-repo])
     (tui/run-ui!
       (tui/mount! db/app-state
         (tui/component

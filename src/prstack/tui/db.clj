@@ -154,9 +154,12 @@
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
           (when (tty/prompt-yes
-                  (format "Would you like to merge PR %s %s?"
+                  (format "Would you like to merge PR %s %s?\nThis will merge %s onto %s."
                     (ansi/colorize :blue (str "#" (:pr/number current-pr)))
-                    (:pr/title current-pr)))
+                    (:pr/title current-pr)
+                    ;; TODO get actual PRs branches
+                    (ansi/colorize :blue "HEAD")
+                    (ansi/colorize :blue "BASE")))
             (github/merge-pr! (:pr/number current-pr)))))
       (tui/close!))))
 
