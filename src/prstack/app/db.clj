@@ -123,7 +123,7 @@
             (or (:change/commit-sha prev-change)
                 (vcs/local-branchname prev-change))
             (:change/commit-sha selected-change))]))
-     (tui/close!)))
+    (tui/close!)))
 
 (defmethod dispatch! :event/open-pr
   [_evt]
@@ -141,7 +141,7 @@
         (fn []
           (println "Creating PR for"
             (ansi/colorize :blue head-branch)
-             " onto "
+            " onto "
             (ansi/colorize :blue base-branch))
           (vcs/create-pr! head-branch base-branch)))
       (tui/close!))))

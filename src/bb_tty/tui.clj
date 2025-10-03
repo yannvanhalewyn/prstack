@@ -132,6 +132,7 @@
           (loop []
             (when @running?
               (let [key (.read System/in)]
+                ;; Consume the key without echoing it to terminal
                 ;; As long as we call `close!` synchronously in this handler
                 ;; it will shut down gracefully. If not one more character will
                 ;; be read before shutdown.

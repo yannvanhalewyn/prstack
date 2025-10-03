@@ -26,7 +26,7 @@
   (if (has-terminal?)
     (let [original-state (u/shell ["stty" "-g"])]
       (try
-        (u/shell ["stty" "raw" "echo"])
+         (u/shell ["stty" "raw" "-echo"])
         (f)
         (finally
           (u/shell ["stty" original-state]))))
