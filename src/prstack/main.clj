@@ -1,11 +1,11 @@
 (ns prstack.main
   (:require
-    [prstack.app :as app]
-    [prstack.commands.create-prs :as commands.create-prs]
-    [prstack.commands.list :as commands.list]
-    [prstack.commands.machete :as commands.machete]
-    [prstack.commands.status :as commands.status]
-    [prstack.commands.sync :as commands.sync]
+    [prstack.cli.commands.create-prs :as commands.create-prs]
+    [prstack.cli.commands.list :as commands.list]
+    [prstack.cli.commands.machete :as commands.machete]
+    [prstack.cli.commands.status :as commands.status]
+    [prstack.cli.commands.sync :as commands.sync]
+    [prstack.tui.app :as tui.app]
     [prstack.utils :as u]))
 
 (def commands
@@ -33,7 +33,7 @@
     (some #{"-h" "--help"} args)
     (print-help)
     (empty? args)
-    (app/run!)
+    (tui.app/run!)
     :else
     (if-let [command (u/find-first #(= (:name %) (first args)) commands)]
       ((:exec command) (rest args))

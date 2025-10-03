@@ -1,8 +1,8 @@
-(ns prstack.commands.list
+(ns prstack.cli.commands.list
   (:require
+    [prstack.cli.ui :as ui]
     [prstack.config :as config]
     [prstack.stack :as stack]
-    [prstack.ui :as ui]
     [prstack.vcs :as vcs]))
 
 (defn parse-opts [args]
@@ -22,5 +22,5 @@
            stacks
            (if (:all? opts)
              (stack/get-all-stacks vcs-config config)
-             (stack/get-current-stacks vcs-config)) ]
+             (stack/get-current-stacks vcs-config))]
        (ui/print-stacks stacks vcs-config opts)))})

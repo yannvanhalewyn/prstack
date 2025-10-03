@@ -1,11 +1,11 @@
-(ns prstack.app
+(ns prstack.tui.app
   (:refer-clojure :exclude [run!])
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
     [bb-tty.tui :as tui]
     [clojure.string :as str]
-    [prstack.app.db :as app.db]
+    [prstack.tui.db :as db]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
@@ -29,16 +29,16 @@
          ;; Arrow keys are actually the following sequence
          ;; 27 91 68 (map char [27 91 68])
          ;; So need to keep a stack of recent keys to check for up/down
-         (int \j) (app.db/dispatch! [:event/move-down])
-         (int \k) (app.db/dispatch! [:event/move-up])
-         (int \d) (app.db/dispatch! [:event/run-diff])
-         (int \o) (app.db/dispatch! [:event/open-pr])
-         (int \c) (app.db/dispatch! [:event/create-pr])
-         (int \m) (app.db/dispatch! [:event/merge-pr])
-         (int \s) (app.db/dispatch! [:event/sync])
+         (int \j) (db/dispatch! [:event/move-down])
+         (int \k) (db/dispatch! [:event/move-up])
+         (int \d) (db/dispatch! [:event/run-diff])
+         (int \o) (db/dispatch! [:event/open-pr])
+         (int \c) (db/dispatch! [:event/create-pr])
+         (int \m) (db/dispatch! [:event/merge-pr])
+         (int \s) (db/dispatch! [:event/sync])
          nil))}
     (fn [state]
-      (if-let [stacks (seq (app.db/displayed-stacks state))]
+      (if-let [stacks (seq (db/displayed-stacks state))]
         (let [max-width
               (when-let [counts
                          (seq
@@ -58,11 +58,11 @@
                         (assoc change
                           :ui/formatted-change
                           (format-change change))))]
-                (let [pr-info (app.db/sub-pr
+                (let [pr-info (db/sub-pr
                                 (vcs/local-branchname cur-change)
                                 (vcs/local-branchname prev-change))
                       padded-branch (format (str "%-" max-width "s")
-                                        (:ui/formatted-change cur-change))]
+                                      (:ui/formatted-change cur-change))]
                   (str (if (= (:ui/idx cur-change) (:app-state/selected-item-idx state))
                          (ansi/colorize :bg-gray padded-branch)
                          padded-branch)
@@ -147,25 +147,25 @@
                               (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
 
 (defn run! []
-  (app.db/dispatch! [:event/read-local-repo])
+  (db/dispatch! [:event/read-local-repo])
   (loop []
     (tui/run-ui!
-      (tui/mount! app.db/app-state
+      (tui/mount! db/app-state
         (tui/component
           {:on-key-press
            (fn [key]
              (cond
                (= key (int \q)) (tui/close!)
-               (= key (int \r)) (app.db/dispatch! [:event/refresh])
-               (= key (int \1)) (app.db/dispatch! [:event/select-tab 0])
-               (= key (int \2)) (app.db/dispatch! [:event/select-tab 1])
-               (= key (int \3)) (app.db/dispatch! [:event/select-tab 2])))}
+               (= key (int \r)) (db/dispatch! [:event/refresh])
+               (= key (int \1)) (db/dispatch! [:event/select-tab 0])
+               (= key (int \2)) (db/dispatch! [:event/select-tab 1])
+               (= key (int \3)) (db/dispatch! [:event/select-tab 2])))}
           (fn [state]
             (tui/block
               [(render-tabs state)
                (render-tab-content state)
                (render-keybindings)])))))
-    (when-let [run-in-fg (:app-state/run-in-fg @app.db/app-state)]
-      (swap! app.db/app-state dissoc :app-state/run-in-fg nil)
+    (when-let [run-in-fg (:app-state/run-in-fg @db/app-state)]
+      (swap! db/app-state dissoc :app-state/run-in-fg nil)
       (run-in-fg)
       (recur))))

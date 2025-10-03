@@ -1,4 +1,4 @@
-(ns prstack.ui
+(ns prstack.cli.ui
   (:require
     [prstack.github :as github]
     [prstack.utils :as u]
@@ -22,7 +22,7 @@
                        stacks))]
           (apply max counts))]
     (doseq [stack stacks]
-      (let [formatted-branches (map-indexed format-change stack) ]
+      (let [formatted-branches (map-indexed format-change stack)]
         (doseq [[i [change formatted-branch]]
                 (map-indexed vector
                   (map vector stack formatted-branches))]

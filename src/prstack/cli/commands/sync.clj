@@ -1,10 +1,10 @@
-(ns prstack.commands.sync
+(ns prstack.cli.commands.sync
   (:require
     [bb-tty.tty :as tty]
-    [prstack.commands.create-prs :as commands.create-prs]
+    [prstack.cli.commands.create-prs :as commands.create-prs]
+    [prstack.cli.ui :as ui]
     [prstack.config :as config]
     [prstack.stack :as stack]
-    [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 

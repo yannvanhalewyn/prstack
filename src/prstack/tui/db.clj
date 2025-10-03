@@ -1,10 +1,10 @@
-(ns prstack.app.db
+(ns prstack.tui.db
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
     [bb-tty.tui :as tui]
     [clojure.java.browse :as browse]
-    [prstack.commands.sync :as commands.sync]
+    [prstack.cli.commands.sync :as commands.sync]
     [prstack.config :as config]
     [prstack.github :as github]
     [prstack.stack :as stack]

@@ -1,4 +1,4 @@
-(ns prstack.commands.machete
+(ns prstack.cli.commands.machete
   (:require
     [clojure.string :as str]
     [prstack.utils :as u]

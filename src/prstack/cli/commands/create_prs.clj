@@ -1,9 +1,9 @@
-(ns prstack.commands.create-prs
+(ns prstack.cli.commands.create-prs
   (:require
     [bb-tty.tty :as tty]
+    [prstack.cli.ui :as ui]
     [prstack.github :as github]
     [prstack.stack :as stack]
-    [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 

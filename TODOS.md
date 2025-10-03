@@ -28,15 +28,3 @@ Idea: Support other merge bases than main, where multiple PRs are stacked on a m
 ```
 
 Checkout https://www.textualize.io/blog/7-things-ive-learned-building-a-modern-tui-framework/
-
-
-# Videos
-
-- PRStack overview
-- Jujutsu Megamerges (and Prstack integration)
-- Clojure with tmux and neovim
-
-## Clojure video
-
-- Show off marks and evaluating something in commented code. Maybe use the reitit-ring-coercion example. There is a failing and working case, bind both
-- Show off tmux popups, and babashka scripts, or cmd+K for killfzf
