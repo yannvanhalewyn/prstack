@@ -1,11 +1,11 @@
 (ns prstack.app
   (:refer-clojure :exclude [run!])
   (:require
+    [bb-tty.ansi :as ansi]
+    [bb-tty.tty :as tty]
+    [bb-tty.tui :as tui]
     [clojure.string :as str]
     [prstack.app.db :as app.db]
-    [prstack.config :as config]
-    [prstack.stack :as stack]
-    [prstack.tty :as tty]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
@@ -22,7 +22,7 @@
 
 (defn- render-stacks
   []
-  (tty/component
+  (tui/component
     {:on-key-press
      (fn [key]
        (condp = key
@@ -49,7 +49,7 @@
                 (apply max counts))]
           (for [[i stack] (u/indexed stacks)]
             (concat
-              [(tty/colorize :cyan
+              [(ansi/colorize :cyan
                  ;; TODO better detect current stack in megamerges for example
                  (str "\uf51e " (if (zero? i) "Current Stack" "Other Stack")))]
               (for [[cur-change prev-change]
@@ -64,46 +64,46 @@
                       padded-bookmark (format (str "%-" max-width "s")
                                         (:ui/formatted-change cur-change))]
                   (str (if (= (:ui/idx cur-change) (:app-state/selected-item-idx state))
-                         (tty/colorize :bg-gray padded-bookmark)
+                         (ansi/colorize :bg-gray padded-bookmark)
                          padded-bookmark)
                        " "
                        (cond
                          (= (:http/status pr-info) :status/pending)
-                         (tty/colorize :gray "Fetching...")
+                         (ansi/colorize :gray "Fetching...")
 
                          (:pr/url pr-info)
-                         (str (tty/colorize :green "✔") " PR Found "
-                              (tty/colorize :blue (str "#" (:pr/number pr-info)))
+                         (str (ansi/colorize :green "✔") " PR Found "
+                              (ansi/colorize :blue (str "#" (:pr/number pr-info)))
                               " " (:pr/title pr-info))
                          ;; TODO Show if 'needs push'
                          (:missing pr-info)
-                         (str (tty/colorize :red "X") " No PR Found")
+                         (str (ansi/colorize :red "X") " No PR Found")
 
                          :else ""))))
               [(format-change (last stack) {:trunk? true})]
               (when-not (= i (dec (count stacks)))
                 [""]))))
-        (tty/colorize :cyan "No stacks detetected")))))
+        (ansi/colorize :cyan "No stacks detetected")))))
 
 (defn- render-tabs
   [{:app-state/keys [selected-tab]}]
   (let [tabs ["Current Stacks" "My Stacks" "All Stacks"]
         render-tab (fn [idx tabname]
                      (if (= idx selected-tab)
-                       (tty/colorize :white tabname)
-                       (tty/colorize :gray tabname)))]
+                       (ansi/colorize :white tabname)
+                       (ansi/colorize :gray tabname)))]
     [(str/join "  |  " (map-indexed render-tab tabs))
      ""]))
 
 (defn- render-all-stacks-tab
   []
-  (tty/component
+  (tui/component
     {}
     (fn [_state]
       ["All Stacks View"
        ""
-       (tty/colorize :cyan "This shows all stacks in the repository")
-       (tty/colorize :gray "Feature coming soon...")])))
+       (ansi/colorize :cyan "This shows all stacks in the repository")
+       (ansi/colorize :gray "Feature coming soon...")])))
 
 (defn- render-tab-content
   [state]
@@ -136,27 +136,27 @@
          {:keybind/display "q"
           :keybind/name "Quit"}]]
     [""
-     (tty/colorize :gray separator)
-     (tty/colorize :gray (str/join "  "
-                           (for [kb keybindings]
-                             (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
+     (ansi/colorize :gray separator)
+     (ansi/colorize :gray (str/join "  "
+                            (for [kb keybindings]
+                              (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
 
 (defn run! []
   (app.db/dispatch! [:event/read-local-repo])
   (loop []
-    (tty/run-ui!
-      (tty/render! app.db/app-state
-        (tty/component
+    (tui/run-ui!
+      (tui/mount! app.db/app-state
+        (tui/component
           {:on-key-press
            (fn [key]
              (cond
-               (= key (int \q)) (tty/close!)
+               (= key (int \q)) (tui/close!)
                (= key (int \r)) (app.db/dispatch! [:event/refresh])
                (= key (int \1)) (app.db/dispatch! [:event/select-tab 0])
                (= key (int \2)) (app.db/dispatch! [:event/select-tab 1])
                (= key (int \3)) (app.db/dispatch! [:event/select-tab 2])))}
           (fn [state]
-            (tty/block
+            (tui/block
               [(render-tabs state)
                (render-tab-content state)
                (render-keybindings)])))))

@@ -1,11 +1,12 @@
 (ns prstack.app.db
   (:require
+    [bb-tty.ansi :as ansi]
+    [bb-tty.tty :as tty]
+    [bb-tty.tui :as tui]
     [clojure.java.browse :as browse]
     [prstack.commands.sync :as commands.sync]
     [prstack.config :as config]
     [prstack.stack :as stack]
-    [prstack.tty :as tty]
-    [prstack.tty2 :as tty2]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
@@ -122,7 +123,7 @@
             (or (:change/commit-sha prev-change)
                 (vcs/local-branchname prev-change))
             (:change/commit-sha selected-change))]))
-    (tty/close!)))
+     (tui/close!)))
 
 (defmethod dispatch! :event/open-pr
   [_evt]
@@ -139,29 +140,29 @@
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
           (println "Creating PR for"
-            (tty/colorize :blue head-branch)
-            " onto "
-            (tty/colorize :blue base-branch))
+            (ansi/colorize :blue head-branch)
+             " onto "
+            (ansi/colorize :blue base-branch))
           (vcs/create-pr! head-branch base-branch)))
-      (tty/close!))))
+      (tui/close!))))
 
 (defmethod dispatch! :event/merge-pr
   [_evt]
   (when-let [current-pr (current-pr @app-state)]
     (swap! app-state assoc :app-state/run-in-fg
       (fn []
-        (when (tty2/prompt-yes
+        (when (tty/prompt-yes
                 (format "Would you like to merge PR %s %s?"
-                  (tty/colorize :blue (str "#" (:pr/number current-pr)))
+                  (ansi/colorize :blue (str "#" (:pr/number current-pr)))
                   (:pr/title current-pr)))
           (vcs/merge-pr! (:pr/number current-pr)))))
-    (tty/close!)))
+    (tui/close!)))
 
 (defmethod dispatch! :event/sync
   [_evt]
   (swap! app-state assoc :app-state/run-in-fg
     #((:exec commands.sync/command) []))
-  (tty/close!))
+  (tui/close!))
 
 (defmethod dispatch! :event/select-tab
   [[_ tab-idx]]

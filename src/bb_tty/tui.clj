@@ -1,111 +1,12 @@
-(ns prstack.tty
+(ns bb-tty.tui
   (:require
+    [bb-tty.ansi :as ansi]
+    [bb-tty.tty :as tty]
     [clojure.string :as str]
-    [clojure.tools.logging :as log]
-    [prstack.utils :as u]))
+    [clojure.tools.logging :as log]))
 
-;; Terminal control constants
-(def CLEAR_SCREEN "\u001b[2J")
-(def CURSOR_HOME "\u001b[H")
-(def HIDE_CURSOR "\u001b[?25l")
-(def SHOW_CURSOR "\u001b[?25h")
-(def ALT_SCREEN "\u001b[?1049h")
-(def NORMAL_SCREEN "\u001b[?1049l")
-(def CURSOR_UP "\u001b[1A")
-(def CLEAR_LINE "\u001b[2K")
-
-(def RETURN_KEY 13)
-(def UP_KEY 65)
-(def DOWN_KEY 66)
-(def LEFT_KEY 68)
-(def RIGHT_KEY 67)
-
-;; Styling utilities
-(defn bolden [s]
-  (str "\u001b[1m" s "\u001b[0m"))
-
-(defn green [s]
-  (str "\u001b[32m" s "\u001b[0m"))
-
-(defn red [s]
-  (str "\u001b[31m" s "\u001b[0m"))
-
-(defn blue [s]
-  (str "\u001b[34m" s "\u001b[0m"))
-
-(def colors
-  {:reset "\033[0m"
-   :bold "\033[1m"
-   :green "\033[32m"
-   :blue "\033[34m"
-   :yellow "\033[33m"
-   :cyan "\033[36m"
-   :red "\033[31m"
-   :white "\033[37m"
-   :gray "\033[90m"
-   :bg-light-gray "\033[47m"
-   :bg-gray "\033[100m"
-   :bg-blue "\033[44m"})
-
-(def colorize
-  (if (System/getenv "NO_COLORS")
-    (fn [_ text]
-      text)
-    (fn [color-keys text]
-      (let [color-codes (str/join "" (map colors (u/vectorize color-keys)))]
-        (str color-codes text (colors :reset))))))
-
-;; Terminal dimensions
-(defn- has-terminal? []
-  (try
-    (u/shell ["stty" "-g"])
-    true
-    (catch Exception _
-      false)))
-
-(defn get-terminal-size []
-  (when (has-terminal?)
-    (try
-      (let [result (u/shell ["stty" "size"])]
-        (when-not (str/blank? result)
-          (when-let [[rows cols] (str/split result #" ")]
-            {:rows (Integer/parseInt rows)
-             :cols (Integer/parseInt cols)})))
-      (catch Exception _
-        nil))))
-
-;; Terminal state management
-(defn run-in-raw-mode [f]
-  (if (has-terminal?)
-    (let [original-state (u/shell ["stty" "-g"])]
-      (try
-        (u/shell ["stty" "raw" "echo"])
-        (f)
-        (finally
-          (u/shell ["stty" original-state]))))
-    (do
-      (println "Error: TTY mode requires a terminal. Please run this command in a terminal.")
-      (System/exit 1))))
-
-(defmacro in-raw-mode [& body]
-  `(run-in-raw-mode (fn [] ~@body)))
-
-(defn enter-fullscreen! []
-  (print ALT_SCREEN)
-  (print HIDE_CURSOR)
-  (print CLEAR_SCREEN)
-  (print CURSOR_HOME)
-  (flush))
-
-(defn exit-fullscreen! []
-  (print SHOW_CURSOR)
-  (print NORMAL_SCREEN)
-  (flush))
-
-(defn clear-screen! []
-  (print CLEAR_SCREEN)
-  (print CURSOR_HOME)
-  (flush))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Components
 
 (defn component
   "Creates a component from a render function that returns lines"
@@ -146,20 +47,6 @@
 
      :else acc)))
 
-(comment
-  (render-tree
-    (fn [_state] ["Line 1"
-                  "Line 2"
-                  (fn [_state]
-                    ["FN Component"])
-                  (component
-                    {:on-key-down (fn [key] (println "Key:" key))}
-                    (fn [_state]
-                      ["UI Component"
-                       "Line 2"]))
-                  ["foo"]])
-    {}))
-
 (defn block
   "Creates a block component with padding around its children"
   ([children]
@@ -169,7 +56,7 @@
      (-> (render-tree children state)
        (update ::lines
          (fn [lines]
-           (if-let [{:keys [rows cols]} (get-terminal-size)]
+           (if-let [{:keys [cols]} (tty/get-terminal-size)]
              (let [max-content-width (- cols left right)]
                (concat
                  (repeat top "")
@@ -182,6 +69,26 @@
                  (repeat bottom "")))
              lines)))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Screen Management
+
+(defn enter-fullscreen! []
+  (print ansi/ALT_SCREEN) ;; Go into A
+  (print ansi/HIDE_CURSOR)
+  (print ansi/CLEAR_SCREEN)
+  (print ansi/CURSOR_HOME)
+  (flush))
+
+(defn exit-fullscreen! []
+  (print ansi/SHOW_CURSOR)
+  (print ansi/NORMAL_SCREEN)
+  (flush))
+
+(defn clear-screen! []
+  (print ansi/CLEAR_SCREEN)
+  (print ansi/CURSOR_HOME)
+  (flush))
+
 (defn refresh-screen!
   "Renders lines to terminal"
   [lines]
@@ -189,6 +96,9 @@
   (doseq [line lines]
     (print line "\r\n"))
   (flush))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Mounting UI
 
 (def ^:private running-ui (atom nil))
 
@@ -200,7 +110,7 @@
           (when (and (not (cur k)) (seq others))
             (recur others)))))))
 
-(defn render!
+(defn mount!
   "Renders current state to screen and adds a watch to the state atom for re-rendering"
   [state components]
   (let [state* @state
@@ -222,11 +132,12 @@
           (loop []
             (when @running?
               (let [key (.read System/in)]
-                ;; As long as we call `tty/close!` synchronously in this handler
-                ;; it will shut down gracefully
+                ;; As long as we call `close!` synchronously in this handler
+                ;; it will shut down gracefully. If not one more character will
+                ;; be read before shutdown.
                 (f key)
                 (recur))))
-          (spit "target/dev.log" (str "Stopping event loop\n") :append true))]
+          (spit "target/dev.log" "Stopping event loop\n" :append true))]
     [event-loop #(reset! running? false)]))
 
 (defn with-running-ui
@@ -237,7 +148,7 @@
           (fn [k]
             (when-let [f (::keydown-handler @running-ui)]
               (f k))))]
-    (in-raw-mode
+    (tty/in-raw-mode
       (try
         (enter-fullscreen!)
         (reset! running-ui
@@ -251,11 +162,14 @@
             :append true)
           (log/error "Error running UI" e))
         (finally
+          ;; TODO we shouldn't exit fullscreen when running a command in
+          ;; foreground
           (exit-fullscreen!))))))
-
-(defn close! []
-  (doseq [f (::close-fns @running-ui)]
-    (f)))
 
 (defmacro run-ui! [& body]
   `(with-running-ui (fn [] ~@body)))
+
+(defn close! []
+  (doseq [f (::close-fns @running-ui)]
+    (f))
+  (swap! running-ui dissoc ::close-fns))
