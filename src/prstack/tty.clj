@@ -1,10 +1,9 @@
 (ns prstack.tty
   (:require
+    [clojure.core.async :as a]
     [clojure.string :as str]
     [clojure.tools.logging :as log]
-    [prstack.utils :as u])
-  (:import
-    [java.util.concurrent CancellationException]))
+    [prstack.utils :as u]))
 
 ;; Terminal control constants
 (def CLEAR_SCREEN "\u001b[2J")
@@ -219,27 +218,36 @@
             (refresh-screen! (::lines render))
             (register-key-handlers (keep :on-key-press (::handlers render)))))))))
 
-(defn register-key-handler [f]
-  (future
-    (loop []
-      (spit "target/dev.log" (str "Key handler " "\n") :append true)
-      (f (.read System/in))
-      (recur))))
+(defn run-event-loop! [f]
+  (let [running? (atom true)
+        event-loop-chan
+        (a/thread
+          (loop []
+            (when @running?
+              (let [key (.read System/in)]
+                (spit "target/dev.log" (str "Key handler " key "\n") :append true)
+                ;; As long as we call `tty/close!` synchronously in this handler
+                ;; it will shut down gracefully
+                (f key)
+                (recur))))
+          (spit "target/dev.log" (str "Stopping event loop\n") :append true))]
+    [event-loop-chan #(reset! running? false)]))
 
 (defn with-running-ui
   "Runs function with UI system active"
   [f]
-  (let [key-handler (register-key-handler
-                      (fn [k]
-                        (when-let [f (::keydown-handler @running-ui)]
-                          (f k))))]
+  (let [[event-loop-chan stop-event-loop]
+        (run-event-loop!
+          (fn [k]
+            (when-let [f (::keydown-handler @running-ui)]
+              (f k))))]
     (in-raw-mode
       (try
         (enter-fullscreen!)
-        (reset! running-ui {::close-fns [#(future-cancel key-handler)]})
+        (reset! running-ui
+          {::close-fns [stop-event-loop]})
         (f)
-        @key-handler
-        (catch CancellationException _e) ;; The keyhandler can get cancelled
+        (a/<!! event-loop-chan)
         (catch Exception e
           (spit "target/dev.log"
             (str "Error running UI: " e "\n"
