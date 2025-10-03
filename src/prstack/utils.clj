@@ -53,7 +53,7 @@
   (if (System/getenv "TERM")
     ;; Restore normal terminal mode for interactive commands
     (let [original-state (try (-> (p/process ["stty" "-g"] {:out :string}) p/check :out str/trim)
-                              (catch Exception _ nil))]
+                           (catch Exception _ nil))]
       (try
         ;; Restore normal terminal mode
         (when original-state

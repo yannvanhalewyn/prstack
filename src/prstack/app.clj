@@ -72,7 +72,12 @@
                          (ansi/colorize :gray "Fetching...")
 
                          (:pr/url pr-info)
-                         (str (ansi/colorize :green "✔") " PR Found "
+                         (str (case (:pr/status pr-info)
+                                :pr.status/approved (ansi/colorize :green "✓")
+                                :pr.status/changes-requested (ansi/colorize :red "✗")
+                                :pr.status/review-required (ansi/colorize :yellow "●")
+                                (ansi/colorize :gray "?"))
+                              " "
                               (ansi/colorize :blue (str "#" (:pr/number pr-info)))
                               " " (:pr/title pr-info))
                          ;; TODO Show if 'needs push'

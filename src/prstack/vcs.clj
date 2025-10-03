@@ -3,6 +3,7 @@
   (:require
     [babashka.json :as json]
     [babashka.process :as p]
+    [clojure.set :as set]
     [clojure.string :as str]
     [prstack.utils :as u]))
 
@@ -180,11 +181,11 @@
 
 (defn create-pr! [head-branch base-branch]
   (comment ;; This works as expected
-   (u/shell-out
-     ["echo" "pr" "create" "--head" head-branch "--base" base-branch]
-     {:echo? true})
-   (println (.read System/in))
-   (Thread/sleep 5000))
+    (u/shell-out
+      ["echo" "pr" "create" "--head" head-branch "--base" base-branch]
+      {:echo? true})
+    (println (.read System/in))
+    (Thread/sleep 5000))
   ;; This doesn't
   (u/shell-out-interactive
     ["gh" "pr" "create" "--head" head-branch "--base" base-branch]
@@ -207,8 +208,15 @@
                     "--head" head-branch
                     "--base" base-branch
                     "--limit" "1"
-                    "--json" "title,number,url" "--jq" ".[0]"])))
-    (update-keys #(keyword "pr" (name %)))))
+                    "--json" "title,number,url,reviewDecision" "--jq" ".[0]"])))
+    (update-keys #(keyword "pr" (name %)))
+    (update :pr/reviewDecision
+      #(case %
+         "APPROVED" :pr.status/approved
+         "CHANGES_REQUESTED" :pr.status/changes-requested
+         "REVIEW_REQUIRED" :pr.status/review-required
+         nil))
+    (set/rename-keys {:pr/reviewDecision :pr/status})))
 
 (defn config
   "Reads the VCS configuration"
