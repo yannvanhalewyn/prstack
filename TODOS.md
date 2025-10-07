@@ -6,10 +6,10 @@
 - [x] Add a 'ref' option to run command from other leaf
 - [x] ~Add ignored branches to local config
 - [x] Indicate review status
+- [ ] Work from MEGAMERGE, be aware of multiple branch paths
 - [ ] Make PRs scrollable
 - [ ] Handle too narrow screen.
         Now ANSI RESET codes are not used
-- [ ] Work from MEGAMERGE, be aware of multiple branch paths
 - [ ] Add marker indicating current stack when '--all'
 - [ ] Support injecting PR between existing PRs
         Base branch of existing PR would need to be changed

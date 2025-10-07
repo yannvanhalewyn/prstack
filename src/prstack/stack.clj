@@ -28,8 +28,10 @@
 (defn get-all-stacks [vcs-config config]
   (into-stacks config vcs-config (vcs/get-leaves vcs-config)))
 
-(defn get-current-stacks [vcs-config]
-  (some-> (vcs/get-stack vcs-config) vector))
+(defn get-current-stacks [vcs-config config]
+  (if-let [megamerge (vcs/find-megamerge "@")]
+    (into-stacks config vcs-config (vcs/parents megamerge))
+    (some-> (vcs/get-stack vcs-config) vector)))
 
 (defn get-stack [ref vcs-config]
   (vcs/get-stack ref vcs-config))
@@ -46,12 +48,25 @@
   (apply concat stacks))
 
 (comment
-  (get-current-stacks {:vcs-config/trunk-branch "main"})
+  (get-current-stacks {:vcs-config/trunk-branch "main"} {})
   (get-stack "test-branch" {:vcs-config/trunk-branch "main"})
   (get-all-stacks
     {:vcs-config/trunk-branch "main"}
     {:ignored-branches #{}})
+  (into-stacks {:ignored-branches #{}} (vcs/config)
+    (vcs/parents (vcs/find-megamerge "@")))
   (into-stacks
     {:ignored-branches #{}}
     {:vcs-config/trunk-branch "main"}
+    [{:change/change-id "ptkkppxnltpv",
+      :change/local-branches ["feature-2" "feature-3"],
+      :change/remote-branches ["feature-2@git" "feature-3@git"]}
+     {:change/change-id "vwvuswlzsnlx",
+      :change/local-branches ["hotfix-edit" "second-bookmark"],
+      :change/remote-branches
+      ["hotfix-edit@git"
+       "hotfix-edit@origin"
+       "second-bookmark@git"
+       "second-bookmark@origin"]}]
+    #_
     [{:change/local-branches ["main"]} ]))

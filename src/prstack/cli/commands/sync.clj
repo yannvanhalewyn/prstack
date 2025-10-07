@@ -47,7 +47,7 @@
        (let [stacks
              (if (:all? opts)
                (stack/get-all-stacks vcs-config config)
-               (stack/get-current-stacks vcs-config))]
+               (stack/get-current-stacks vcs-config config))]
          (ui/print-stacks stacks vcs-config (assoc opts :include-prs? true))
          (doseq [stack stacks]
            (println "Syncing stack:" (u/colorize :blue (first (:change/local-branches (last stack)))))

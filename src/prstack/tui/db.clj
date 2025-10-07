@@ -90,7 +90,7 @@
     (swap! app-state merge
       {:app-state/config config
        :app-state/vcs-config vcs-config
-       :app-state/current-stacks (delay (stack/get-current-stacks vcs-config))
+       :app-state/current-stacks (delay (stack/get-current-stacks vcs-config config))
        :app-state/all-stacks (delay (stack/get-all-stacks vcs-config config))})))
 
 (defmethod dispatch! :event/fetch-pr

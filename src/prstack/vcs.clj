@@ -37,3 +37,6 @@
    (jj/get-stack vcs-config))
   ([ref vcs-config]
    (jj/get-stack ref vcs-config)))
+
+(def find-megamerge #'jj/find-megamerge)
+(def parents #'jj/parents)

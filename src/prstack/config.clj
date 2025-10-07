@@ -11,7 +11,7 @@
       (when (.exists file)
         (with-open [rdr (io/reader file)]
           (edn/read (PushbackReader. rdr)))))
-    (update :ignored-bookmarks set)))
+    (update :ignored-branches set)))
 
 (comment
   (read-local))

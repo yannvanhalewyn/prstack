@@ -2,6 +2,7 @@
   (:require
     [bb-tty.tty :as tty]
     [prstack.cli.ui :as ui]
+    [prstack.config :as config]
     [prstack.github :as github]
     [prstack.stack :as stack]
     [prstack.utils :as u]
@@ -50,10 +51,11 @@
    :exec
    (fn create-prs-cmd [args]
      (let [ref (first args)
+           config (config/read-local)
            vcs-config (vcs/config)
            stack
            (if ref
              (stack/get-stack ref vcs-config)
-             (first (stack/get-current-stacks vcs-config)))]
+             (first (stack/get-current-stacks vcs-config config)))]
        (ui/print-stacks [stack] vcs-config {:include-prs? true})
        (create-prs {:stack stack})))})

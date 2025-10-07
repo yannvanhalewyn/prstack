@@ -22,5 +22,5 @@
            stacks
            (if (:all? opts)
              (stack/get-all-stacks vcs-config config)
-             (stack/get-current-stacks vcs-config))]
+             (stack/get-current-stacks vcs-config config))]
        (ui/print-stacks stacks vcs-config opts)))})
