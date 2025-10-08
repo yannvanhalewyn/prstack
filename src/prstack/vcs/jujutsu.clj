@@ -39,10 +39,17 @@
 
 (defn find-megamerge [start-ref]
   (-> (u/run-cmd ["jj" "log" "--no-graph"
-                  "-r" (format "ancestors(%s) & merges()" start-ref)
+                  "-r"
+                  (format "%s & ancestors(%s) & merges()"
+                    ;; Don't go further than the fork point
+                    (format "fork_point(trunk() | %s)..%s" start-ref start-ref)
+                    start-ref)
                   "-T" "change_id.short()"])
     (str/trim)
     (not-empty)))
+
+(comment
+  (find-megamerge "@"))
 
 (defn- parents [ref]
   (->> (u/run-cmd ["jj" "log" "--no-graph"
