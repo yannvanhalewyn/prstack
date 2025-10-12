@@ -45,7 +45,7 @@ bb-tty/
 1. Copy `src/bb_tty/` directory
 2. Remove prstack-specific dependencies:
    - Replace `[prstack.utils :as u]` with inline implementations
-   - Extract needed utility functions (shell, vectorize, etc.)
+   - Extract needed utility functions (shell etc.)
 3. Clean up namespace dependencies
 4. Add proper docstrings to all public functions
 
@@ -179,7 +179,6 @@ A comprehensive Babashka terminal library providing both simple CLI utilities an
 ## Dependencies to Extract from prstack
 
 ### From prstack.utils
-- `vectorize` function
 - `shell` and `shell-out` functions
 - `indexed` function
 - `consecutive-pairs` function

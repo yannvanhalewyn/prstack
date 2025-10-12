@@ -1,5 +1,6 @@
 (ns prstack.main
   (:require
+    [bb-tty.ansi :as ansi]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.list :as commands.list]
     [prstack.cli.commands.machete :as commands.machete]
@@ -38,6 +39,6 @@
     (if-let [command (u/find-first #(= (:name %) (first args)) commands)]
       ((:exec command) (rest args))
       (do
-        (println (u/colorize :red "Error") "Unknown command:" (first args) "\n")
+         (println (ansi/colorize :red "Error") "Unknown command:" (first args) "\n")
         (print-help)
         (System/exit 1)))))

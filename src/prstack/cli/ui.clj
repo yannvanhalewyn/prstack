@@ -1,20 +1,20 @@
 (ns prstack.cli.ui
   (:require
+    [bb-tty.ansi :as ansi]
     [prstack.github :as github]
-    [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
 (defn- format-change
   "Formats the branch as part of a stack at the given index"
   [i change]
   (let [indent (str (apply str (repeat (* (dec i) 2) " ")) (when-not (zero? i) "└─ "))]
-    (str (u/colorize :yellow indent)
-         (u/colorize :blue (vcs/local-branchname change)))))
+    (str (ansi/colorize :yellow indent)
+         (ansi/colorize :blue (vcs/local-branchname change)))))
 
 (defn print-stacks [stacks vcs-config {:keys [include-prs?]}]
   (if (seq stacks)
-    (println (u/colorize :cyan "Detected the following stacks:\n"))
-    (println (u/colorize :cyan "No stacks detetected")))
+    (println (ansi/colorize :cyan "Detected the following stacks:\n"))
+    (println (ansi/colorize :cyan "No stacks detetected")))
   (let [max-width
         (when-let [counts
                    (seq
@@ -34,11 +34,11 @@
               (println padded-branch
                 (cond
                   pr
-                  (str (u/colorize :green "✔") " PR Found"
-                       (u/colorize :gray (str " (" (:pr/number pr) ")")))
-                  ;; TODO Show if 'needs push'
-                  (not= head-branch (:vcs-config/trunk-branch vcs-config))
-                  (str (u/colorize :red "X") " No PR Found")
+                   (str (ansi/colorize :green "✔") " PR Found"
+                        (ansi/colorize :gray (str " (" (:pr/number pr) ")")))
+                   ;; TODO Show if 'needs push'
+                   (not= head-branch (:vcs-config/trunk-branch vcs-config))
+                   (str (ansi/colorize :red "X") " No PR Found")
                   :else "")))
             (println formatted-branch))))
       (println))))

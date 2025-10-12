@@ -1,7 +1,7 @@
 (ns prstack.cli.commands.machete
   (:require
+    [bb-tty.ansi :as ansi]
     [clojure.string :as str]
-    [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
 (defn- machete-entry [i branch]
@@ -19,8 +19,8 @@
                             (drop 1)
                             (map-indexed #(machete-entry (inc %1) %2))
                             (str/join "\n"))]
-       (println (u/colorize :cyan "Current Machete contents:\n"))
-       (println current-contents)
-       (println (u/colorize :cyan "\nAdding these lines\n"))
+        (println (ansi/colorize :cyan "Current Machete contents:\n"))
+        (println current-contents)
+        (println (ansi/colorize :cyan "\nAdding these lines\n"))
        (println added-contents)
        (spit ".git/machete" added-contents :append true)))})

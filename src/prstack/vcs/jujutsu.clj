@@ -1,6 +1,7 @@
 (ns prstack.vcs.jujutsu
   (:refer-clojure :exclude [parents])
   (:require
+    [bb-tty.ansi :as ansi]
     [clojure.string :as str]
     [prstack.utils :as u]))
 
@@ -70,9 +71,9 @@
         remote-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
                                      "-r" (str trunk-branch "@origin")
                                      "-T" "commit_id"])]
-    (println (u/colorize :yellow "\nChecking if trunk moved"))
-    (println (u/colorize :cyan (str "local " trunk-branch)) local-trunk-ref)
-    (println (u/colorize :cyan (str "remote " trunk-branch)) remote-trunk-ref)
+    (println (ansi/colorize :yellow "\nChecking if trunk moved"))
+    (println (ansi/colorize :cyan (str "local " trunk-branch)) local-trunk-ref)
+    (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk-ref)
     (not= local-trunk-ref remote-trunk-ref)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

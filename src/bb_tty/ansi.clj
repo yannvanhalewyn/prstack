@@ -1,7 +1,6 @@
 (ns bb-tty.ansi
   (:require
-    [clojure.string :as str]
-    [prstack.utils :as u]))
+    [clojure.string :as str]))
 
 ;; Terminal control constants
 (def CLEAR_SCREEN "\u001b[2J")
@@ -32,5 +31,5 @@
     (fn [_ text]
       text)
     (fn [color-keys text]
-      (let [color-codes (str/join "" (map colors (u/vectorize color-keys)))]
+      (let [color-codes (str/join "" (map colors (cond-> color-keys keyword? vector)))]
         (str color-codes text (colors :reset))))))
