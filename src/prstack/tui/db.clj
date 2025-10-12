@@ -173,6 +173,14 @@
   [[_ tab-idx]]
   (swap! app-state assoc :app-state/selected-tab tab-idx))
 
+(defmethod dispatch! :event/tab-left
+  [_]
+  (swap! app-state update :app-state/selected-tab #(max 0 (dec %))))
+
+(defmethod dispatch! :event/tab-right
+  [_]
+  (swap! app-state update :app-state/selected-tab #(min 2 (inc %))))
+
 (defmethod dispatch! :event/move-up
   [_evt]
   (swap! app-state update :app-state/selected-item-idx

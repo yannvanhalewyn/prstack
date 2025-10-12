@@ -159,7 +159,9 @@
                (= key (int \r)) (db/dispatch! [:event/refresh])
                (= key (int \1)) (db/dispatch! [:event/select-tab 0])
                (= key (int \2)) (db/dispatch! [:event/select-tab 1])
-               (= key (int \3)) (db/dispatch! [:event/select-tab 2])))}
+               (= key (int \3)) (db/dispatch! [:event/select-tab 2])
+               (= key (int \h)) (db/dispatch! [:event/tab-left])
+               (= key (int \l)) (db/dispatch! [:event/tab-right])))}
           (fn [state]
             (tui/block
               [(render-tabs state)
