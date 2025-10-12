@@ -87,6 +87,7 @@
   [_evt]
   (let [config (config/read-local)
         vcs-config (vcs/config)]
+    (spit "target/prstack.log" "Reading local REPO\n")
     (swap! app-state merge
       {:app-state/config config
        :app-state/vcs-config vcs-config
