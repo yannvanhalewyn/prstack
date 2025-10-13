@@ -121,7 +121,7 @@
     (swap! app-state assoc :app-state/run-in-fg
       #(u/shell-out
          [(System/getenv "EDITOR") "-c"
-          (format "DiffviewOpen %s...%s"
+          (format "Difft %s..%s"
             (or (:change/commit-sha prev-change)
                 (vcs/local-branchname prev-change))
             (:change/commit-sha selected-change))]))
@@ -161,7 +161,8 @@
                     ;; TODO get actual PRs branches
                     (ansi/colorize :blue "HEAD")
                     (ansi/colorize :blue "BASE")))
-            (github/merge-pr! (:pr/number current-pr)))))
+            (github/merge-pr! (:pr/number current-pr))
+            ((:exec commands.sync/command) []))))
       (tui/close!))))
 
 (defmethod dispatch! :event/sync

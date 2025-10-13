@@ -29,7 +29,11 @@
 (defn config
   "Reads the VCS configuration"
   []
-  {:vcs-config/trunk-branch (detect-trunk-branch!)})
+  {:vcs-config/trunk-branch
+   ;; Check this out: replacing with "feature-base" brings 'main' in a branch
+   ;; with strange ordering. It seems that 'ensure-trunk-branch' is not very
+   ;; flexible.
+   (detect-trunk-branch!)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Basic operations

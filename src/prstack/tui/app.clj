@@ -51,7 +51,9 @@
             (concat
               [(ansi/colorize :cyan
                  ;; TODO better detect current stack in megamerges for example
-                 (str "\uf51e " (if (zero? i) "Current Stack" "Other Stack")))]
+                 (str "\uf51e "
+                      (if (zero? i) "Current Stack" "Other Stack")
+                      " (" (dec (count stack)) ")"))]
               (for [[cur-change prev-change]
                     (u/consecutive-pairs
                       (for [change stack]
