@@ -1,6 +1,7 @@
 (ns bb-tty.tty
   (:require
     [bb-tty.ansi :as ansi]
+    [bblgum.core :as b]
     [clojure.string :as str]
     [prstack.utils :as u]))
 
@@ -44,8 +45,13 @@
 (defn read-single-char []
   (.read System/in))
 
+;; Maybe use (not (nil? (System/getenv "USE_BBLGUM")))?
+(def use-bblgum? true)
+
 (defn prompt-yes [prompt]
-  (print prompt " (y/n): ")
+  (print prompt)
   (flush)
-  (in-raw-mode
-    (= (read-single-char) (int \y))))
+  (if use-bblgum?
+   (b/gum :confirm :as :bool)
+   (in-raw-mode
+     (= (read-single-char) (int \y)))))
