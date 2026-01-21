@@ -1,9 +1,9 @@
 import './global.css';
 import type { ReactNode } from 'react';
-import { Lato } from 'next/font/google';
+import { Kanit } from 'next/font/google';
 
-const lato = Lato({
-  weight: ['300', '400', '700', '900'],
+const kanit = Kanit({
+  weight: ['300', '400', '500', '600', '700'],
   subsets: ['latin'],
   display: 'swap',
 });
@@ -11,7 +11,7 @@ const lato = Lato({
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={lato.className}>{children}</body>
+      <body className={kanit.className}>{children}</body>
     </html>
   );
 }
