@@ -130,10 +130,10 @@
 
 (defn read-graph
   "Reads the full VCS graph from jujutsu.
-  
+
   Reads all commits from trunk to all bookmark heads, building a complete
   graph representation with parent/child relationships.
-  
+
   Returns a Graph (see prstack.vcs.graph/Graph)"
   [{:vcs-config/keys [trunk-branch]}]
   (let [;; Get trunk change-id
@@ -232,6 +232,9 @@
      vcs-config)))
 
 (comment
+  (def graph* (read-graph (config)))
+  (tap> graph*)
+  (graph/find-all-paths-to-trunk graph* "wmkwotut")
   (detect-trunk-branch!)
   (config)
   (get-leaves (config))
