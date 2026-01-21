@@ -1,5 +1,6 @@
 import './global.css';
 import type { ReactNode } from 'react';
+import { RootProvider } from 'fumadocs-ui/provider/next';
 import { Kanit } from 'next/font/google';
 
 const kanit = Kanit({
@@ -8,10 +9,12 @@ const kanit = Kanit({
   display: 'swap',
 });
 
-export default function Layout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body className={kanit.className}>{children}</body>
+    <html lang="en" className={kanit.className} suppressHydrationWarning>
+      <body className="flex flex-col min-h-screen">
+        <RootProvider>{children}</RootProvider>
+      </body>
     </html>
   );
 }

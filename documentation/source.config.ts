@@ -8,8 +8,10 @@ export default defineConfig({
   mdxOptions: {
     rehypeCodeOptions: {
       themes: {
-        light: 'one-dark-pro',
-        dark: 'one-dark-pro',
+        // light: 'tokyo-night',
+        // dark: 'tokyo-night',
+        light: 'github-dark',
+        dark: 'github-dark',
       },
     },
   },
