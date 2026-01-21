@@ -15,10 +15,10 @@ export default async function Page(props: {
   const description = page.description;
 
   return (
-    <article className="prose prose-gray max-w-none">
-      <h1>{title}</h1>
+    <article className="prose prose-invert max-w-none">
+      <h1 className="text-slate-100">{title}</h1>
       {description && (
-        <p className="text-lg text-gray-600 -mt-4 mb-8">{description}</p>
+        <p className="text-lg text-slate-400 -mt-4 mb-8">{description}</p>
       )}
       <Content />
     </article>

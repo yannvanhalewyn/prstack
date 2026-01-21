@@ -5,3 +5,92 @@
 @source "../../app/**/*.{ts,tsx}";
 @source "../../content/**/*.{md,mdx}";
 @source "../../mdx-components.{ts,tsx}";
+
+@theme {
+  /* Dark theme colors */
+  --color-gray-50: #0a0a0a;
+  --color-gray-100: #1a1a1a;
+  --color-gray-200: #2a2a2a;
+  --color-gray-300: #3a3a3a;
+  --color-gray-400: #5a5a5a;
+  --color-gray-500: #7a7a7a;
+  --color-gray-600: #9a9a9a;
+  --color-gray-700: #bababa;
+  --color-gray-800: #dadada;
+  --color-gray-900: #f0f0f0;
+  
+  /* Accent colors */
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+}
+
+/* Dark theme base styles */
+body {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+/* Prose styling for dark theme */
+.prose {
+  --tw-prose-body: #e2e8f0;
+  --tw-prose-headings: #f1f5f9;
+  --tw-prose-links: #60a5fa;
+  --tw-prose-bold: #f1f5f9;
+  --tw-prose-code: #fbbf24;
+  --tw-prose-pre-bg: #1e293b;
+  --tw-prose-pre-code: #e2e8f0;
+  --tw-prose-quotes: #cbd5e1;
+}
+
+/* Code block styling - Shiki syntax highlighting */
+.prose pre {
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  border: 1px solid #334155;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  margin: 1.5rem 0;
+}
+
+.prose pre code {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  background: transparent !important;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+
+/* Inline code */
+.prose :not(pre) > code {
+  background-color: #1e293b;
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  color: #fbbf24;
+  font-size: 0.875em;
+  font-weight: 600;
+  border: 1px solid #334155;
+}
+
+/* Shiki line numbers and highlighting support */
+.prose pre[data-line-numbers] {
+  counter-reset: line;
+}
+
+.prose pre[data-line-numbers] > code > .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 1rem;
+  margin-right: 1.5rem;
+  text-align: right;
+  color: #64748b;
+}
+
+.prose pre .line.highlighted {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid #3b82f6;
+  padding-left: 0.5rem;
+  margin-left: -0.5rem;
+}
