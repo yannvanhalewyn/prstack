@@ -162,6 +162,33 @@
   []
   (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id.short()"])))
 
+(defn read-current-stack-graph
+  "Reads a graph specifically for the current working copy stack.
+  
+  This includes all changes from trunk to @, even if @ is not bookmarked.
+  
+  Returns a Graph (see prstack.vcs.graph/Graph)"
+  [{:vcs-config/keys [trunk-branch]}]
+  (let [;; Get trunk change-id
+        trunk-change-id (str/trim
+                          (u/run-cmd
+                            ["jj" "log" "--no-graph" "-r" trunk-branch
+                             "-T" "change_id.short()"]))
+        ;; Get all changes from fork point to current, including unbookmarked
+        revset "fork_point(trunk() | @)::@"
+        output (u/run-cmd
+                 ["jj" "log" "--no-graph"
+                  "-r" revset
+                  "-T" (str "separate(';', "
+                            "change_id.short(), "
+                            "commit_id, "
+                            "parents.map(|p| p.change_id().short()).join(' '), "
+                            "local_bookmarks.join(' '), "
+                            "remote_bookmarks.join(' ')) "
+                            "++ \"\\n\"")])
+        nodes (parse-graph-output output trunk-branch)]
+    (graph/build-graph nodes trunk-change-id)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Stack operations (legacy - to be deprecated)
 
