@@ -34,6 +34,12 @@
   [vcs-config]
   (jj/read-graph vcs-config))
 
+(defn read-current-stack-graph
+  "Reads a graph for the current working copy stack.
+  Includes all changes from trunk to @, even if @ is not bookmarked."
+  [vcs-config]
+  (jj/read-current-stack-graph vcs-config))
+
 (defn current-change-id
   "Returns the change-id of the current working copy."
   []

@@ -51,9 +51,8 @@
   If the current change is a megamerge (multiple parents), returns multiple
   stacks - one for each parent path. Otherwise, returns a single stack."
   [vcs-config config]
-  (let [vcs-graph (vcs/read-graph vcs-config)
-        current-id (vcs/current-change-id)
-        current-node (graph/get-node vcs-graph current-id)]
+  (let [vcs-graph (vcs/read-current-stack-graph vcs-config)
+        current-id (vcs/current-change-id)]
     (if-let [megamerge (graph/find-megamerge-in-path vcs-graph current-id)]
       ;; Handle megamerge: get all paths from megamerge to trunk
       (let [paths (graph/find-all-paths-to-trunk vcs-graph (:node/change-id megamerge))
