@@ -67,10 +67,10 @@
 (defn displayed-stacks
   "Returns a map with :regular-stacks and :feature-base-stacks,
    both with UI indices and reversed for display.
-   
+
    UI indices are assigned sequentially across both regular and feature-base stacks
    to ensure only one item is selected at a time.
-   
+
    For the 'All Stacks' tab, stacks are sorted with non-feature-base stacks first,
    then feature-base stacks alphabetically."
   [state]
@@ -137,7 +137,6 @@
   [_evt]
   (let [config (config/read-local)
         vcs (vcs/make config)]
-    (spit "target/prstack.log" "Reading local REPO\n")
     (swap! app-state merge
       {:app-state/config config
        :app-state/vcs vcs

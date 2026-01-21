@@ -1,0 +1,70 @@
+---
+title: prstack list
+description: List the current PR stack
+---
+
+# prstack list
+
+Lists the current PR stack from your position to trunk.
+
+## Usage
+
+```bash
+prstack list [options]
+```
+
+## Options
+
+### `--include-prs`
+
+Include associated PR URLs in the output.
+
+```bash
+prstack list --include-prs
+```
+
+## Examples
+
+### Basic List
+
+```bash
+prstack list
+
+# Output:
+# feature-c
+# feature-a
+# main
+```
+
+### With PR URLs
+
+```bash
+prstack list --include-prs
+
+# Output:
+# feature-c (https://github.com/owner/repo/pull/123)
+# feature-a (https://github.com/owner/repo/pull/122)
+# main
+```
+
+## How It Works
+
+The `list` command:
+
+1. Traces from your current branch back to the trunk
+2. Displays each branch in the stack
+3. Optionally fetches and displays PR information for each branch
+
+## When to Use
+
+Use `prstack list` when you want to:
+
+- Quickly see your current stack structure
+- Verify which branches are in your stack
+- Check PR status for branches in your stack
+- Get PR URLs for sharing or reference
+
+## See Also
+
+- [prstack sync](/docs/commands/sync) - Sync the current stack
+- [prstack create](/docs/commands/create) - Create missing PRs

@@ -35,7 +35,6 @@
 (defn find-pr
   "Find a PR using the GitHub CLI"
   [head-branch base-branch]
-  (spit "target/dev.log" (str "Fetching PR for " head-branch " onto " base-branch "\n") :append true)
   (parse-pr
     (json/read-str
       (not-empty
