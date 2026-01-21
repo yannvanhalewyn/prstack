@@ -48,16 +48,43 @@
      [{:change/local-branches ["main"]}
       {:change/local-branches ["hotfix"]}]]))
 
-(defn displayed-stacks [state]
-  (assoc-ui-indices
-    (stack/reverse-stacks
-      (case (:app-state/selected-tab state)
-        0 @(:app-state/current-stacks state)
-        1 @(:app-state/all-stacks state)
-        @(:app-state/all-stacks state)))))
+(defn displayed-stacks
+  "Returns a map with :regular-stacks and :feature-base-stacks,
+   both with UI indices and reversed for display.
+   
+   UI indices are assigned sequentially across both regular and feature-base stacks
+   to ensure only one item is selected at a time."
+  [state]
+  (let [raw-stacks (case (:app-state/selected-tab state)
+                     0 @(:app-state/current-stacks state)
+                     1 @(:app-state/all-stacks state)
+                     @(:app-state/all-stacks state))
+        {:keys [regular-stacks feature-base-stacks]}
+        (stack/process-stacks-with-feature-bases
+          (:app-state/vcs state)
+          (:app-state/config state)
+          raw-stacks)
+        ;; Reverse both stack groups
+        reversed-regular (stack/reverse-stacks regular-stacks)
+        reversed-feature-base (stack/reverse-stacks feature-base-stacks)
+        ;; Index them together as a single sequence
+        all-indexed (assoc-ui-indices (concat reversed-regular reversed-feature-base))
+        ;; Split them back into separate groups
+        regular-count (count reversed-regular)
+        indexed-regular (take regular-count all-indexed)
+        indexed-feature-base (drop regular-count all-indexed)]
+    {:regular-stacks (vec indexed-regular)
+     :feature-base-stacks (vec indexed-feature-base)}))
+
+(defn all-displayed-stacks
+  "Returns all stacks (regular + feature-base) as a flat sequence for operations
+   that need to work across all stacks (like navigation and PR fetching)."
+  [state]
+  (let [{:keys [regular-stacks feature-base-stacks]} (displayed-stacks state)]
+    (concat regular-stacks feature-base-stacks)))
 
 (defn selected-and-prev-change [state]
-  (let [leaves (stack/leaves (displayed-stacks state))
+  (let [leaves (stack/leaves (all-displayed-stacks state))
         idx (:app-state/selected-item-idx state)
         pairs (u/consecutive-pairs leaves)]
     (when-let [[selected-change prev-change]
@@ -108,7 +135,7 @@
   [_evt]
   (dispatch! [:event/read-local-repo])
   (let [vcs (:app-state/vcs @app-state)]
-    (doseq [stack (displayed-stacks @app-state)]
+    (doseq [stack (all-displayed-stacks @app-state)]
       (doseq [[cur-change prev-change] (u/consecutive-pairs stack)]
         (when prev-change
           (dispatch! [:event/fetch-pr
@@ -193,7 +220,7 @@
 
 (defmethod dispatch! :event/move-down
   [_evt]
-  (when-let [largest-idx (largest-ui-index (displayed-stacks @app-state))]
+  (when-let [largest-idx (largest-ui-index (all-displayed-stacks @app-state))]
     (swap! app-state update :app-state/selected-item-idx
       #(min largest-idx (inc %)))))
 

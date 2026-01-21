@@ -3,25 +3,8 @@
     [bb-tty.ansi :as ansi]
     [prstack.github :as github]
     [prstack.stack :as stack]
+    [prstack.ui :as ui]
     [prstack.vcs :as vcs]))
-
-(defn- format-change
-  "Formats the branch as part of a stack with colors and icons based on bookmark type.
-
-  Type mappings:
-    :trunk         -> blue diamond (◆)
-    :feature-base  -> orange fisheye (◉)
-    :regular       -> default color git branch icon (\ue0a0)"
-  [vcs change]
-  (let [bookmark-type (:change/bookmark-type change)
-        branch-name (vcs/local-branchname vcs change)
-        [icon color] (case bookmark-type
-                       :trunk        ["◆" :blue]
-                       :feature-base ["◉" :bright-yellow]
-                       :regular      ["\ue0a0" :default]
-                       ["\ue0a0" :default])]
-    (str " " (ansi/colorize color icon) " "
-         (ansi/colorize color branch-name))))
 
 (defn- print-stack-section
   "Prints a single stack with optional PR information."
@@ -37,7 +20,7 @@
           (let [head-branch cur-branch
                 base-branch (vcs/local-branchname vcs prev-change)
                 pr (github/find-pr head-branch base-branch)
-                formatted-branch (format-change vcs cur-change)
+                formatted-branch (ui/format-change vcs cur-change)
                 padded-branch (format (str "%-" max-width "s") formatted-branch)]
             (println padded-branch
               (cond
@@ -48,9 +31,9 @@
                 (not= head-branch trunk-branch)
                 (str (ansi/colorize :red "X") " No PR Found")
                 :else "")))
-          (println (format-change vcs cur-change)))))
+          (println (ui/format-change vcs cur-change)))))
     ;; Print the base branch at the bottom
-    (println (format-change vcs (last stack))))
+    (println (ui/format-change vcs (last stack))))
   (println))
 
 (defn print-stacks
@@ -65,7 +48,7 @@
         max-width
         (when-let [counts
                    (seq
-                     (mapcat #(map (comp count (partial format-change vcs)) %)
+                     (mapcat #(map (comp count (partial ui/format-change vcs)) %)
                        (stack/reverse-stacks all-stacks)))]
           (apply max counts))]
 
