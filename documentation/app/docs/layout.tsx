@@ -12,7 +12,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <Link href="/" className="text-xl font-bold mb-4 block text-blue-400 hover:text-blue-300">PrStack</Link>
         <nav>
           {items.map((item: any) => (
-            <div key={item.name} className="mb-2">
+            <div key={item.name} className="mb-6">
               {item.type === 'folder' ? (
                 <div>
                   <div className="font-semibold text-sm uppercase text-slate-400 mb-1">
