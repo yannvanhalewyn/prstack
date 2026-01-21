@@ -50,6 +50,31 @@ body {
   --tw-prose-quotes: #b0b0c8;
 }
 
+/* Larger heading sizes */
+.prose h2 {
+  font-size: 2rem;
+  line-height: 2.5rem;
+  margin-top: 2.5rem;
+  margin-bottom: 1.25rem;
+  font-weight: 700;
+}
+
+.prose h3 {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.prose h4 {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
 /* Code block styling - Shiki syntax highlighting with glow */
 .prose pre {
   border-radius: 0.5rem;
