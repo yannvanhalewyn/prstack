@@ -1,4 +1,5 @@
 (ns prstack.main
+  (:gen-class)
   (:require
     [bb-tty.ansi :as ansi]
     [prstack.cli.commands.create-prs :as commands.create-prs]

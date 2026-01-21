@@ -6,22 +6,56 @@
     [bb-tty.tui :as tui]
     [clojure.string :as str]
     [prstack.tui.db :as db]
+    [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
-(defn- format-change
-  "Formats the branch as part of a stack at the given index"
-  ([change]
-   (format-change change {}))
-  ([change {:keys [trunk?]}]
-   (str
-     (if trunk?
-       " \ue729 " #_"└─" #_" \ueb06 "  #_" \ueafc "
-       " \ue0a0 ")
-     (vcs/local-branchname change))))
+(defn- render-stack-section
+  "Renders a single stack with PR information.
+   Returns a sequence of lines to display."
+  [vcs state stack max-width]
+  (concat
+    ;; Render each branch in the stack (except the last one which is the base)
+    (for [[cur-change prev-change]
+          (u/consecutive-pairs
+            (for [change stack]
+              (let [is-selected? (= (:ui/idx change) (:app-state/selected-item-idx state))]
+                (assoc change
+                  :ui/formatted-change
+                  (ui/format-change vcs change {:no-color? is-selected?})
+                  :ui/is-selected? is-selected?))))]
+      (let [pr-info (db/sub-pr
+                      (vcs/local-branchname vcs cur-change)
+                      (vcs/local-branchname vcs prev-change))
+            padded-branch (format (str "%-" max-width "s")
+                            (:ui/formatted-change cur-change))]
+        (str (if (:ui/is-selected? cur-change)
+               (ansi/colorize :bg-gray padded-branch)
+               padded-branch)
+             " "
+             (cond
+               (= (:http/status pr-info) :status/pending)
+               (ansi/colorize :gray "Fetching...")
+
+               (:pr/url pr-info)
+               (str (case (:pr/status pr-info)
+                      :pr.status/approved (ansi/colorize :green "✓")
+                      :pr.status/changes-requested (ansi/colorize :red "✗")
+                      :pr.status/review-required (ansi/colorize :yellow "●")
+                      (ansi/colorize :gray "?"))
+                    " "
+                    (ansi/colorize :blue (str "#" (:pr/number pr-info)))
+                    " " (:pr/title pr-info))
+
+               (:missing pr-info)
+               (str (ansi/colorize :red "X") " No PR Found")
+
+               :else ""))))
+    ;; Render the base branch at the bottom
+    [(ui/format-change vcs (last stack))]))
 
 (defn- render-stacks
-  []
+  [vcs]
   (tui/component
     {:on-key-press
      (fn [key]
@@ -38,59 +72,47 @@
          (int \s) (db/dispatch! [:event/sync])
          nil))}
     (fn [state]
-      (if-let [stacks (seq (db/displayed-stacks state))]
-        (let [max-width
-              (when-let [counts
-                         (seq
-                           (mapcat
-                             (fn [stack]
-                               (map (comp count format-change) stack))
-                             stacks))]
-                (apply max counts))]
-          (for [[i stack] (u/indexed stacks)]
+      (let [{:keys [regular-stacks feature-base-stacks]} (db/displayed-stacks state)
+            all-stacks (concat regular-stacks feature-base-stacks)]
+        (if (seq all-stacks)
+          (let [max-width
+                (when-let [counts
+                           (seq
+                             (mapcat
+                               (fn [stack]
+                                 (map (comp count (partial ui/format-change vcs)) stack))
+                               all-stacks))]
+                  (apply max counts))]
             (concat
-              [(ansi/colorize :cyan
-                 ;; TODO better detect current stack in megamerges for example
-                 (str "\uf51e "
-                      (if (zero? i) "Current Stack" "Other Stack")
-                      " (" (dec (count stack)) ")"))]
-              (for [[cur-change prev-change]
-                    (u/consecutive-pairs
-                      (for [change stack]
-                        (assoc change
-                          :ui/formatted-change
-                          (format-change change))))]
-                (let [pr-info (db/sub-pr
-                                (vcs/local-branchname cur-change)
-                                (vcs/local-branchname prev-change))
-                      padded-branch (format (str "%-" max-width "s")
-                                      (:ui/formatted-change cur-change))]
-                  (str (if (= (:ui/idx cur-change) (:app-state/selected-item-idx state))
-                         (ansi/colorize :bg-gray padded-branch)
-                         padded-branch)
-                       " "
-                       (cond
-                         (= (:http/status pr-info) :status/pending)
-                         (ansi/colorize :gray "Fetching...")
+              ;; Render regular stacks
+              (when (seq regular-stacks)
+                (mapcat
+                  (fn [[i stack]]
+                    (concat
+                      [(ansi/colorize :cyan
+                         ;; TODO better detect current stack in megamerges for example
+                         (str "\uf51e "
+                              (if (zero? i) "Current Stack" "Other Stack")
+                              " (" (dec (count stack)) ")"))]
+                      (render-stack-section vcs state stack max-width)
+                      ;; Add blank line between stacks
+                      (when-not (and (= i (dec (count regular-stacks)))
+                                     (empty? feature-base-stacks))
+                        [""])))
+                  (u/indexed regular-stacks)))
 
-                         (:pr/url pr-info)
-                         (str (case (:pr/status pr-info)
-                                :pr.status/approved (ansi/colorize :green "✓")
-                                :pr.status/changes-requested (ansi/colorize :red "✗")
-                                :pr.status/review-required (ansi/colorize :yellow "●")
-                                (ansi/colorize :gray "?"))
-                              " "
-                              (ansi/colorize :blue (str "#" (:pr/number pr-info)))
-                              " " (:pr/title pr-info))
-                         ;; TODO Show if 'needs push'
-                         (:missing pr-info)
-                         (str (ansi/colorize :red "X") " No PR Found")
-
-                         :else ""))))
-              [(format-change (last stack) {:trunk? true})]
-              (when-not (= i (dec (count stacks)))
-                [""]))))
-        (ansi/colorize :cyan "No stacks detetected")))))
+              ;; Render feature base stacks
+              (when (seq feature-base-stacks)
+                (concat
+                  [""]  ; Blank line before section
+                  [(ansi/colorize :cyan "\uf126 Feature Base Branches")]
+                  (mapcat
+                    (fn [stack]
+                      (concat
+                        (render-stack-section vcs state stack max-width)
+                        [""]))
+                    feature-base-stacks)))))
+          [(ansi/colorize :cyan "No stacks detetected")])))))
 
 (defn- render-tabs
   [{:app-state/keys [selected-tab]}]
@@ -115,10 +137,10 @@
 (defn- render-tab-content
   [state]
   (case (:app-state/selected-tab state)
-    0 (render-stacks)
-    1 (render-stacks)
+    0 (render-stacks (:app-state/vcs state))
+    1 (render-stacks (:app-state/vcs state))
     2 (render-all-stacks-tab)
-    (render-stacks)))
+    (render-stacks (:app-state/vcs state))))
 
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)

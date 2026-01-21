@@ -6,12 +6,13 @@
     (java.io PushbackReader)))
 
 (defn read-local []
-  (->
-    (let [file (io/file ".prstack/config.edn")]
-      (when (.exists file)
-        (with-open [rdr (io/reader file)]
-          (edn/read (PushbackReader. rdr)))))
-    (update :ignored-branches set)))
+  (let [config (let [file (io/file ".prstack/config.edn")]
+                 (when (.exists file)
+                   (with-open [rdr (io/reader file)]
+                     (edn/read (PushbackReader. rdr)))))]
+    (-> (or config {})
+        (update :ignored-branches #(set (or % [])))
+        (update :feature-base-branches #(set (or % []))))))
 
 (comment
   (read-local))

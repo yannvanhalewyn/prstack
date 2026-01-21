@@ -1,9 +1,14 @@
 (ns prstack.vcs.jujutsu
+  "Jujutsu implementation of the VCS protocol.
+
+  This implementation uses Jujutsu (jj) commands to manage PR stacks,
+  leveraging jj's change-based model and powerful revset queries."
   (:refer-clojure :exclude [parents])
   (:require
     [bb-tty.ansi :as ansi]
     [clojure.string :as str]
-    [prstack.utils :as u]))
+    [prstack.utils :as u]
+    [prstack.vcs.graph :as graph]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -56,7 +61,7 @@
 (comment
   (find-megamerge "@"))
 
-(defn- parents [ref]
+(defn- ^:lsp/allow-unused parents [ref]
   (->> (u/run-cmd ["jj" "log" "--no-graph"
                    "-r" (format "parents(%s)" ref)
                    "-T" "separate(';', change_id.short(), local_bookmarks, remote_bookmarks) ++ '\n'"])
@@ -64,9 +69,9 @@
     (map #(str/split % #";"))
     (map #(zipmap [:change/change-id :change/local-branches :change/remote-branches] %))
     (map #(update % :change/local-branches
-              (fn [bm] (str/split bm #" "))))
+            (fn [bm] (str/split bm #" "))))
     (map #(update % :change/remote-branches
-              (fn [bm] (str/split bm #" "))))))
+            (fn [bm] (str/split bm #" "))))))
 
 (defn trunk-moved? [{:vcs-config/keys [trunk-branch]}]
   (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
@@ -102,85 +107,98 @@
    [:change/local-branches [:vector :string]]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Stack operations
+;; Graph operations
 
-(defn get-stack-command [ref]
-  ["jj" "log" "--no-graph"
-   "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
-   "-T" "separate(';', change_id.short(), commit_id, local_bookmarks, remote_bookmarks) ++ \"\n\""])
-
-(defn get-leaves [{:vcs-config/keys [trunk-branch]}]
-  (into
-    []
-    (comp
-      (map #(zipmap [:change/description
-                     :change/change-id
-                     :change/commit-sha
-                     :change/local-branches]
-              (str/split % #"\;")))
-      (map #(update % :change/local-branches
-              (fn [bm]
-                (str/split bm #" ")))))
-    (some->
-      (u/run-cmd
-        ["jj" "log" "--no-graph"
-         "-r" (format "heads(bookmarks()) ~ %s" trunk-branch)
-         "-T" "separate(';', coalesce(description.first_line(), ' '), change_id.short(), commit_id, local_bookmarks) ++ '\n'"])
-      (not-empty)
-      (str/split-lines))))
-
-(defn- ensure-trunk-branch
-  "Ensure the stack starts with the trunk branch. Sometimes the trunk
-  bookmark has moved and is not included in the stack output"
-  [{:vcs-config/keys [trunk-branch]} stack]
-  (if (= (str/replace (local-branchname (first stack)) #"\*" "") trunk-branch)
-    stack
-    (into [{:change/local-branches [trunk-branch]
-            :change/remote-branches [(str trunk-branch "@origin")]}] stack)))
-
-(defn- parse-change [raw-line]
-  (->
-    (zipmap [:change/change-id
-             :change/commit-sha
-             :change/local-branches
-             :change/remote-branches]
-      (str/split raw-line #";"))
-    (update :change/local-branches #(str/split % #" "))
-    (update :change/remote-branches #(str/split % #" "))))
-
-(defn parse-stack
-  [raw-output {:vcs-config/keys [trunk-branch] :as vcs-config}]
-  (some->> raw-output
-    (str/split-lines)
-    (reverse)
+(defn- parse-graph-output
+  "Parses jj log output into a collection of node maps."
+  [output _trunk-branch]
+  (when (not-empty output)
     (into []
       (comp
-        ;;(map str/trim)
-        ;;(remove empty?)
-        (map parse-change)
-        (remove #(= (local-branchname %) trunk-branch))))
-    (not-empty)
-    (ensure-trunk-branch vcs-config)))
+        (map str/trim)
+        (remove empty?)
+        (map #(str/split % #";"))
+        (map (fn [[change-id commit-sha parents-str local-branches-str remote-branches-str]]
+               {:node/change-id change-id
+                :node/commit-sha commit-sha
+                :node/parents (if (empty? parents-str)
+                                []
+                                (str/split parents-str #" "))
+                :node/local-branches (if (empty? local-branches-str)
+                                       []
+                                       (str/split local-branches-str #" "))
+                :node/remote-branches (if (empty? remote-branches-str)
+                                        []
+                                        (str/split remote-branches-str #" "))})))
+      (str/split-lines output))))
 
-(defn get-stack
-  ([vcs-config]
-   (get-stack "@" vcs-config))
-  ([ref vcs-config]
-   (parse-stack
-     (u/run-cmd (get-stack-command ref))
-     vcs-config)))
+(defn read-graph
+  "Reads the full VCS graph from jujutsu.
+
+  Reads all commits from trunk to all bookmark heads, building a complete
+  graph representation with parent/child relationships.
+
+  Returns a Graph (see prstack.vcs.graph/Graph)"
+  [{:vcs-config/keys [trunk-branch]}]
+  (let [;; Get trunk change-id
+        trunk-change-id (str/trim
+                          (u/run-cmd
+                            ["jj" "log" "--no-graph" "-r" trunk-branch
+                             "-T" "change_id.short()"]))
+        ;; Get all changes from trunk to all bookmark heads (inclusive)
+        ;; Include all intermediate changes, not just bookmarked ones
+        revset (format "ancestors(bookmarks()) & %s::" trunk-branch)
+        output (u/run-cmd
+                 ["jj" "log" "--no-graph"
+                  "-r" revset
+                  "-T" (str "separate(';', "
+                            "change_id.short(), "
+                            "commit_id, "
+                            "parents.map(|p| p.change_id().short()).join(' '), "
+                            "local_bookmarks.join(' '), "
+                            "remote_bookmarks.join(' ')) "
+                            "++ \"\\n\"")])
+        nodes (parse-graph-output output trunk-branch)]
+    (graph/build-graph nodes trunk-change-id)))
+
+(defn current-change-id
+  "Returns the change-id of the current working copy (@)."
+  []
+  (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id.short()"])))
+
+(defn read-current-stack-graph
+  "Reads a graph specifically for the current working copy stack.
+
+  This includes all changes from trunk to @, even if @ is not bookmarked.
+
+  Returns a Graph (see prstack.vcs.graph/Graph)"
+  [{:vcs-config/keys [trunk-branch]}]
+  (let [;; Get trunk change-id
+        trunk-change-id (str/trim
+                          (u/run-cmd
+                            ["jj" "log" "--no-graph" "-r" trunk-branch
+                             "-T" "change_id.short()"]))
+        ;; Get all changes from fork point to current, including unbookmarked
+        revset "fork_point(trunk() | @)::@"
+        output (u/run-cmd
+                 ["jj" "log" "--no-graph"
+                  "-r" revset
+                  "-T" (str "separate(';', "
+                            "change_id.short(), "
+                            "commit_id, "
+                            "parents.map(|p| p.change_id().short()).join(' '), "
+                            "local_bookmarks.join(' '), "
+                            "remote_bookmarks.join(' ')) "
+                            "++ \"\\n\"")])
+        nodes (parse-graph-output output trunk-branch)]
+    (graph/build-graph nodes trunk-change-id)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Public API
 
 (comment
+  (def graph* (read-graph (config)))
+  (tap> graph*)
+  (graph/find-all-paths-to-trunk graph* "wmkwotut")
   (detect-trunk-branch!)
-  (config)
-  (get-leaves (config))
-  (get-stack (config))
-  (for [change (some-> (find-megamerge "@") parents)]
-    (get-stack (:change/change-id change)))
-  (u/run-cmd (get-stack-command "@"))
-  (str/split-lines
-    (u/run-cmd (get-stack-command "@")
-      {:dir ",local/test-repo"}))
-  ;; Neeeds to have a 'test-branch' in current stack
-  (parse-stack (u/run-cmd (get-stack-command "test-branch"))
-    {:vcs-config/trunk-branch "main"}))
+  (config))
