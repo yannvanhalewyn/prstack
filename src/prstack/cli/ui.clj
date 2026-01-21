@@ -6,16 +6,22 @@
     [prstack.vcs :as vcs]))
 
 (defn- format-change
-  "Formats the branch as part of a stack"
-  ([vcs change]
-   (format-change vcs change {}))
-  ([vcs change {:keys [trunk? feature-base?]}]
-   (str
-     (cond
-       trunk?        " ◆ "  ; diamond for trunk
-       feature-base? " ◉ "  ; fisheye for feature base
-       :else         " \ue0a0 ") ; git branch icon
-     (ansi/colorize :blue (vcs/local-branchname vcs change)))))
+  "Formats the branch as part of a stack with colors and icons based on bookmark type.
+
+  Type mappings:
+    :trunk         -> blue diamond (◆)
+    :feature-base  -> orange fisheye (◉)
+    :regular       -> default color git branch icon (\ue0a0)"
+  [vcs change]
+  (let [bookmark-type (:change/bookmark-type change)
+        branch-name (vcs/local-branchname vcs change)
+        [icon color] (case bookmark-type
+                       :trunk        ["◆" :blue]
+                       :feature-base ["◉" :orange]
+                       :regular      ["\ue0a0" :default]
+                       ["\ue0a0" :default])]
+    (str " " (ansi/colorize color icon) " "
+         (ansi/colorize color branch-name))))
 
 (defn- print-stack-section
   "Prints a single stack with optional PR information."
@@ -23,17 +29,15 @@
   (when header
     (println (ansi/colorize :cyan header)))
   ;; Print each branch in the stack (except the last one which is the base)
-  (let [trunk-branch (:vcs-config/trunk-branch vcs)
-        feature-base-branches (:feature-base-branches config)]
+  (let [trunk-branch (vcs/trunk-branch vcs)]
     (doseq [[cur-change prev-change]
             (partition 2 1 stack)]
-      (let [cur-branch (vcs/local-branchname vcs cur-change)
-            is-feature-base? (contains? feature-base-branches cur-branch)]
+      (let [cur-branch (vcs/local-branchname vcs cur-change)]
         (if include-prs?
           (let [head-branch cur-branch
                 base-branch (vcs/local-branchname vcs prev-change)
                 pr (github/find-pr head-branch base-branch)
-                formatted-branch (format-change vcs cur-change {:feature-base? is-feature-base?})
+                formatted-branch (format-change vcs cur-change)
                 padded-branch (format (str "%-" max-width "s") formatted-branch)]
             (println padded-branch
               (cond
@@ -44,15 +48,9 @@
                 (not= head-branch trunk-branch)
                 (str (ansi/colorize :red "X") " No PR Found")
                 :else "")))
-          (println (format-change vcs cur-change {:feature-base? is-feature-base?})))))
+          (println (format-change vcs cur-change)))))
     ;; Print the base branch at the bottom
-    (let [base-change (last stack)
-          base-branch (vcs/local-branchname vcs base-change)
-          is-trunk? (= base-branch trunk-branch)
-          is-feature-base? (contains? feature-base-branches base-branch)]
-      (println (format-change vcs base-change
-                 {:trunk? is-trunk?
-                  :feature-base? is-feature-base?}))))
+    (println (format-change vcs (last stack))))
   (println))
 
 (defn print-stacks

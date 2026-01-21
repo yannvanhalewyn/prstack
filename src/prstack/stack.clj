@@ -20,23 +20,25 @@
   "Returns true if the leaf node should be ignored based on config."
   [{:keys [ignored-branches]} vcs node]
   (let [trunk-branch (vcs/trunk-branch vcs)
-        branch-name (vcs/local-branchname vcs (graph/node->change node))]
+        branch-name (first (:node/local-branches node))]
     (or (= branch-name trunk-branch)
         (contains? ignored-branches branch-name))))
 
 (defn- node->stack
   "Converts a leaf node to a stack by finding the path to trunk."
-  [vcs-graph node]
-  (when-let [path (graph/find-path-to-trunk vcs-graph (:node/change-id node))]
-    (graph/path->stack vcs-graph path)))
+  [vcs config vcs-graph node]
+  (let [opts {:trunk-branch (vcs/trunk-branch vcs)
+              :feature-base-branches (:feature-base-branches config)}]
+    (when-let [path (graph/find-path-to-trunk vcs-graph (:node/change-id node))]
+      (graph/path->stack vcs-graph path opts))))
 
 (defn- nodes->stacks
   "Converts leaf nodes to stacks, filtering out ignored branches."
-  [config vcs-config vcs-graph nodes]
+  [config vcs vcs-graph nodes]
   (into []
     (comp
-      (remove #(should-ignore-leaf? config vcs-config %))
-      (keep #(node->stack vcs-graph %)))
+      (remove #(should-ignore-leaf? config vcs %))
+      (keep #(node->stack vcs config vcs-graph %)))
     nodes))
 
 (defn get-all-stacks
@@ -53,11 +55,13 @@
   stacks - one for each parent path. Otherwise, returns a single stack."
   [vcs config]
   (let [vcs-graph (vcs/read-current-stack-graph vcs)
-        current-id (vcs/current-change-id vcs)]
+        current-id (vcs/current-change-id vcs)
+        opts {:trunk-branch (vcs/trunk-branch vcs)
+              :feature-base-branches (:feature-base-branches config)}]
     (if-let [megamerge (graph/find-megamerge-in-path vcs-graph current-id)]
       ;; Handle megamerge: get all paths from megamerge to trunk
       (let [paths (graph/find-all-paths-to-trunk vcs-graph (:node/change-id megamerge))
-            stacks (mapv #(graph/path->stack vcs-graph %) paths)]
+            stacks (mapv #(graph/path->stack vcs-graph % opts) paths)]
         (into []
           (comp
             (remove empty?)
@@ -68,11 +72,11 @@
           stacks))
       ;; Single path
       (when-let [path (graph/find-path-to-trunk vcs-graph current-id)]
-        [(graph/path->stack vcs-graph path)]))))
+        [(graph/path->stack vcs-graph path opts)]))))
 
 (defn get-stack
   "Returns a single stack for the given ref."
-  [vcs ref]
+  [vcs config ref]
   (let [vcs-graph (vcs/read-graph vcs)
         ;; For now, assume ref is a branch name and find the node with that branch
         node (some (fn [[_id node]]
@@ -80,7 +84,7 @@
                        node))
                    (:graph/nodes vcs-graph))]
     (when node
-      (node->stack vcs-graph node))))
+      (node->stack vcs config vcs-graph node))))
 
 (defn reverse-stacks
   "Reverses the order of the changes in every stack. Stacks are represented in
@@ -145,7 +149,7 @@
   [vcs config]
   (let [vcs-graph (vcs/read-graph vcs)
         feature-base-branches (:feature-base-branches config)
-        trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config vcs))]
+        trunk-branch (vcs/trunk-branch vcs)]
     (into []
       (keep (fn [branch-name]
               (let [node (some (fn [[_id node]]
@@ -153,7 +157,7 @@
                                    node))
                                (:graph/nodes vcs-graph))]
                 (when node
-                  (let [stack (node->stack vcs-graph node)]
+                  (let [stack (node->stack vcs config vcs-graph node)]
                     ;; Only return if:
                     ;; 1. Stack exists
                     ;; 2. Starts with trunk
@@ -183,7 +187,7 @@
   (def config* (config/read-local))
   (def vcs* (vcs/make config*))
   (tap> (get-current-stacks vcs* config*))
-  (tap> (get-stack vcs* "test-branch"))
+  (tap> (get-stack vcs* config* "test-branch"))
   (get-all-stacks vcs* {:ignored-branches #{}})
   (tap>
    (process-stacks-with-feature-bases vcs* config*

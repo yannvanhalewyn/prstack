@@ -207,13 +207,25 @@
 ;; Conversion to legacy Change format
 
 (defn node->change
-  "Converts a Node to the legacy Change format used by the rest of the codebase."
-  [node]
-  (cond-> {:change/change-id (:node/change-id node)
-           :change/local-branches (:node/local-branches node)
-           :change/remote-branches (:node/remote-branches node)}
-    (:node/commit-sha node)
-    (assoc :change/commit-sha (:node/commit-sha node))))
+  "Converts a Node to the legacy Change format used by the rest of the codebase.
+  
+  Options:
+    :trunk-branch - String, name of trunk branch (for :trunk type detection)
+    :feature-base-branches - Set of strings, names of feature base branches"
+  ([node]
+   (node->change node {}))
+  ([node {:keys [trunk-branch feature-base-branches]}]
+   (let [local-branch (first (:node/local-branches node))
+         bookmark-type (cond
+                         (:node/is-trunk? node) :trunk
+                         (and local-branch (contains? feature-base-branches local-branch)) :feature-base
+                         :else :regular)]
+     (cond-> {:change/change-id (:node/change-id node)
+              :change/local-branches (:node/local-branches node)
+              :change/remote-branches (:node/remote-branches node)
+              :change/bookmark-type bookmark-type}
+       (:node/commit-sha node)
+       (assoc :change/commit-sha (:node/commit-sha node))))))
 
 (defn- node-has-bookmarks?
   "Returns true if the node has at least one local bookmark."
@@ -229,16 +241,19 @@
   Args:
     graph - the graph containing the nodes
     path - vector of change-ids [leaf ... trunk]
+    opts - options map with :trunk-branch and :feature-base-branches
     
   Returns:
     Vector of Change maps ordered from trunk to leaf, containing only bookmarked nodes."
-  [graph path]
-  (->> path
-       (map #(get-node graph %))
-       (filter node-has-bookmarks?)
-       (map node->change)
-       (reverse)
-       (into [])))
+  ([graph path]
+   (path->stack graph path {}))
+  ([graph path opts]
+   (->> path
+        (map #(get-node graph %))
+        (filter node-has-bookmarks?)
+        (map #(node->change % opts))
+        (reverse)
+        (into []))))
 
 (comment
   ;; Example usage
