@@ -215,18 +215,27 @@
     (:node/commit-sha node)
     (assoc :change/commit-sha (:node/commit-sha node))))
 
+(defn- node-has-bookmarks?
+  "Returns true if the node has at least one local bookmark."
+  [node]
+  (seq (:node/local-branches node)))
+
 (defn path->stack
   "Converts a path (vector of change-ids) to a Stack (vector of Changes).
+  
+  Only includes nodes that have bookmarks (local branches). This filters out
+  intermediate unbookmarked commits.
   
   Args:
     graph - the graph containing the nodes
     path - vector of change-ids [leaf ... trunk]
     
   Returns:
-    Vector of Change maps ordered from trunk to leaf."
+    Vector of Change maps ordered from trunk to leaf, containing only bookmarked nodes."
   [graph path]
   (->> path
        (map #(get-node graph %))
+       (filter node-has-bookmarks?)
        (map node->change)
        (reverse)
        (into [])))
