@@ -23,6 +23,7 @@
    :white "\033[37m"
    :gray "\033[90m"
    :orange "\033[38;5;208m"        ; 256-color true orange
+   :bright-orange "\033[38;5;214m"  ; 256-color bright orange
    :bright-yellow "\033[93m"        ; Standard ANSI bright yellow (orange-ish)
    :bg-light-gray "\033[47m"
    :bg-gray "\033[100m"
