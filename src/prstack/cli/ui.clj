@@ -17,7 +17,7 @@
         branch-name (vcs/local-branchname vcs change)
         [icon color] (case bookmark-type
                        :trunk        ["◆" :blue]
-                       :feature-base ["◉" :orange]
+                       :feature-base ["◉" :yellow]
                        :regular      ["\ue0a0" :default]
                        ["\ue0a0" :default])]
     (str " " (ansi/colorize color icon) " "
@@ -27,7 +27,7 @@
   "Prints a single stack with optional PR information."
   [vcs stack config {:keys [include-prs? max-width header]}]
   (when header
-    (println (ansi/colorize :cyan header)))
+    (println (ansi/colorize [:cyan :bold] header)))
   ;; Print each branch in the stack (except the last one which is the base)
   (let [trunk-branch (vcs/trunk-branch vcs)]
     (doseq [[cur-change prev-change]
@@ -84,7 +84,7 @@
 
     ;; Print feature base stacks
     (when (seq feature-base-stacks)
-      (println (ansi/colorize :cyan "\n\uf126 Feature Base Branches"))
+      (println (ansi/colorize [:cyan :bold] "\n\uf126 Feature Base Branches"))
       (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
         (doseq [stack reversed-stacks]
           (print-stack-section vcs stack config
