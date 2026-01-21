@@ -75,8 +75,8 @@
   (when-let [{:keys [selected-change prev-change]}
              (selected-and-prev-change state)]
     (find-pr state
-      (vcs/local-branchname selected-change)
-      (vcs/local-branchname prev-change))))
+      (vcs/local-branchname (:app-state/vcs state) selected-change)
+      (vcs/local-branchname (:app-state/vcs state) prev-change))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
@@ -86,13 +86,13 @@
 (defmethod dispatch! :event/read-local-repo
   [_evt]
   (let [config (config/read-local)
-        vcs-config (vcs/config)]
+        vcs (vcs/make config)]
     (spit "target/prstack.log" "Reading local REPO\n")
     (swap! app-state merge
       {:app-state/config config
-       :app-state/vcs-config vcs-config
-       :app-state/current-stacks (delay (stack/get-current-stacks vcs-config config))
-       :app-state/all-stacks (delay (stack/get-all-stacks vcs-config config))})))
+       :app-state/vcs vcs
+       :app-state/current-stacks (delay (stack/get-current-stacks vcs config))
+       :app-state/all-stacks (delay (stack/get-all-stacks vcs config))})))
 
 (defmethod dispatch! :event/fetch-pr
   [[_ head-branch base-branch]]
@@ -107,38 +107,41 @@
 (defmethod dispatch! :event/refresh
   [_evt]
   (dispatch! [:event/read-local-repo])
-  (doseq [stack (displayed-stacks @app-state)]
-    (doseq [[cur-change prev-change] (u/consecutive-pairs stack)]
-      (when prev-change
-        (dispatch! [:event/fetch-pr
-                    (vcs/local-branchname cur-change)
-                    (vcs/local-branchname prev-change)])))))
+  (let [vcs (:app-state/vcs @app-state)]
+    (doseq [stack (displayed-stacks @app-state)]
+      (doseq [[cur-change prev-change] (u/consecutive-pairs stack)]
+        (when prev-change
+          (dispatch! [:event/fetch-pr
+                      (vcs/local-branchname vcs cur-change)
+                      (vcs/local-branchname vcs prev-change)]))))))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
   (when-let [{:keys [selected-change prev-change]}
              (selected-and-prev-change @app-state)]
-    (swap! app-state assoc :app-state/run-in-fg
-      #(u/shell-out
-         [(System/getenv "EDITOR") "-c"
-          (format "Difft %s..%s"
-            (or (:change/commit-sha prev-change)
-                (vcs/local-branchname prev-change))
-            (:change/commit-sha selected-change))]))
-    (tui/close!)))
+    (let [vcs (:app-state/vcs @app-state)]
+      (swap! app-state assoc :app-state/run-in-fg
+        #(u/shell-out
+           [(System/getenv "EDITOR") "-c"
+            (format "Difft %s..%s"
+              (or (:change/commit-sha prev-change)
+                  (vcs/local-branchname vcs prev-change))
+              (:change/commit-sha selected-change))])))
+    (tui/close!))
 
-(defmethod dispatch! :event/open-pr
-  [_evt]
-  (when-let [url (:pr/url (current-pr @app-state))]
-    (browse/browse-url url)))
+  (defmethod dispatch! :event/open-pr
+    [_evt]
+    (when-let [url (:pr/url (current-pr @app-state))]
+      (browse/browse-url url))))
 
 (defmethod dispatch! :event/create-pr
   [_evt]
   (when-let [{:keys [selected-change prev-change]}
              (and (not (:pr/url (current-pr @app-state)))
                   (selected-and-prev-change @app-state))]
-    (let [head-branch (vcs/local-branchname selected-change)
-          base-branch (vcs/local-branchname prev-change)]
+    (let [vcs (:app-state/vcs @app-state)
+          head-branch (vcs/local-branchname vcs selected-change)
+          base-branch (vcs/local-branchname vcs prev-change)]
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
           (println "Creating PR for"

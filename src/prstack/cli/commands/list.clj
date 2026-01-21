@@ -1,6 +1,5 @@
 (ns prstack.cli.commands.list
   (:require
-    [com.stuartsierra.component :as component]
     [prstack.cli.ui :as ui]
     [prstack.config :as config]
     [prstack.stack :as stack]
@@ -19,13 +18,11 @@
    (fn list [args]
      (let [opts (parse-opts args)
            config (config/read-local)
-           _ (clojure.pprint/pprint (vcs/make config))
-           vcs (component/start (vcs/make config))
-           vcs-config (vcs/vcs-config vcs)
+           vcs (vcs/make config)
            stacks
            (if (:all? opts)
              (stack/get-all-stacks vcs config)
              (stack/get-current-stacks vcs config))
            processed-stacks
-           (stack/process-stacks-with-feature-bases vcs-config config stacks)]
-       (ui/print-stacks processed-stacks vcs-config config opts)))})
+           (stack/process-stacks-with-feature-bases vcs config stacks)]
+       (ui/print-stacks processed-stacks vcs config opts)))})

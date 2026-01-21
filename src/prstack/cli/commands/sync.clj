@@ -58,6 +58,6 @@
            (println "Syncing stack:" (ansi/colorize :blue (first (:change/local-branches (last stack)))))
            (if (> (count stack) 1)
              (when (tty/prompt-yes "Would you like to create missing PRs?")
-               (commands.create-prs/create-prs {:stack stack}))
+               (commands.create-prs/create-prs vcs {:stack stack}))
              (println "No missing PRs to create."))
            (println)))))})

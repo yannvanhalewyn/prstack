@@ -11,17 +11,17 @@
 
 (defn- format-change
   "Formats the branch as part of a stack at the given index"
-  ([change]
-   (format-change change {}))
-  ([change {:keys [trunk?]}]
+  ([vcs change]
+   (format-change vcs change {}))
+  ([vcs change {:keys [trunk?]}]
    (str
      (if trunk?
        " \ue729 " #_"└─" #_" \ueb06 "  #_" \ueafc "
        " \ue0a0 ")
-     (vcs/local-branchname change))))
+     (vcs/local-branchname vcs change))))
 
 (defn- render-stacks
-  []
+  [vcs]
   (tui/component
     {:on-key-press
      (fn [key]
@@ -44,7 +44,7 @@
                          (seq
                            (mapcat
                              (fn [stack]
-                               (map (comp count format-change) stack))
+                               (map (comp count (partial format-change vcs)) stack))
                              stacks))]
                 (apply max counts))]
           (for [[i stack] (u/indexed stacks)]
@@ -59,10 +59,10 @@
                       (for [change stack]
                         (assoc change
                           :ui/formatted-change
-                          (format-change change))))]
+                          (format-change vcs change))))]
                 (let [pr-info (db/sub-pr
-                                (vcs/local-branchname cur-change)
-                                (vcs/local-branchname prev-change))
+                                (vcs/local-branchname vcs cur-change)
+                                (vcs/local-branchname vcs prev-change))
                       padded-branch (format (str "%-" max-width "s")
                                       (:ui/formatted-change cur-change))]
                   (str (if (= (:ui/idx cur-change) (:app-state/selected-item-idx state))
@@ -87,7 +87,7 @@
                          (str (ansi/colorize :red "X") " No PR Found")
 
                          :else ""))))
-              [(format-change (last stack) {:trunk? true})]
+              [(format-change vcs (last stack) {:trunk? true})]
               (when-not (= i (dec (count stacks)))
                 [""]))))
         (ansi/colorize :cyan "No stacks detetected")))))
@@ -115,10 +115,10 @@
 (defn- render-tab-content
   [state]
   (case (:app-state/selected-tab state)
-    0 (render-stacks)
-    1 (render-stacks)
+    0 (render-stacks (:app-state/vcs state))
+    1 (render-stacks (:app-state/vcs state))
     2 (render-all-stacks-tab)
-    (render-stacks)))
+    (render-stacks (:app-state/vcs state))))
 
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)

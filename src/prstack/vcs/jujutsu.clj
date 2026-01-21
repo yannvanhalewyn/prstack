@@ -69,9 +69,9 @@
     (map #(str/split % #";"))
     (map #(zipmap [:change/change-id :change/local-branches :change/remote-branches] %))
     (map #(update % :change/local-branches
-              (fn [bm] (str/split bm #" "))))
+            (fn [bm] (str/split bm #" "))))
     (map #(update % :change/remote-branches
-              (fn [bm] (str/split bm #" "))))))
+            (fn [bm] (str/split bm #" "))))))
 
 (defn trunk-moved? [{:vcs-config/keys [trunk-branch]}]
   (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
@@ -111,7 +111,7 @@
 
 (defn- parse-graph-output
   "Parses jj log output into a collection of node maps."
-  [output trunk-branch]
+  [output _trunk-branch]
   (when (not-empty output)
     (into []
       (comp

@@ -7,7 +7,6 @@
   (:require
     [bb-tty.ansi :as ansi]
     [clojure.string :as str]
-    [com.stuartsierra.component :as component]
     [prstack.utils :as u]
     [prstack.vcs.git :as git]
     [prstack.vcs.graph :as graph]
@@ -140,12 +139,6 @@
 ;; VCS Protocol Implementation
 
 (defrecord JujutsuVCS []
-  component/Lifecycle
-  (start [this]
-    (assoc this :vcs/config (read-vcs-config this)))
-  (stop [this]
-    this)
-
   VCS
   (read-vcs-config [_this]
     {:vcs-config/trunk-branch (jj/detect-trunk-branch!)})
@@ -176,13 +169,6 @@
 ;; Git Implementation
 
 (defrecord GitVCS []
-  component/Lifecycle
-  (start [this]
-    (assoc this :vcs/config (read-vcs-config this)))
-  (stop [this]
-    this)
-
-
   VCS
   (read-vcs-config [_this]
     {:vcs-config/trunk-branch (git/detect-trunk-branch!)})
@@ -249,6 +235,7 @@
 ;; Public API
 
 (defn make [config]
-  (if (= (:vcs/type config) :git)
-    (->GitVCS)
-    (->JujutsuVCS)))
+  (let [vcs (if (= (:vcs/type config) :git)
+              (->GitVCS)
+              (->JujutsuVCS))]
+    (assoc vcs :vcs/config (read-vcs-config vcs))))

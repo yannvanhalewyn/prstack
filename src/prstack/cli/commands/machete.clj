@@ -2,6 +2,7 @@
   (:require
     [bb-tty.ansi :as ansi]
     [clojure.string :as str]
+    [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.vcs :as vcs]))
 
@@ -13,7 +14,8 @@
    :description "Writes the current PR stack to the .git/machete file"
    :exec
    (fn machete [_args]
-     (let [vcs-config (vcs/config)
+     (let [vcs (vcs/make (config/read-local))
+           vcs-config (vcs/vcs-config vcs)
            stacks (stack/get-current-stacks vcs-config {})
            stack (first stacks)
            current-contents (slurp ".git/machete")
