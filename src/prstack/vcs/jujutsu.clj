@@ -1,6 +1,6 @@
 (ns prstack.vcs.jujutsu
   "Jujutsu implementation of the VCS protocol.
-  
+
   This implementation uses Jujutsu (jj) commands to manage PR stacks,
   leveraging jj's change-based model and powerful revset queries."
   (:refer-clojure :exclude [parents])
@@ -8,7 +8,6 @@
     [bb-tty.ansi :as ansi]
     [clojure.string :as str]
     [prstack.utils :as u]
-    [prstack.vcs :as vcs]
     [prstack.vcs.graph :as graph]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -169,9 +168,9 @@
 
 (defn read-current-stack-graph
   "Reads a graph specifically for the current working copy stack.
-  
+
   This includes all changes from trunk to @, even if @ is not bookmarked.
-  
+
   Returns a Graph (see prstack.vcs.graph/Graph)"
   [{:vcs-config/keys [trunk-branch]}]
   (let [;; Get trunk change-id
@@ -194,55 +193,12 @@
         nodes (parse-graph-output output trunk-branch)]
     (graph/build-graph nodes trunk-change-id)))
 
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; VCS Protocol Implementation
-
-(deftype JujutsuVCS []
-  vcs/VCS
-  
-  (vcs-config [_this]
-    {:vcs-config/trunk-branch (detect-trunk-branch!)})
-  
-  (vcs-push-branch [_this branch-name]
-    (push-branch branch-name))
-  
-  (vcs-trunk-moved? [_this vcs-config]
-    (trunk-moved? vcs-config))
-  
-  (vcs-local-branchname [_this change]
-    (local-branchname change))
-  
-  (vcs-remote-branchname [_this change]
-    (remote-branchname change))
-  
-  (vcs-read-graph [_this vcs-config]
-    (read-graph vcs-config))
-  
-  (vcs-read-current-stack-graph [_this vcs-config]
-    (read-current-stack-graph vcs-config))
-  
-  (vcs-current-change-id [_this]
-    (current-change-id)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public API
-
-(defn make-jujutsu-vcs
-  "Creates a new Jujutsu VCS implementation instance."
-  []
-  (->JujutsuVCS))
 
 (comment
   (def graph* (read-graph (config)))
   (tap> graph*)
   (graph/find-all-paths-to-trunk graph* "wmkwotut")
   (detect-trunk-branch!)
-  (config)
-  
-  ;; Example usage with protocol
-  (def jj-vcs (make-jujutsu-vcs))
-  (def config (vcs/config jj-vcs))
-  (def graph (vcs/read-graph jj-vcs config))
-  (vcs/current-change-id jj-vcs))
+  (config))

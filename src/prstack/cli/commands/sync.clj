@@ -22,13 +22,14 @@
    :exec
    (fn sync [args]
      (let [opts (parse-opts args)
-           {:vcs-config/keys [trunk-branch] :as vcs-config} (vcs/config)
-           config (config/read-local)]
+           config (config/read-local)
+           vcs (vcs/make config)
+           {:vcs-config/keys [trunk-branch] :as vcs} (vcs/vcs-config vcs) ]
        (println (ansi/colorize :yellow "\nFetching branches from remote..."))
        (u/shell-out ["jj" "git" "fetch"]
          {:echo? true})
 
-       (if (vcs/trunk-moved? vcs-config)
+       (if (vcs/trunk-moved? vcs)
          (do
            (println (ansi/colorize :yellow "\nRemote Trunk has changed."))
            (println (format "\nSetting local %s to remote..." (ansi/colorize :blue trunk-branch)))
@@ -47,12 +48,12 @@
 
        (let [stacks
              (if (:all? opts)
-               (stack/get-all-stacks vcs-config config)
-               (stack/get-current-stacks vcs-config config))
+               (stack/get-all-stacks vcs config)
+               (stack/get-current-stacks vcs config))
              processed-stacks
-             (stack/process-stacks-with-feature-bases vcs-config config stacks)
+             (stack/process-stacks-with-feature-bases vcs config stacks)
              regular-stacks (:regular-stacks processed-stacks)]
-         (ui/print-stacks processed-stacks vcs-config config (assoc opts :include-prs? true))
+         (ui/print-stacks processed-stacks vcs config (assoc opts :include-prs? true))
          (doseq [stack regular-stacks]
            (println "Syncing stack:" (ansi/colorize :blue (first (:change/local-branches (last stack)))))
            (if (> (count stack) 1)

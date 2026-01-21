@@ -53,7 +53,7 @@
    (fn create-prs-cmd [args]
      (let [ref (first args)
            config (config/read-local)
-           vcs-config (vcs/config)
+           vcs (vcs/make config)
            stack
            (if ref
              (stack/get-stack ref vcs-config)

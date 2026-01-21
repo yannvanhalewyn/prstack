@@ -18,8 +18,9 @@
 
 (defn- should-ignore-leaf?
   "Returns true if the leaf node should be ignored based on config."
-  [{:keys [ignored-branches]} {:vcs-config/keys [trunk-branch]} node]
-  (let [branch-name (vcs/local-branchname (graph/node->change node))]
+  [{:keys [ignored-branches]} vcs node]
+  (let [trunk-branch (vcs/trunk-branch vcs)
+        branch-name (vcs/local-branchname vcs (graph/node->change node))]
     (or (= branch-name trunk-branch)
         (contains? ignored-branches branch-name))))
 
@@ -40,19 +41,19 @@
 
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
-  [vcs-config config]
-  (let [vcs-graph (vcs/read-graph vcs-config)
+  [vcs config]
+  (let [vcs-graph (vcs/read-graph vcs)
         leaves (graph/bookmarked-leaf-nodes vcs-graph)]
-    (nodes->stacks config vcs-config vcs-graph leaves)))
+    (nodes->stacks config vcs vcs-graph leaves)))
 
 (defn get-current-stacks
   "Returns the stack(s) containing the current working copy.
 
   If the current change is a megamerge (multiple parents), returns multiple
   stacks - one for each parent path. Otherwise, returns a single stack."
-  [vcs-config config]
-  (let [vcs-graph (vcs/read-current-stack-graph vcs-config)
-        current-id (vcs/current-change-id)]
+  [vcs config]
+  (let [vcs-graph (vcs/read-current-stack-graph vcs)
+        current-id (vcs/current-change-id vcs)]
     (if-let [megamerge (graph/find-megamerge-in-path vcs-graph current-id)]
       ;; Handle megamerge: get all paths from megamerge to trunk
       (let [paths (graph/find-all-paths-to-trunk vcs-graph (:node/change-id megamerge))
@@ -61,7 +62,7 @@
           (comp
             (remove empty?)
             (remove (fn [stack]
-                      (should-ignore-leaf? config vcs-config
+                      (should-ignore-leaf? config vcs
                         (graph/get-node vcs-graph
                           (:change/change-id (last stack)))))))
           stacks))
@@ -71,8 +72,8 @@
 
 (defn get-stack
   "Returns a single stack for the given ref."
-  [ref vcs-config]
-  (let [vcs-graph (vcs/read-graph vcs-config)
+  [vcs ref]
+  (let [vcs-graph (vcs/read-graph vcs)
         ;; For now, assume ref is a branch name and find the node with that branch
         node (some (fn [[_id node]]
                      (when (some #{ref} (:node/local-branches node))
@@ -95,10 +96,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Feature base branch handling
 
+;; TODO precompute local branch-name so it doesn't require the whole VCS
+;; client
 (defn- is-feature-base-branch?
   "Returns true if the change is a feature base branch."
-  [{:keys [feature-base-branches]} change]
-  (contains? feature-base-branches (vcs/local-branchname change)))
+  [vcs {:keys [feature-base-branches]} change]
+  (contains? feature-base-branches (vcs/local-branchname vcs change)))
 
 (defn- truncate-stack-at-feature-base
   "Truncates a stack to stop at the first feature base branch.
@@ -108,12 +111,12 @@
   Everything before the feature base (including trunk) is removed.
 
   Returns the truncated stack, or the original stack if no feature base found."
-  [config stack]
+  [vcs config stack]
   (let [feature-base-branches (:feature-base-branches config)]
     (if (empty? feature-base-branches)
       stack
       (let [feature-base-idx (some (fn [idx]
-                                     (when (is-feature-base-branch? config (nth stack idx))
+                                     (when (is-feature-base-branch? vcs config (nth stack idx))
                                        idx))
                                    (range (count stack)))]
         (if feature-base-idx
@@ -123,7 +126,7 @@
 
 (comment
   (truncate-stack-at-feature-base
-    {:feature-base-branches #{"feature-2-base"}}
+    vcs* config*
     [{:change/description "Main Change"
       :change/local-branches ["main"]}
      {:change/description "Feature 2 merge base"
@@ -139,10 +142,10 @@
   Each stack contains [trunk-branch feature-base-branch].
   Only includes feature bases that are direct descendants of trunk
   (i.e., the stack has length 2)."
-  [vcs-config config]
-  (let [vcs-graph (vcs/read-graph vcs-config)
+  [vcs config]
+  (let [vcs-graph (vcs/read-graph vcs)
         feature-base-branches (:feature-base-branches config)
-        trunk-branch (:vcs-config/trunk-branch vcs-config)]
+        trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config vcs))]
     (into []
       (keep (fn [branch-name]
               (let [node (some (fn [[_id node]]
@@ -157,7 +160,7 @@
                     ;; 3. Has exactly 2 elements (trunk + feature-base)
                     (when (and stack
                                (= 2 (count stack))
-                               (= trunk-branch (vcs/local-branchname (first stack))))
+                               (= trunk-branch (vcs/local-branchname vcs (first stack))))
                       stack))))))
       feature-base-branches)))
 
@@ -169,19 +172,19 @@
   Returns a map with:
     :regular-stacks - stacks truncated at feature base branches
     :feature-base-stacks - stacks from trunk to each feature base branch"
-  [vcs-config config stacks]
-  (let [feature-base-stacks (get-feature-base-stacks vcs-config config)
-        regular-stacks (mapv #(truncate-stack-at-feature-base config %) stacks)]
+  [vcs config stacks]
+  (let [feature-base-stacks (get-feature-base-stacks vcs config)
+        regular-stacks (mapv #(truncate-stack-at-feature-base vcs config %) stacks)]
     {:regular-stacks regular-stacks
      :feature-base-stacks feature-base-stacks}))
 
 (comment
-  (def vcs-config* {:vcs-config/trunk-branch "main"})
-  (tap> (get-current-stacks vcs-config* {}))
-  (tap> (get-stack "test-branch" vcs-config*))
-  (get-all-stacks vcs-config* {:ignored-branches #{}})
+  (require '[prstack.config :as config])
+  (def config* (config/read-local))
+  (def vcs* (vcs/make config*))
+  (tap> (get-current-stacks vcs* config*))
+  (tap> (get-stack vcs* "test-branch"))
+  (get-all-stacks vcs* {:ignored-branches #{}})
   (tap>
-   (process-stacks-with-feature-bases vcs-config*
-     {:feature-base-branches #{"feature-2-base"}}
-     (get-all-stacks vcs-config* {:ignored-branches #{}})))
-    )
+   (process-stacks-with-feature-bases vcs* config*
+     (get-all-stacks vcs* config*))))
