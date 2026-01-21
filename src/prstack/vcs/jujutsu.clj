@@ -3,7 +3,8 @@
   (:require
     [bb-tty.ansi :as ansi]
     [clojure.string :as str]
-    [prstack.utils :as u]))
+    [prstack.utils :as u]
+    [prstack.vcs.graph :as graph]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -102,7 +103,67 @@
    [:change/local-branches [:vector :string]]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Stack operations
+;; Graph operations
+
+(defn- parse-graph-output
+  "Parses jj log output into a collection of node maps."
+  [output trunk-branch]
+  (when (not-empty output)
+    (into []
+      (comp
+        (map str/trim)
+        (remove empty?)
+        (map #(str/split % #";"))
+        (map (fn [[change-id commit-sha parents-str local-branches-str remote-branches-str]]
+               {:node/change-id change-id
+                :node/commit-sha commit-sha
+                :node/parents (if (empty? parents-str)
+                                []
+                                (str/split parents-str #" "))
+                :node/local-branches (if (empty? local-branches-str)
+                                       []
+                                       (str/split local-branches-str #" "))
+                :node/remote-branches (if (empty? remote-branches-str)
+                                        []
+                                        (str/split remote-branches-str #" "))})))
+      (str/split-lines output))))
+
+(defn read-graph
+  "Reads the full VCS graph from jujutsu.
+  
+  Reads all commits from trunk to all bookmark heads, building a complete
+  graph representation with parent/child relationships.
+  
+  Returns a Graph (see prstack.vcs.graph/Graph)"
+  [{:vcs-config/keys [trunk-branch]}]
+  (let [;; Get trunk change-id
+        trunk-change-id (str/trim
+                          (u/run-cmd
+                            ["jj" "log" "--no-graph" "-r" trunk-branch
+                             "-T" "change_id.short()"]))
+        ;; Get all changes from trunk to all bookmark heads (inclusive)
+        ;; Include all intermediate changes, not just bookmarked ones
+        revset (format "ancestors(bookmarks()) & %s::" trunk-branch)
+        output (u/run-cmd
+                 ["jj" "log" "--no-graph"
+                  "-r" revset
+                  "-T" (str "separate(';', "
+                            "change_id.short(), "
+                            "commit_id, "
+                            "parents.map(|p| p.change_id().short()).join(' '), "
+                            "local_bookmarks.join(' '), "
+                            "remote_bookmarks.join(' ')) "
+                            "++ \"\\n\"")])
+        nodes (parse-graph-output output trunk-branch)]
+    (graph/build-graph nodes trunk-change-id)))
+
+(defn current-change-id
+  "Returns the change-id of the current working copy (@)."
+  []
+  (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id.short()"])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stack operations (legacy - to be deprecated)
 
 (defn get-stack-command [ref]
   ["jj" "log" "--no-graph"

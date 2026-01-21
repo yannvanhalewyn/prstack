@@ -27,16 +27,16 @@
   (jj/remote-branchname change))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Stack operations
+;; Graph operations
 
-(defn get-leaves [vcs-config]
-  (jj/get-leaves vcs-config))
+(defn read-graph
+  "Reads the VCS graph. Returns a Graph (see prstack.vcs.graph/Graph)."
+  [vcs-config]
+  (jj/read-graph vcs-config))
 
-(defn get-stack
-  ([vcs-config]
-   (jj/get-stack vcs-config))
-  ([ref vcs-config]
-   (jj/get-stack ref vcs-config)))
+(defn current-change-id
+  "Returns the change-id of the current working copy."
+  []
+  (jj/current-change-id))
 
-(def find-megamerge #'jj/find-megamerge)
-(def parents #'jj/parents)
+
