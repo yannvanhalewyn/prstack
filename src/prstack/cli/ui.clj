@@ -23,29 +23,31 @@
   (when header
     (println (ansi/colorize :cyan header)))
   ;; Print each branch in the stack (except the last one which is the base)
-  (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config vcs))]
+  (let [trunk-branch (:vcs-config/trunk-branch vcs)
+        feature-base-branches (:feature-base-branches config)]
     (doseq [[cur-change prev-change]
             (partition 2 1 stack)]
-      (if include-prs?
-        (let [head-branch (vcs/local-branchname vcs cur-change)
-              base-branch (vcs/local-branchname vcs prev-change)
-              pr (github/find-pr head-branch base-branch)
-              formatted-branch (format-change vcs cur-change)
-              padded-branch (format (str "%-" max-width "s") formatted-branch)]
-          (println padded-branch
-            (cond
-              pr
-              (str (ansi/colorize :green "✔") " PR Found"
-                   (ansi/colorize :gray (str " (" (:pr/number pr) ")")))
-             ;; TODO Show if 'needs push'
-              (not= head-branch trunk-branch)
-              (str (ansi/colorize :red "X") " No PR Found")
-              :else "")))
-        (println (format-change vcs cur-change))))
+      (let [cur-branch (vcs/local-branchname vcs cur-change)
+            is-feature-base? (contains? feature-base-branches cur-branch)]
+        (if include-prs?
+          (let [head-branch cur-branch
+                base-branch (vcs/local-branchname vcs prev-change)
+                pr (github/find-pr head-branch base-branch)
+                formatted-branch (format-change vcs cur-change {:feature-base? is-feature-base?})
+                padded-branch (format (str "%-" max-width "s") formatted-branch)]
+            (println padded-branch
+              (cond
+                pr
+                (str (ansi/colorize :green "✔") " PR Found"
+                     (ansi/colorize :gray (str " (" (:pr/number pr) ")")))
+               ;; TODO Show if 'needs push'
+                (not= head-branch trunk-branch)
+                (str (ansi/colorize :red "X") " No PR Found")
+                :else "")))
+          (println (format-change vcs cur-change {:feature-base? is-feature-base?})))))
     ;; Print the base branch at the bottom
     (let [base-change (last stack)
           base-branch (vcs/local-branchname vcs base-change)
-          feature-base-branches (:feature-base-branches config)
           is-trunk? (= base-branch trunk-branch)
           is-feature-base? (contains? feature-base-branches base-branch)]
       (println (format-change vcs base-change

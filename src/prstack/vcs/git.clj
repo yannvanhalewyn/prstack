@@ -78,6 +78,7 @@
       (comp
         (map str/trim)
         (map #(str/replace % #"^\*\s+" ""))
+        (remove #(str/starts-with? % "("))
         (remove empty?))
       (str/split-lines output))))
 
@@ -127,6 +128,7 @@
                      (map str/trim)
                      (map #(str/replace % #"^\*\s+" ""))
                      (remove #{trunk-branch})
+                     (remove #(str/starts-with? % "("))
                      (remove empty?))
                    (str/split-lines
                      (u/run-cmd ["git" "branch" "--list"])))
