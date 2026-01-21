@@ -13,7 +13,7 @@
    (str
      (cond
        trunk?        " ◆ "  ; diamond for trunk
-       feature-base? " ⬢ "  ; hexagon for feature base
+       feature-base? " ◉ "  ; fisheye for feature base
        :else         " \ue0a0 ") ; git branch icon
      (ansi/colorize :blue (vcs/local-branchname change)))))
 
