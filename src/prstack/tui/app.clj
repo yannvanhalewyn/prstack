@@ -19,15 +19,17 @@
     (for [[cur-change prev-change]
           (u/consecutive-pairs
             (for [change stack]
-              (assoc change
-                :ui/formatted-change
-                (ui/format-change vcs change))))]
+              (let [is-selected? (= (:ui/idx change) (:app-state/selected-item-idx state))]
+                (assoc change
+                  :ui/formatted-change
+                  (ui/format-change vcs change {:no-color? is-selected?})
+                  :ui/is-selected? is-selected?))))]
       (let [pr-info (db/sub-pr
                       (vcs/local-branchname vcs cur-change)
                       (vcs/local-branchname vcs prev-change))
             padded-branch (format (str "%-" max-width "s")
                             (:ui/formatted-change cur-change))]
-        (str (if (= (:ui/idx cur-change) (:app-state/selected-item-idx state))
+        (str (if (:ui/is-selected? cur-change)
                (ansi/colorize :bg-gray padded-branch)
                padded-branch)
              " "
