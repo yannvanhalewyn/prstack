@@ -15,7 +15,7 @@ PrStack dynamically discovers your PR stacks by tracing from your current branch
 jj new -m "Feature A"
 jj bookmark create feature-a
 
-jj new -m "Feature B" 
+jj new -m "Feature B"
 jj bookmark create feature-b
 
 # Sync discovers: feature-b → feature-a → main
@@ -40,7 +40,7 @@ PrStack will:
 **Requirements**: [Babashka](https://babashka.org/) and [GitHub CLI](https://cli.github.com/)
 
 ```bash
-git clone https://github.com/your-username/prstack.git
+git clone https://github.com/yannvanhalewyn/prstack.git
 cd prstack
 chmod +x bin/prstack
 ln -s $(pwd)/bin/prstack /usr/local/bin/prstack

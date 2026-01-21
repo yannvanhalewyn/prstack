@@ -15,7 +15,7 @@ export default function HomePage() {
           Get Started
         </Link>
         <Link
-          href="https://github.com/your-username/prstack"
+          href="https://github.com/yannvanhalewyn/prstack"
           className="rounded-lg border border-gray-300 px-6 py-3 hover:bg-gray-50 font-medium transition"
         >
           GitHub
