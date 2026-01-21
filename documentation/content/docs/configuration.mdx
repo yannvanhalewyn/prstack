@@ -1,0 +1,47 @@
+---
+title: Configuration
+description: How to configure PrStack for your repository
+---
+
+# Configuration
+
+PrStack can be configured using a `.prstack/config.edn` file in your repository root.
+
+## Configuration File
+
+Create a `.prstack/config.edn` file in your repository:
+
+```clojure
+{:ignored-branches #{"staging" "experimental" "temp-branch"}}
+```
+
+## Configuration Options
+
+### `:ignored-branches`
+
+A set of branch names to exclude from stack discovery and operations. This is useful for filtering out temporary, experimental, or staging branches that shouldn't be part of your PR workflow.
+
+**Type**: Set of strings  
+**Default**: `#{}`
+
+**Example**:
+```clojure
+{:ignored-branches #{"staging" "experimental" "temp-branch" "wip-*"}}
+```
+
+When PrStack discovers your stack, any branches in this set will be skipped and not included in the stack operations.
+
+## Example Configuration
+
+Here's a complete example configuration file:
+
+```clojure
+{:ignored-branches #{"staging" "experimental" "temp-*" "wip-*" "backup-*"}}
+```
+
+This configuration will exclude any branches named:
+- `staging`
+- `experimental`
+- Any branch starting with `temp-`
+- Any branch starting with `wip-`
+- Any branch starting with `backup-`

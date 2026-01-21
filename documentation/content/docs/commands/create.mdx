@@ -1,0 +1,65 @@
+---
+title: prstack create
+description: Create missing PRs for the current stack
+---
+
+# prstack create
+
+Creates missing pull requests for the current stack.
+
+## Usage
+
+```bash
+prstack create
+```
+
+## What It Does
+
+The `create` command:
+
+1. **Discovers your stack** from the current position to trunk
+2. **Identifies missing PRs** between adjacent branches in the stack
+3. **Prompts to create each missing PR** with appropriate base branches
+
+## Example
+
+```bash
+prstack create
+
+# Output:
+# Discovered stack: feature-c → feature-a → main
+# Missing PRs:
+#   - feature-a → main
+#   - feature-c → feature-a
+# 
+# Create PR for feature-a → main? (y/n) y
+# Creating PR...
+# Created: https://github.com/owner/repo/pull/122
+#
+# Create PR for feature-c → feature-a? (y/n) y
+# Creating PR...
+# Created: https://github.com/owner/repo/pull/123
+```
+
+## PR Base Branches
+
+PrStack automatically sets the correct base branch for each PR:
+
+- For a stack `feature-c → feature-a → main`:
+  - `feature-a` PR targets `main`
+  - `feature-c` PR targets `feature-a`
+
+This ensures that PRs in your stack are properly chained.
+
+## When to Use
+
+Use `prstack create` when you want to:
+
+- Create PRs for a new stack of branches
+- Fill in missing PRs after branching off existing work
+- Ensure all branches in your stack have associated PRs
+
+## See Also
+
+- [prstack sync](/docs/commands/sync) - Sync and optionally create PRs
+- [prstack list](/docs/commands/list) - List the current stack

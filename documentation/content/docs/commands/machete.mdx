@@ -1,0 +1,51 @@
+---
+title: prstack machete
+description: Export stack to Git Machete format
+---
+
+# prstack machete
+
+Exports the current stack to `.git/machete` format for compatibility with Git Machete tools.
+
+## Usage
+
+```bash
+prstack machete
+```
+
+## What It Does
+
+The `machete` command:
+
+1. Discovers your current stack from your position to trunk
+2. Exports the stack structure to `.git/machete` file
+3. Makes your stack compatible with [Git Machete](https://github.com/VirtusLab/git-machete) tools
+
+## Example
+
+```bash
+prstack machete
+
+# Creates/updates .git/machete with:
+# main
+#   feature-a
+#     feature-c
+```
+
+## Use Case
+
+This command is useful when you want to:
+
+- Use Git Machete tools alongside PrStack
+- Share your stack structure in a standard format
+- Migrate from PrStack to Git Machete
+- Integrate with tools that read `.git/machete`
+
+## Difference from Git Machete
+
+While Git Machete requires you to maintain the `.git/machete` file manually, PrStack generates it dynamically based on your current position. You can regenerate it at any time by running `prstack machete` from any branch in your development tree.
+
+## See Also
+
+- [Philosophy](/docs/philosophy) - How PrStack differs from Git Machete
+- [prstack list](/docs/commands/list) - List the current stack

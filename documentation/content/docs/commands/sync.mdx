@@ -1,0 +1,63 @@
+---
+title: prstack sync
+description: Sync your current stack with the remote
+---
+
+# prstack sync
+
+Syncs your current stack with the remote repository.
+
+## Usage
+
+```bash
+prstack sync
+```
+
+## What It Does
+
+The `sync` command performs the following operations in order:
+
+1. **Fetches latest changes** from the remote repository
+2. **Updates local trunk** to match the remote trunk branch
+3. **Discovers current stack** by tracing from your current position back to trunk
+4. **Optionally rebases** the stack on the updated trunk (only if trunk changed)
+5. **Pushes tracked branches** to the remote
+6. **Offers to create missing PRs** for branches without pull requests
+
+## Dynamic Stack Discovery
+
+The key feature of `prstack sync` is its dynamic stack discovery. It doesn't require you to pre-define your stack structure. Instead, it automatically discovers your stack by tracing from wherever you are back to the trunk branch.
+
+## Example
+
+```bash
+# You're on feature-b which is based on feature-a
+# feature-a is based on main
+
+prstack sync
+
+# Output:
+# Fetching from remote...
+# Updating trunk (main)...
+# Discovered stack: feature-b → feature-a → main
+# Trunk has new commits, rebase? (y/n)
+# Pushing branches...
+# Missing PRs detected:
+#   - feature-a → main
+#   - feature-b → feature-a
+# Create missing PRs? (y/n)
+```
+
+## When to Use
+
+Use `prstack sync` when you want to:
+
+- Update your stack with the latest changes from remote
+- Ensure your stack is in sync before creating PRs
+- Rebase your entire stack on the latest trunk
+- Quickly identify and create missing PRs
+
+## See Also
+
+- [prstack list](/docs/commands/list) - List the current stack
+- [prstack create](/docs/commands/create) - Create missing PRs
