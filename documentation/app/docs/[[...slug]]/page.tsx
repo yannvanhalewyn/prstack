@@ -7,15 +7,18 @@ export default async function Page(props: {
 }) {
   const params = await props.params;
   const page: any = source.getPage(params.slug);
+  
   if (!page) notFound();
 
-  const Content = page.data.exports.default;
+  const Content = page.body;
+  const title = page.title || 'Untitled';
+  const description = page.description;
 
   return (
     <article className="prose prose-gray max-w-none">
-      <h1>{page.data.title}</h1>
-      {page.data.description && (
-        <p className="text-lg text-gray-600 -mt-4 mb-8">{page.data.description}</p>
+      <h1>{title}</h1>
+      {description && (
+        <p className="text-lg text-gray-600 -mt-4 mb-8">{description}</p>
       )}
       <Content />
     </article>
@@ -34,7 +37,7 @@ export async function generateMetadata(props: {
   if (!page) notFound();
 
   return {
-    title: page.data.title,
-    description: page.data.description,
+    title: page.title || 'PrStack Docs',
+    description: page.description,
   };
 }
