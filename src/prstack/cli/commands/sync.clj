@@ -24,7 +24,7 @@
      (let [opts (parse-opts args)
            config (config/read-local)
            vcs (vcs/make config)
-           {:vcs-config/keys [trunk-branch] :as vcs} (vcs/vcs-config vcs) ]
+           {:vcs-config/keys [trunk-branch]} (vcs/vcs-config vcs) ]
        (println (ansi/colorize :yellow "\nFetching branches from remote..."))
        (u/shell-out ["jj" "git" "fetch"]
          {:echo? true})
