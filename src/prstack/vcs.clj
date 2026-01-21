@@ -235,7 +235,7 @@
 ;; Public API
 
 (defn make [config]
-  (let [vcs (if (= (:vcs/type config) :git)
+  (let [vcs (if (= (:vcs config) :git)
               (->GitVCS)
               (->JujutsuVCS))]
     (assoc vcs :vcs/config (read-vcs-config vcs))))
