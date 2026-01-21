@@ -19,19 +19,33 @@
     (for [[cur-change prev-change]
           (u/consecutive-pairs
             (for [change stack]
-              (let [is-selected? (= (:ui/idx change) (:app-state/selected-item-idx state))]
+              (let [is-selected? (= (:ui/idx change) (:app-state/selected-item-idx state))
+                    ;; Always calculate uncolored for padding purposes
+                    uncolored (ui/format-change vcs change {:no-color? true})
+                    ;; Also get the colored version for non-selected items
+                    colored (ui/format-change vcs change)]
                 (assoc change
-                  :ui/formatted-change
-                  (ui/format-change vcs change {:no-color? is-selected?})
+                  :ui/uncolored uncolored
+                  :ui/colored colored
                   :ui/is-selected? is-selected?))))]
       (let [pr-info (db/sub-pr
                       (vcs/local-branchname vcs cur-change)
                       (vcs/local-branchname vcs prev-change))
-            padded-branch (format (str "%-" max-width "s")
-                            (:ui/formatted-change cur-change))]
-        (str (if (:ui/is-selected? cur-change)
-               (ansi/colorize :bg-gray padded-branch)
-               padded-branch)
+            ;; Pad the uncolored version to get consistent visual width
+            padded-uncolored (format (str "%-" max-width "s")
+                               (:ui/uncolored cur-change))
+            ;; Choose the display version based on selection
+            display-branch (if (:ui/is-selected? cur-change)
+                             ;; For selected: apply background to padded uncolored
+                             (ansi/colorize :bg-gray padded-uncolored)
+                             ;; For unselected: need to pad the colored version
+                             ;; Calculate how much extra padding we need
+                             (let [colored (:ui/colored cur-change)
+                                   visual-len (count (:ui/uncolored cur-change))
+                                   padding-needed (- max-width visual-len)
+                                   padding (apply str (repeat padding-needed " "))]
+                               (str colored padding)))]
+        (str display-branch
              " "
              (cond
                (= (:http/status pr-info) :status/pending)
@@ -73,46 +87,55 @@
          nil))}
     (fn [state]
       (let [{:keys [regular-stacks feature-base-stacks]} (db/displayed-stacks state)
-            all-stacks (concat regular-stacks feature-base-stacks)]
-        (if (seq all-stacks)
-          (let [max-width
-                (when-let [counts
-                           (seq
-                             (mapcat
-                               (fn [stack]
-                                 (map (comp count (partial ui/format-change vcs)) stack))
-                               all-stacks))]
-                  (apply max counts))]
-            (concat
-              ;; Render regular stacks
-              (when (seq regular-stacks)
-                (mapcat
-                  (fn [[i stack]]
-                    (concat
-                      [(ansi/colorize :cyan
-                         ;; TODO better detect current stack in megamerges for example
-                         (str "\uf51e "
-                              (if (zero? i) "Current Stack" "Other Stack")
-                              " (" (dec (count stack)) ")"))]
-                      (render-stack-section vcs state stack max-width)
-                      ;; Add blank line between stacks
-                      (when-not (and (= i (dec (count regular-stacks)))
-                                     (empty? feature-base-stacks))
-                        [""])))
-                  (u/indexed regular-stacks)))
+            all-stacks (concat regular-stacks feature-base-stacks)
+            max-width
+            (when (seq all-stacks)
+              (when-let [counts
+                         (seq
+                           (mapcat
+                             (fn [stack]
+                               ;; Calculate visual width using uncolored text
+                               (map (fn [change]
+                                      (count (ui/format-change vcs change {:no-color? true})))
+                                 stack))
+                             all-stacks))]
+                (apply max counts)))]
+        (concat
+          ;; Show "No stacks detected" when there are no regular stacks
+          ;; or when all stacks only contain trunk (no feature branches)
+          (when (or (not (seq regular-stacks))
+                    (every? #(<= (count %) 1) regular-stacks))
+            [(ansi/colorize :cyan "No stacks detetected")])
 
-              ;; Render feature base stacks
-              (when (seq feature-base-stacks)
+          ;; Render regular stacks (only if they have actual feature branches)
+          (when (and (seq regular-stacks)
+                     (not (every? #(<= (count %) 1) regular-stacks)))
+            (mapcat
+              (fn [[i stack]]
                 (concat
-                  [""]  ; Blank line before section
-                  [(ansi/colorize :cyan "\uf126 Feature Base Branches")]
-                  (mapcat
-                    (fn [stack]
-                      (concat
-                        (render-stack-section vcs state stack max-width)
-                        [""]))
-                    feature-base-stacks)))))
-          [(ansi/colorize :cyan "No stacks detetected")])))))
+                  [(ansi/colorize :cyan
+                     ;; TODO better detect current stack in megamerges for example
+                     (str "\uf51e "
+                          (if (zero? i) "Current Stack" "Other Stack")
+                          " (" (dec (count stack)) ")"))]
+                  (render-stack-section vcs state stack max-width)
+                  ;; Add blank line between stacks
+                  (when-not (and (= i (dec (count regular-stacks)))
+                                 (empty? feature-base-stacks))
+                    [""])))
+              (u/indexed regular-stacks)))
+
+          ;; Render feature base stacks
+          (when (seq feature-base-stacks)
+            (concat
+              [""]  ; Blank line before section
+              [(ansi/colorize :cyan "\uf126 Feature Base Branches")]
+              (mapcat
+                (fn [stack]
+                  (concat
+                    (render-stack-section vcs state stack max-width)
+                    [""]))
+                feature-base-stacks))))))))
 
 (defn- render-tabs
   [{:app-state/keys [selected-tab]}]

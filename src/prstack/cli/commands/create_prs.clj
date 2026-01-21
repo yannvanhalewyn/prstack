@@ -54,12 +54,11 @@
      (let [ref (first args)
            config (config/read-local)
            vcs (vcs/make config)
-           vcs-config (vcs/vcs-config vcs)
            stack
            (if ref
-             (stack/get-stack ref vcs-config)
-             (first (stack/get-current-stacks vcs-config config)))
+             (stack/get-stack vcs config ref)
+             (first (stack/get-current-stacks vcs config)))
            processed-stacks
-           (stack/process-stacks-with-feature-bases vcs-config config [stack])]
-       (ui/print-stacks processed-stacks vcs-config config {:include-prs? true})
+           (stack/process-stacks-with-feature-bases vcs config [stack])]
+       (ui/print-stacks processed-stacks vcs config {:include-prs? true})
        (create-prs vcs {:stack stack})))})

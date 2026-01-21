@@ -36,3 +36,8 @@
     (fn [color-keys text]
       (let [color-codes (str/join "" (map colors (cond-> color-keys keyword? vector)))]
         (str color-codes text (colors :reset))))))
+
+(defn strip-ansi
+  "Removes all ANSI escape codes from a string to get the visual length."
+  [s]
+  (str/replace s #"\u001b\[[0-9;]*[a-zA-Z]" ""))

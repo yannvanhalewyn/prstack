@@ -2,6 +2,7 @@
   "Shared UI formatting utilities for CLI and TUI."
   (:require
     [bb-tty.ansi :as ansi]
+    [bblgum.core :as b]
     [prstack.vcs :as vcs]))
 
 (defn format-change
@@ -31,3 +32,27 @@
        (str " " icon " " branch-name)
        (str " " (ansi/colorize color icon) " "
             (ansi/colorize color branch-name))))))
+
+(defn prompt-selection
+  "Prompts the user to select from a list of options using gum.
+  
+  Args:
+    options - A seq of strings to choose from
+    opts - Optional map with keys:
+      :header - Header text to display above the selection
+      :limit - Maximum number of selections (default 1)
+  
+  Returns:
+    Selected option(s) as a string (single selection) or seq of strings (multiple)"
+  ([options]
+   (prompt-selection options {}))
+  ([options {:keys [header limit] :or {limit 1}}]
+   (let [gum-args (cond-> [:limit limit]
+                    header (concat [:header header]))
+         result (apply b/gum :choose (vec options) gum-args)]
+     (if (= (:status result) 0)
+       (if (= limit 1)
+         (first (:result result))
+         (:result result))
+       nil))))
+
