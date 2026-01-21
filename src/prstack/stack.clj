@@ -92,6 +92,74 @@
 (defn leaves [stacks]
   (apply concat stacks))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Feature base branch handling
+
+(defn- is-feature-base-branch?
+  "Returns true if the change is a feature base branch."
+  [{:keys [feature-base-branches]} change]
+  (contains? feature-base-branches (vcs/local-branchname change)))
+
+(defn- truncate-stack-at-feature-base
+  "Truncates a stack to stop at the first feature base branch.
+  
+  If a feature base branch is found, the stack is cut at that point
+  (the feature base branch is included as the base).
+  
+  Returns the truncated stack, or the original stack if no feature base found."
+  [config stack]
+  (let [feature-base-branches (:feature-base-branches config)]
+    (if (empty? feature-base-branches)
+      stack
+      (let [feature-base-idx (some (fn [idx]
+                                     (when (is-feature-base-branch? config (nth stack idx))
+                                       idx))
+                                   (range (count stack)))]
+        (if feature-base-idx
+          ;; Cut the stack from the feature base to the end
+          (subvec (vec stack) feature-base-idx)
+          stack)))))
+
+(defn get-feature-base-stacks
+  "Returns stacks for all feature base branches onto trunk.
+  
+  Each stack contains [trunk-branch feature-base-branch].
+  Only includes feature bases that are direct descendants of trunk
+  (i.e., the stack has length 2)."
+  [vcs-config config]
+  (let [vcs-graph (vcs/read-graph vcs-config)
+        feature-base-branches (:feature-base-branches config)
+        trunk-branch (:vcs-config/trunk-branch vcs-config)]
+    (into []
+      (keep (fn [branch-name]
+              (let [node (some (fn [[_id node]]
+                                 (when (some #{branch-name} (:node/local-branches node))
+                                   node))
+                               (:graph/nodes vcs-graph))]
+                (when node
+                  (let [stack (node->stack vcs-graph node)]
+                    ;; Only return if:
+                    ;; 1. Stack exists
+                    ;; 2. Starts with trunk
+                    ;; 3. Has exactly 2 elements (trunk + feature-base)
+                    (when (and stack
+                               (= 2 (count stack))
+                               (= trunk-branch (vcs/local-branchname (first stack))))
+                      stack))))))
+      feature-base-branches)))
+
+(defn process-stacks-with-feature-bases
+  "Processes stacks to handle feature base branches.
+  
+  Returns a map with:
+    :regular-stacks - stacks truncated at feature base branches
+    :feature-base-stacks - stacks from trunk to each feature base branch"
+  [vcs-config config stacks]
+  (let [feature-base-stacks (get-feature-base-stacks vcs-config config)
+        regular-stacks (mapv #(truncate-stack-at-feature-base config %) stacks)]
+    {:regular-stacks regular-stacks
+     :feature-base-stacks feature-base-stacks}))
+
 (comment
   (get-current-stacks {:vcs-config/trunk-branch "main"} {})
   (get-stack "test-branch" {:vcs-config/trunk-branch "main"})
