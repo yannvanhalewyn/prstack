@@ -7,49 +7,56 @@
 @source "../../mdx-components.{ts,tsx}";
 
 @theme {
-  /* Dark theme colors */
-  --color-gray-50: #0a0a0a;
-  --color-gray-100: #1a1a1a;
-  --color-gray-200: #2a2a2a;
-  --color-gray-300: #3a3a3a;
-  --color-gray-400: #5a5a5a;
-  --color-gray-500: #7a7a7a;
-  --color-gray-600: #9a9a9a;
-  --color-gray-700: #bababa;
-  --color-gray-800: #dadada;
-  --color-gray-900: #f0f0f0;
+  /* Dark theme colors - Deep purple-blue base */
+  --color-gray-50: #0a0a14;
+  --color-gray-100: #13132b;
+  --color-gray-200: #1a1a3e;
+  --color-gray-300: #252547;
+  --color-gray-400: #3d3d5c;
+  --color-gray-500: #5a5a7a;
+  --color-gray-600: #8484a8;
+  --color-gray-700: #b0b0c8;
+  --color-gray-800: #d4d4e8;
+  --color-gray-900: #ebebf5;
   
-  /* Accent colors */
-  --color-blue-400: #60a5fa;
-  --color-blue-500: #3b82f6;
-  --color-blue-600: #2563eb;
+  /* Accent colors - Vibrant cyan & electric purple */
+  --color-cyan-400: #22d3ee;
+  --color-cyan-500: #06b6d4;
+  --color-cyan-600: #0891b2;
+  --color-purple-400: #c084fc;
+  --color-purple-500: #a855f7;
+  --color-purple-600: #9333ea;
+  --color-magenta-400: #f472b6;
+  --color-magenta-500: #ec4899;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
 }
 
-/* Dark theme base styles */
+/* Dark theme base styles - Deep space purple */
 body {
-  background-color: #0f172a;
-  color: #e2e8f0;
+  background-color: #0a0a14;
+  color: #d4d4e8;
 }
 
-/* Prose styling for dark theme */
+/* Prose styling for dark theme - Electric highlights */
 .prose {
-  --tw-prose-body: #e2e8f0;
-  --tw-prose-headings: #f1f5f9;
-  --tw-prose-links: #60a5fa;
-  --tw-prose-bold: #f1f5f9;
+  --tw-prose-body: #d4d4e8;
+  --tw-prose-headings: #ebebf5;
+  --tw-prose-links: #22d3ee;
+  --tw-prose-bold: #c084fc;
   --tw-prose-code: #fbbf24;
-  --tw-prose-pre-bg: #1e293b;
-  --tw-prose-pre-code: #e2e8f0;
-  --tw-prose-quotes: #cbd5e1;
+  --tw-prose-pre-bg: #13132b;
+  --tw-prose-pre-code: #d4d4e8;
+  --tw-prose-quotes: #b0b0c8;
 }
 
-/* Code block styling - Shiki syntax highlighting */
+/* Code block styling - Shiki syntax highlighting with glow */
 .prose pre {
   border-radius: 0.5rem;
   padding: 1rem;
   overflow-x: auto;
-  border: 1px solid #334155;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  border: 1px solid #252547;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 0 20px rgba(34, 211, 238, 0.1);
   margin: 1.5rem 0;
 }
 
@@ -62,15 +69,15 @@ body {
   color: inherit;
 }
 
-/* Inline code */
+/* Inline code - Electric amber */
 .prose :not(pre) > code {
-  background-color: #1e293b;
+  background-color: #13132b;
   padding: 0.2em 0.4em;
   border-radius: 0.25rem;
   color: #fbbf24;
   font-size: 0.875em;
   font-weight: 600;
-  border: 1px solid #334155;
+  border: 1px solid #252547;
 }
 
 /* Shiki line numbers and highlighting support */
@@ -89,8 +96,8 @@ body {
 }
 
 .prose pre .line.highlighted {
-  background-color: rgba(59, 130, 246, 0.1);
-  border-left: 3px solid #3b82f6;
+  background-color: rgba(34, 211, 238, 0.12);
+  border-left: 3px solid #22d3ee;
   padding-left: 0.5rem;
   margin-left: -0.5rem;
 }
