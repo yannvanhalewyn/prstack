@@ -46,7 +46,7 @@
 
 (defn print-stacks
   "Prints regular stacks and optionally feature base stacks.
-  
+
   stacks can be either:
     - A vector of stacks (legacy)
     - A map with :regular-stacks and :feature-base-stacks"
@@ -55,19 +55,19 @@
         (if (map? stacks)
           stacks
           {:regular-stacks stacks :feature-base-stacks []})
-        
+
         all-stacks (concat regular-stacks feature-base-stacks)
-        
+
         max-width
         (when-let [counts
                    (seq
                      (mapcat #(map (comp count format-change) %)
                        (stack/reverse-stacks all-stacks)))]
           (apply max counts))]
-    
+
     (when-not (seq regular-stacks)
       (println (ansi/colorize :cyan "No stacks detetected")))
-    
+
     ;; Print regular stacks
     (let [reversed-stacks (stack/reverse-stacks regular-stacks)]
       (doseq [[i stack] (map-indexed vector reversed-stacks)]
@@ -77,10 +77,10 @@
             :header (str "\uf51e "
                          (if (zero? i) "Current Stack" "Other Stack")
                          " (" (dec (count stack)) ")")))))
-    
+
     ;; Print feature base stacks
     (when (seq feature-base-stacks)
-      (println (ansi/colorize :cyan (str "\n\uf126 Feature Base Branches")))
+      (println (ansi/colorize :cyan "\n\uf126 Feature Base Branches"))
       (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
         (doseq [stack reversed-stacks]
           (print-stack-section stack vcs-config

@@ -47,7 +47,7 @@
 
 (defn get-current-stacks
   "Returns the stack(s) containing the current working copy.
-  
+
   If the current change is a megamerge (multiple parents), returns multiple
   stacks - one for each parent path. Otherwise, returns a single stack."
   [vcs-config config]
@@ -102,10 +102,11 @@
 
 (defn- truncate-stack-at-feature-base
   "Truncates a stack to stop at the first feature base branch.
-  
-  If a feature base branch is found, the stack is cut at that point
-  (the feature base branch is included as the base).
-  
+
+  If a feature base branch is found, the stack is cut at that point,
+  with the feature base branch as the last element (the base).
+  Everything before the feature base (including trunk) is removed.
+
   Returns the truncated stack, or the original stack if no feature base found."
   [config stack]
   (let [feature-base-branches (:feature-base-branches config)]
@@ -116,13 +117,13 @@
                                        idx))
                                    (range (count stack)))]
         (if feature-base-idx
-          ;; Cut the stack from the feature base to the end
+          ;; Cut the stack from the feature base to the end (including feature base as base)
           (subvec (vec stack) feature-base-idx)
           stack)))))
 
 (defn get-feature-base-stacks
   "Returns stacks for all feature base branches onto trunk.
-  
+
   Each stack contains [trunk-branch feature-base-branch].
   Only includes feature bases that are direct descendants of trunk
   (i.e., the stack has length 2)."
@@ -150,7 +151,7 @@
 
 (defn process-stacks-with-feature-bases
   "Processes stacks to handle feature base branches.
-  
+
   Returns a map with:
     :regular-stacks - stacks truncated at feature base branches
     :feature-base-stacks - stacks from trunk to each feature base branch"
@@ -161,8 +162,12 @@
      :feature-base-stacks feature-base-stacks}))
 
 (comment
-  (get-current-stacks {:vcs-config/trunk-branch "main"} {})
-  (get-stack "test-branch" {:vcs-config/trunk-branch "main"})
-  (get-all-stacks
-    {:vcs-config/trunk-branch "main"}
-    {:ignored-branches #{}}))
+  (def vcs-config* {:vcs-config/trunk-branch "main"})
+  (tap> (get-current-stacks vcs-config* {}))
+  (tap> (get-stack "test-branch" vcs-config*))
+  (get-all-stacks vcs-config* {:ignored-branches #{}})
+  (tap>
+   (process-stacks-with-feature-bases vcs-config*
+     {:feature-base-branches #{"feature-2-base"}}
+     (get-all-stacks vcs-config* {:ignored-branches #{}})))
+    )
