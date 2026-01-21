@@ -189,89 +189,11 @@
         nodes (parse-graph-output output trunk-branch)]
     (graph/build-graph nodes trunk-change-id)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Stack operations (legacy - to be deprecated)
 
-(defn get-stack-command [ref]
-  ["jj" "log" "--no-graph"
-   "-r" (format "fork_point(trunk() | %s)::%s & bookmarks()" ref ref)
-   "-T" "separate(';', change_id.short(), commit_id, local_bookmarks, remote_bookmarks) ++ \"\n\""])
-
-(defn get-leaves [{:vcs-config/keys [trunk-branch]}]
-  (into
-    []
-    (comp
-      (map #(zipmap [:change/description
-                     :change/change-id
-                     :change/commit-sha
-                     :change/local-branches]
-              (str/split % #"\;")))
-      (map #(update % :change/local-branches
-              (fn [bm]
-                (str/split bm #" ")))))
-    (some->
-      (u/run-cmd
-        ["jj" "log" "--no-graph"
-         "-r" (format "heads(bookmarks()) ~ %s" trunk-branch)
-         "-T" "separate(';', coalesce(description.first_line(), ' '), change_id.short(), commit_id, local_bookmarks) ++ '\n'"])
-      (not-empty)
-      (str/split-lines))))
-
-(defn- ensure-trunk-branch
-  "Ensure the stack starts with the trunk branch. Sometimes the trunk
-  bookmark has moved and is not included in the stack output"
-  [{:vcs-config/keys [trunk-branch]} stack]
-  (if (= (str/replace (local-branchname (first stack)) #"\*" "") trunk-branch)
-    stack
-    (into [{:change/local-branches [trunk-branch]
-            :change/remote-branches [(str trunk-branch "@origin")]}] stack)))
-
-(defn- parse-change [raw-line]
-  (->
-    (zipmap [:change/change-id
-             :change/commit-sha
-             :change/local-branches
-             :change/remote-branches]
-      (str/split raw-line #";"))
-    (update :change/local-branches #(str/split % #" "))
-    (update :change/remote-branches #(str/split % #" "))))
-
-(defn parse-stack
-  [raw-output {:vcs-config/keys [trunk-branch] :as vcs-config}]
-  (some->> raw-output
-    (str/split-lines)
-    (reverse)
-    (into []
-      (comp
-        ;;(map str/trim)
-        ;;(remove empty?)
-        (map parse-change)
-        (remove #(= (local-branchname %) trunk-branch))))
-    (not-empty)
-    (ensure-trunk-branch vcs-config)))
-
-(defn get-stack
-  ([vcs-config]
-   (get-stack "@" vcs-config))
-  ([ref vcs-config]
-   (parse-stack
-     (u/run-cmd (get-stack-command ref))
-     vcs-config)))
 
 (comment
   (def graph* (read-graph (config)))
   (tap> graph*)
   (graph/find-all-paths-to-trunk graph* "wmkwotut")
   (detect-trunk-branch!)
-  (config)
-  (get-leaves (config))
-  (get-stack (config))
-  (for [change (some-> (find-megamerge "@") parents)]
-    (get-stack (:change/change-id change)))
-  (u/run-cmd (get-stack-command "@"))
-  (str/split-lines
-    (u/run-cmd (get-stack-command "@")
-      {:dir ",local/test-repo"}))
-  ;; Neeeds to have a 'test-branch' in current stack
-  (parse-stack (u/run-cmd (get-stack-command "test-branch"))
-    {:vcs-config/trunk-branch "main"}))
+  (config))

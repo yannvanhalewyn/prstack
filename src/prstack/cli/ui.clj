@@ -46,15 +46,10 @@
 
 (defn print-stacks
   "Prints regular stacks and optionally feature base stacks.
-
-  stacks can be either:
-    - A vector of stacks (legacy)
-    - A map with :regular-stacks and :feature-base-stacks"
+  
+  stacks must be a map with :regular-stacks and :feature-base-stacks"
   [stacks vcs-config {:keys [include-prs?] :as opts}]
-  (let [{:keys [regular-stacks feature-base-stacks]}
-        (if (map? stacks)
-          stacks
-          {:regular-stacks stacks :feature-base-stacks []})
+  (let [{:keys [regular-stacks feature-base-stacks]} stacks
 
         all-stacks (concat regular-stacks feature-base-stacks)
 

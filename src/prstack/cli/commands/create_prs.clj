@@ -57,6 +57,8 @@
            stack
            (if ref
              (stack/get-stack ref vcs-config)
-             (first (stack/get-current-stacks vcs-config config)))]
-       (ui/print-stacks [stack] vcs-config {:include-prs? true})
+             (first (stack/get-current-stacks vcs-config config)))
+           processed-stacks
+           (stack/process-stacks-with-feature-bases vcs-config config [stack])]
+       (ui/print-stacks processed-stacks vcs-config {:include-prs? true})
        (create-prs {:stack stack})))})
