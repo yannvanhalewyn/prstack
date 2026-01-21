@@ -9,16 +9,17 @@
   "Formats the branch as part of a stack"
   ([change]
    (format-change change {}))
-  ([change {:keys [trunk?]}]
+  ([change {:keys [trunk? feature-base?]}]
    (str
-     (if trunk?
-       " \ue729 " ; trunk icon (same as TUI)
-       " \ue0a0 ") ; git branch icon (same as TUI)
+     (cond
+       trunk?        " ◆ "  ; diamond for trunk
+       feature-base? " ⬢ "  ; hexagon for feature base
+       :else         " \ue0a0 ") ; git branch icon
      (ansi/colorize :blue (vcs/local-branchname change)))))
 
 (defn- print-stack-section
   "Prints a single stack with optional PR information."
-  [stack vcs-config {:keys [include-prs? max-width header]}]
+  [stack vcs-config config {:keys [include-prs? max-width header]}]
   (when header
     (println (ansi/colorize :cyan header)))
   ;; Print each branch in the stack (except the last one which is the base)
@@ -41,14 +42,22 @@
             :else "")))
       (println (format-change cur-change))))
   ;; Print the base branch at the bottom
-  (println (format-change (last stack) {:trunk? true}))
+  (let [base-change (last stack)
+        base-branch (vcs/local-branchname base-change)
+        trunk-branch (:vcs-config/trunk-branch vcs-config)
+        feature-base-branches (:feature-base-branches config)
+        is-trunk? (= base-branch trunk-branch)
+        is-feature-base? (contains? feature-base-branches base-branch)]
+    (println (format-change base-change 
+               {:trunk? is-trunk?
+                :feature-base? is-feature-base?})))
   (println))
 
 (defn print-stacks
   "Prints regular stacks and optionally feature base stacks.
   
   stacks must be a map with :regular-stacks and :feature-base-stacks"
-  [stacks vcs-config {:keys [include-prs?] :as opts}]
+  [stacks vcs-config config {:keys [include-prs?] :as opts}]
   (let [{:keys [regular-stacks feature-base-stacks]} stacks
 
         all-stacks (concat regular-stacks feature-base-stacks)
@@ -66,7 +75,7 @@
     ;; Print regular stacks
     (let [reversed-stacks (stack/reverse-stacks regular-stacks)]
       (doseq [[i stack] (map-indexed vector reversed-stacks)]
-        (print-stack-section stack vcs-config
+        (print-stack-section stack vcs-config config
           (assoc opts
             :max-width max-width
             :header (str "\uf51e "
@@ -78,5 +87,5 @@
       (println (ansi/colorize :cyan "\n\uf126 Feature Base Branches"))
       (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
         (doseq [stack reversed-stacks]
-          (print-stack-section stack vcs-config
+          (print-stack-section stack vcs-config config
             (assoc opts :max-width max-width :header nil)))))))
