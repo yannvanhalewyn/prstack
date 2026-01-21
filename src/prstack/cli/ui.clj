@@ -40,7 +40,7 @@
   "Prints regular stacks and optionally feature base stacks.
 
   stacks must be a map with :regular-stacks and :feature-base-stacks"
-  [stacks vcs config {:keys [include-prs?] :as opts}]
+  [stacks vcs config opts]
   (let [{:keys [regular-stacks feature-base-stacks]} stacks
 
         all-stacks (concat regular-stacks feature-base-stacks)

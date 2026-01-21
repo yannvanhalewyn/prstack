@@ -41,6 +41,22 @@
   (when-let [indexes (seq (keep :ui/idx (stack/leaves stacks)))]
     (apply max indexes)))
 
+(defn- sort-stacks-by-base
+  "Sorts stacks with non-feature-base stacks first, then feature-base stacks
+   alphabetically by base branch name."
+  [vcs stacks]
+  (let [partition-fn (fn [stack]
+                       (let [base-change (first stack)
+                             base-type (:change/bookmark-type base-change)]
+                         (if (= base-type :feature-base)
+                           [:feature-base (vcs/local-branchname vcs base-change)]
+                           [:non-feature-base ""])))
+        grouped (group-by (comp first partition-fn) stacks)
+        non-feature-base (get grouped :non-feature-base [])
+        feature-base (get grouped :feature-base [])
+        sorted-feature-base (sort-by (comp second partition-fn) feature-base)]
+    (concat non-feature-base sorted-feature-base)))
+
 (comment
   (assoc-ui-indices
     [[{:change/local-branches ["main"]}
@@ -53,17 +69,24 @@
    both with UI indices and reversed for display.
    
    UI indices are assigned sequentially across both regular and feature-base stacks
-   to ensure only one item is selected at a time."
+   to ensure only one item is selected at a time.
+   
+   For the 'All Stacks' tab, stacks are sorted with non-feature-base stacks first,
+   then feature-base stacks alphabetically."
   [state]
   (let [raw-stacks (case (:app-state/selected-tab state)
                      0 @(:app-state/current-stacks state)
                      1 @(:app-state/all-stacks state)
                      @(:app-state/all-stacks state))
+        ;; Sort stacks for "All Stacks" tab (tab 1)
+        sorted-raw-stacks (if (= 1 (:app-state/selected-tab state))
+                            (sort-stacks-by-base (:app-state/vcs state) raw-stacks)
+                            raw-stacks)
         {:keys [regular-stacks feature-base-stacks]}
         (stack/process-stacks-with-feature-bases
           (:app-state/vcs state)
           (:app-state/config state)
-          raw-stacks)
+          sorted-raw-stacks)
         ;; Reverse both stack groups
         reversed-regular (stack/reverse-stacks regular-stacks)
         reversed-feature-base (stack/reverse-stacks feature-base-stacks)
