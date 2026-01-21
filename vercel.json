@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd documentation && bun install && bun run build",
-  "outputDirectory": "documentation/out",
-  "installCommand": "cd documentation && bun install",
+  "buildCommand": "bun install && bun run build",
+  "outputDirectory": "out",
+  "installCommand": "bun install",
   "framework": null,
   "regions": ["iad1"]
 }
