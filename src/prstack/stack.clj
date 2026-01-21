@@ -121,6 +121,18 @@
           (subvec (vec stack) feature-base-idx)
           stack)))))
 
+(comment
+  (truncate-stack-at-feature-base
+    {:feature-base-branches #{"feature-2-base"}}
+    [{:change/description "Main Change"
+      :change/local-branches ["main"]}
+     {:change/description "Feature 2 merge base"
+      :change/local-branches ["feature-2-base"]}
+     {:change/description "Feature 2 part 1"
+      :change/local-branches ["feature-2-part-1"]}
+     {:change/description "Feature 2 part 2"
+      :change/local-branches ["feature-2-part-2"]}]))
+
 (defn get-feature-base-stacks
   "Returns stacks for all feature base branches onto trunk.
 
@@ -148,6 +160,8 @@
                                (= trunk-branch (vcs/local-branchname (first stack))))
                       stack))))))
       feature-base-branches)))
+
+;;(set! *print-namespace-maps* false)
 
 (defn process-stacks-with-feature-bases
   "Processes stacks to handle feature base branches.
