@@ -1,22 +1,23 @@
 gitGraph
   commit id: "Initial"
   commit id: "Setup"
-  branch ui-redesign
-  commit id: "Base: UI redesign"
-  branch redesign-header
-  commit id: "Header component"
-  commit id: "Header styles"
-  checkout ui-redesign
-  branch redesign-footer
-  commit id: "Footer component"
-  commit id: "Footer styles"
-  checkout main
-  branch api-v2
-  commit id: "Base: API v2"
+  branch add-user-management
+  commit id: "Feature base setup"
   branch api-auth
   commit id: "Add auth endpoint"
   commit id: "Add JWT logic"
-  checkout api-v2
   branch api-users
   commit id: "Add users endpoint"
   commit id: "Add validation"
+  checkout add-user-management
+  branch redesign-header
+  commit id: "Header component"
+  commit id: "Header styles"
+  checkout add-user-management
+  branch redesign-footer
+  commit id: "Footer component"
+  commit id: "Footer styles"
+  checkout add-user-management
+  branch add-docs-for-user-management
+  commit id: "Add API documentation"
+  commit id: "Add user guide"

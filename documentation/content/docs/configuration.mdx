@@ -21,7 +21,7 @@ Create a `.prstack/config.edn` file in your repository:
 
 A set of branch names to exclude from stack discovery and operations. This is useful for filtering out temporary, experimental, or staging branches that shouldn't be part of your PR workflow.
 
-**Type**: Set of strings  
+**Type**: Set of strings
 **Default**: `#{}`
 
 **Example**:
@@ -35,7 +35,7 @@ When PrStack discovers your stack, any branches in this set will be skipped and 
 
 A set of branch names to treat as alternative trunk branches. Feature bases act as stopping points when discovering your stack, allowing you to create stacks of work that branch from a point other than the main trunk.
 
-**Type**: Set of strings  
+**Type**: Set of strings
 **Default**: `#{}`
 
 **Example**:
@@ -43,7 +43,7 @@ A set of branch names to treat as alternative trunk branches. Feature bases act 
 {:feature-base-branches #{"feature-redesign" "experimental-api"}}
 ```
 
-When PrStack discovers your stack, it will stop at any feature base branch, treating it as the trunk for that particular stack. This is useful for organizing large features that require multiple PRs or experimental work that shouldn't yet target the main trunk.
+When PrStack discovers your stack, it will stop at any feature base branch, treating it as the trunk for that particular stack. This is useful for organizing large features that require multiple PRs that belong together. Experimental work that shouldn't yet target the main branch.
 
 You can also manage feature bases using the [`prstack feature-base`](/docs/reference/feature-base) command.
 

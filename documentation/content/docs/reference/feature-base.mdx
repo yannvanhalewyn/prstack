@@ -25,32 +25,38 @@ Here's how feature bases enable parallel stacks of work:
 gitGraph
   commit id: "Initial"
   commit id: "Setup"
-  branch ui-redesign
-  commit id: "Base: UI redesign"
-  branch redesign-header
-  commit id: "Header component"
-  commit id: "Header styles"
-  checkout ui-redesign
-  branch redesign-footer
-  commit id: "Footer component"
-  commit id: "Footer styles"
-  checkout main
-  branch api-v2
-  commit id: "Base: API v2"
+  branch add-user-management
+  commit id: "Feature base setup"
   branch api-auth
   commit id: "Add auth endpoint"
   commit id: "Add JWT logic"
-  checkout api-v2
   branch api-users
   commit id: "Add users endpoint"
   commit id: "Add validation"
+  checkout add-user-management
+  branch redesign-header
+  commit id: "Header component"
+  commit id: "Header styles"
+  checkout add-user-management
+  branch redesign-footer
+  commit id: "Footer component"
+  commit id: "Footer styles"
+  checkout add-user-management
+  branch add-docs-for-user-management
+  commit id: "Add API documentation"
+  commit id: "Add user guide"
 ```
 
 In this example:
-- **`ui-redesign`** is a feature base with two PRs: `redesign-header → ui-redesign` and `redesign-footer → ui-redesign`
-- **`api-v2`** is another feature base with two PRs: `api-auth → api-v2` and `api-users → api-v2`
-- Both feature bases branch from `main` and can be developed in parallel
-- Each feature base will eventually have its own PR to merge into `main`
+- **`add-user-management`** is a feature base branch for a large user management feature
+- The following branches are stacked on the feature base:
+  - `api-auth → add-user-management` (authentication layer)
+  - `api-users → api-auth` (user CRUD endpoints, stacked on auth)
+  - `redesign-header → add-user-management` (header UI changes)
+  - `redesign-footer → add-user-management` (footer UI changes)
+  - `add-docs-for-user-management → add-user-management` (documentation)
+- All work branches target the feature base instead of `main`
+- When complete, `add-user-management` will have its own PR to merge into `main`
 
 ## Subcommands
 
@@ -156,29 +162,42 @@ When PrStack discovers your stack, it will stop at any feature base branch, trea
 Here's a typical workflow using feature bases:
 
 ```bash
-# Create a feature base for a large redesign
-prstack feature-base create ui-redesign
+# Create a feature base for user management feature
+prstack feature-base create add-user-management
 
-# Create work branches off the feature base
-git checkout -b redesign-header ui-redesign
-# ... make changes ...
-git checkout ui-redesign
-git checkout -b redesign-footer ui-redesign
-# ... make changes ...
+# Create authentication branch
+git checkout -b api-auth add-user-management
+# ... implement auth endpoints ...
+git commit -m "Add authentication endpoints"
 
-# Discover your stack - it will stop at ui-redesign
+# Create users API stacked on auth
+git checkout -b api-users api-auth
+# ... implement user CRUD ...
+git commit -m "Add user management endpoints"
+
+# Create UI branches off the feature base
+git checkout add-user-management
+git checkout -b redesign-header add-user-management
+# ... update header for user management ...
+
+# Discover your stack from api-users
+git checkout api-users
 prstack list
 # Output:
-# redesign-footer
-# ui-redesign
+# api-users
+# api-auth
+# add-user-management
 
-# Create PRs - redesign-footer will target ui-redesign
+# Create PRs for the entire stack
 prstack create
-# Creates PR: redesign-footer → ui-redesign
+# Creates PRs:
+#   - api-auth → add-user-management
+#   - api-users → api-auth
+#   - redesign-header → add-user-management
 
 # Later, when ready to merge the entire feature
-prstack feature-base remove ui-redesign
-# Now ui-redesign can target main
+prstack feature-base remove add-user-management
+# Now add-user-management can target main
 ```
 
 ## Use Cases
@@ -188,10 +207,17 @@ prstack feature-base remove ui-redesign
 Break down a large feature into manageable PRs that all build on a common feature base:
 
 ```
-redesign-footer → ui-redesign
-redesign-header → ui-redesign
-ui-redesign → main
+api-users → api-auth → add-user-management
+redesign-header → add-user-management
+redesign-footer → add-user-management
+add-docs-for-user-management → add-user-management
+add-user-management → main
 ```
+
+This allows you to:
+- Review and merge individual components independently
+- Work on frontend and backend in parallel
+- Keep related work organized under one feature umbrella
 
 ### Experimental Work
 
