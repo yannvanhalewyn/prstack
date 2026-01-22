@@ -1,5 +1,4 @@
 {
   "title": "Documentation",
-  "pages": ["index", "installation", "philosophy", "configuration"],
-  "folders": ["getting-started", "commands", "guides"]
+  "pages": ["index", "philosophy", "installation", "configuration", "basic-workflows", "advanced-workflows", "reference"]
 }
