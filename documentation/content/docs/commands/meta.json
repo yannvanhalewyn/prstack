@@ -1,4 +1,4 @@
 {
   "title": "Commands",
-  "pages": ["sync", "list", "create", "machete", "tui"]
+  "pages": ["sync", "list", "create", "tui"]
 }

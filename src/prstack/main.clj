@@ -5,7 +5,6 @@
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.feature-base :as commands.feature-base]
     [prstack.cli.commands.list :as commands.list]
-    [prstack.cli.commands.machete :as commands.machete]
     [prstack.cli.commands.status :as commands.status]
     [prstack.cli.commands.sync :as commands.sync]
     [prstack.tui.app :as tui.app]
@@ -16,7 +15,6 @@
    commands.list/command
    commands.create-prs/command
    commands.sync/command
-   commands.machete/command
    commands.feature-base/command])
 
 (defn- print-help
