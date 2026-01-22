@@ -47,4 +47,8 @@ The Mermaid theme is configured in `mermaid-config.json` to match the documentat
 
 ## Example Diagrams
 
-- `feature-base-example.mmd` - Demonstrates feature base branches with parallel stacks
+- `feature-base-example.mmd` - Feature base branches with parallel stacks and stacked PRs
+- `deep-stack.mmd` - Complex multi-level stack (5 levels deep)
+- `megamerge-workflow.mmd` - Megamerge workflow using feature bases
+- `mid-stack-rebase.mmd` - Rebasing mid-stack changes
+- `parallel-stacks.mmd` - Multiple independent stacks in parallel

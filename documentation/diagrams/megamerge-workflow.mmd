@@ -1,0 +1,22 @@
+gitGraph
+  commit id: "v1.0"
+  commit id: "Stable"
+  branch v2-rewrite
+  commit id: "Setup v2 architecture"
+  branch v2-backend
+  commit id: "New API design"
+  commit id: "Database schema"
+  checkout v2-rewrite
+  branch v2-frontend
+  commit id: "New UI framework"
+  commit id: "Component library"
+  checkout v2-rewrite
+  branch v2-migration
+  commit id: "Migration scripts"
+  commit id: "Data validation"
+  checkout v2-rewrite
+  branch v2-docs
+  commit id: "API documentation"
+  commit id: "User guide"
+  checkout main
+  merge v2-rewrite id: "Release v2.0" tag: "v2.0"
