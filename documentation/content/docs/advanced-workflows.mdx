@@ -14,6 +14,7 @@ PrStack excels at managing deep stacks where changes build on top of each other.
 ### Deep Stack Example
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'git0':'#6366f1','git1':'#f59e0b','git2':'#8b5cf6','git3':'#8b5cf6','git4':'#8b5cf6','git5':'#8b5cf6'}}}%%
 gitGraph
   commit id: "Initial"
   commit id: "Setup"
@@ -88,6 +89,7 @@ For very large features, use feature bases to organize parallel work streams. Se
 The megamerge workflow uses feature bases to develop large features with multiple parallel work streams, then merge everything at once.
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'git0':'#6366f1','git1':'#f59e0b','git2':'#8b5cf6','git3':'#8b5cf6','git4':'#8b5cf6','git5':'#8b5cf6'}}}%%
 gitGraph
   commit id: "v1.0"
   commit id: "Stable"
@@ -203,6 +205,7 @@ prstack sync
 If you update a middle branch in your stack, you may need to rebase descendants:
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'git0':'#6366f1','git1':'#f59e0b','git2':'#8b5cf6','git3':'#8b5cf6'}}}%%
 gitGraph
   commit id: "main"
   branch feature-a
@@ -265,6 +268,7 @@ This separation keeps PrStack simple and lets you use the best tools for each jo
 You can have multiple independent stacks in your repository simultaneously:
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'git0':'#6366f1','git1':'#f59e0b','git2':'#8b5cf6','git3':'#8b5cf6','git4':'#f59e0b','git5':'#10b981','git6':'#10b981'}}}%%
 gitGraph
   commit id: "main"
   branch feature-auth

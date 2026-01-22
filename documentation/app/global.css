@@ -102,7 +102,7 @@ body {
   padding: 1rem;
   overflow-x: auto;
   border: 1px solid #252547;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 0 20px rgba(34, 211, 238, 0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
   margin: 1.5rem 0;
   background-color: var(--shiki-light-bg, var(--shiki-dark-bg, #13132b)) !important;
 }
@@ -130,6 +130,26 @@ body {
 /* Ensure Shiki syntax highlighting works */
 .prose pre code span {
   color: var(--shiki-light, var(--shiki-dark, inherit));
+}
+
+/* Remove Fumadocs highlighted-word borders that create artifacts */
+.prose pre code .highlighted-word,
+.prose pre code span.highlighted-word,
+.shiki .highlighted-word {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Remove any borders from code spans */
+.prose pre code span {
+  border: none !important;
+  outline: none !important;
+  text-decoration: none !important;
+  box-decoration-break: slice !important;
+  -webkit-box-decoration-break: slice !important;
 }
 
 /* Shiki line numbers and highlighting support */

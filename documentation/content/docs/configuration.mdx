@@ -11,11 +11,21 @@ PrStack can be configured using a `.prstack/config.edn` file in your repository 
 
 Create a `.prstack/config.edn` file in your repository:
 
+*Example Configuration:*
+
+Here's a complete example configuration file:
+
 ```clojure
-{:ignored-branches #{"staging" "experimental" "temp-branch"}}
+{:vcs :jujutsu ;; default
+ :ignored-branches #{"deploy" "experimental" "temp-*" "wip-*"}
+ :feature-base-branches #{"feature-redesign" "experimental-api"}}
 ```
 
 ## Configuration Options
+
+### `:vcs`
+
+The version control system (VCS) to use for stack discovery. Currently, PR Stack supports the following VCS systems: `:jujutsu` and `:git`. The default is Jujutsu.
 
 ### `:ignored-branches`
 
@@ -47,15 +57,3 @@ When PrStack discovers your stack, it will stop at any feature base branch, trea
 
 You can also manage feature bases using the [`prstack feature-base`](/docs/reference/feature-base) command.
 
-## Example Configuration
-
-Here's a complete example configuration file:
-
-```clojure
-{:ignored-branches #{"staging" "experimental" "temp-*" "wip-*" "backup-*"}
- :feature-base-branches #{"feature-redesign" "experimental-api"}}
-```
-
-This configuration will:
-- Exclude branches named `staging`, `experimental`, or starting with `temp-`, `wip-`, or `backup-`
-- Treat `feature-redesign` and `experimental-api` as alternative trunk branches for stack discovery
