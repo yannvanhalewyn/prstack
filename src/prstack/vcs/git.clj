@@ -34,36 +34,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Basic operations
 
-(defn- ^:lsp/allow-unused current-branch
-  "Returns the name of the current branch, or nil if in detached HEAD state."
-  []
-  (try
-    (str/trim (u/run-cmd ["git" "symbolic-ref" "--short" "HEAD"]))
-    (catch Exception _
-      nil)))
-
 (defn commit-sha
   "Returns the commit SHA for a given ref."
   [ref]
   (str/trim (u/run-cmd ["git" "rev-parse" ref])))
-
-(defn- ^:lsp/allow-unused branch-exists?
-  "Checks if a branch exists locally."
-  [branch-name]
-  (try
-    (u/run-cmd ["git" "rev-parse" "--verify" (str "refs/heads/" branch-name)])
-    true
-    (catch Exception _
-      false)))
-
-(defn- ^:lsp/allow-unused remote-branch-exists?
-  "Checks if a branch exists on the remote."
-  [branch-name]
-  (try
-    (u/run-cmd ["git" "rev-parse" "--verify" (str "origin/" branch-name)])
-    true
-    (catch Exception _
-      false)))
 
 (defn merge-base
   "Finds the merge base (common ancestor) between two refs."

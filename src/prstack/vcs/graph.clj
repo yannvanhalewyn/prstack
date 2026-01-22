@@ -2,9 +2,7 @@
   "VCS-agnostic graph representation and traversal algorithms.
 
   A graph represents the commit DAG with bidirectional edges (parent/child)
-  and metadata about branches, trunk, and merge status."
-  (:require
-    [clojure.set :as set]))
+  and metadata about branches, trunk, and merge status.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
@@ -21,7 +19,7 @@
    [:node/is-trunk? :boolean]
    [:node/is-merge? :boolean]])
 
-(def Graph
+(def ^:lsp/allow-unused Graph
   "A directed acyclic graph of commits/changes."
   [:map
    [:graph/nodes [:map-of :string Node]] ; change-id -> Node
@@ -82,11 +80,6 @@
   [graph change-id]
   (get-in graph [:graph/nodes change-id]))
 
-(defn trunk-node
-  "Returns the trunk node from the graph."
-  [graph]
-  (get-node graph (:graph/trunk-id graph)))
-
 (defn leaf-nodes
   "Returns all leaf nodes (nodes with no children) in the graph."
   [graph]
@@ -105,15 +98,6 @@
       (filter (fn [[_id node]]
                 (and (empty? (:node/children node))
                      (seq (:node/local-branches node)))))
-      (map second))
-    (:graph/nodes graph)))
-
-(defn merge-nodes
-  "Returns all merge nodes (nodes with multiple parents) in the graph."
-  [graph]
-  (into []
-    (comp
-      (filter (fn [[_id node]] (:node/is-merge? node)))
       (map second))
     (:graph/nodes graph)))
 
