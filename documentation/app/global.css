@@ -1,5 +1,6 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
 
 @source "../../components/**/*.{ts,tsx}";
 @source "../../app/**/*.{ts,tsx}";
@@ -30,6 +31,26 @@
   --color-magenta-500: #ec4899;
   --color-amber-400: #fbbf24;
   --color-amber-500: #f59e0b;
+}
+
+/* Override Fumadocs CSS variables with retro theme */
+:root {
+  --fd-background: #0a0a14;
+  --fd-foreground: #d4d4e8;
+  --fd-muted: #13132b;
+  --fd-muted-foreground: #8484a8;
+  --fd-popover: #1a1a3e;
+  --fd-popover-foreground: #d4d4e8;
+  --fd-card: #13132b;
+  --fd-card-foreground: #d4d4e8;
+  --fd-border: #252547;
+  --fd-primary: #22d3ee;
+  --fd-primary-foreground: #0a0a14;
+  --fd-secondary: #c084fc;
+  --fd-secondary-foreground: #0a0a14;
+  --fd-accent: #1a1a3e;
+  --fd-accent-foreground: #22d3ee;
+  --fd-ring: #22d3ee;
 }
 
 /* Dark theme base styles - Deep space purple */
