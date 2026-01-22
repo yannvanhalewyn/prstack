@@ -61,18 +61,6 @@
 (comment
   (find-megamerge "@"))
 
-(defn- ^:lsp/allow-unused parents [ref]
-  (->> (u/run-cmd ["jj" "log" "--no-graph"
-                   "-r" (format "parents(%s)" ref)
-                   "-T" "separate(';', change_id.short(), local_bookmarks, remote_bookmarks) ++ '\n'"])
-    (str/split-lines)
-    (map #(str/split % #";"))
-    (map #(zipmap [:change/change-id :change/local-branches :change/remote-branches] %))
-    (map #(update % :change/local-branches
-            (fn [bm] (str/split bm #" "))))
-    (map #(update % :change/remote-branches
-            (fn [bm] (str/split bm #" "))))))
-
 (defn trunk-moved? [{:vcs-config/keys [trunk-branch]}]
   (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
                                     "-r" "fork_point(trunk() | @)"
