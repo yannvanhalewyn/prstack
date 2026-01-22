@@ -137,8 +137,7 @@
                 ;; it will shut down gracefully. If not one more character will
                 ;; be read before shutdown.
                 (f key)
-                (recur))))
-          (spit "target/dev.log" "Stopping event loop\n" :append true))]
+                (recur)))))]
     [event-loop #(reset! running? false)]))
 
 (defn with-running-ui
@@ -157,10 +156,6 @@
         (f)
         @event-loop
         (catch Exception e
-          (spit "target/dev.log"
-            (str "Error running UI: " e "\n"
-                 (with-out-str (.printStackTrace e)))
-            :append true)
           (log/error "Error running UI" e))
         (finally
           ;; TODO we shouldn't exit fullscreen when running a command in

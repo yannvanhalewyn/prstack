@@ -47,20 +47,6 @@
   (u/run-cmd ["jj" "git" "push" "-b" branch-name "--allow-new"]
     {:echo? true}))
 
-(defn find-megamerge [start-ref]
-  (-> (u/run-cmd ["jj" "log" "--no-graph"
-                  "-r"
-                  (format "%s & ancestors(%s) & merges()"
-                    ;; Don't go further than the fork point
-                    (format "fork_point(trunk() | %s)..%s" start-ref start-ref)
-                    start-ref)
-                  "-T" "change_id.short()"])
-    (str/trim)
-    (not-empty)))
-
-(comment
-  (find-megamerge "@"))
-
 (defn trunk-moved? [{:vcs-config/keys [trunk-branch]}]
   (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
                                     "-r" "fork_point(trunk() | @)"
@@ -82,17 +68,17 @@
 
 (defn local-branchname [change]
   (remove-asterisk-from-branch-name
-    (first (:change/local-branches change))))
+    (:change/selected-branchname change)))
 
 (defn remote-branchname [change]
   (remove-asterisk-from-branch-name
     (u/find-first
       #(not (str/ends-with? % "@git"))
-      (:change/remote-branches change))))
+      (:change/remote-branchnames change))))
 
 (def ^:lsp/allow-unused Leaf
   [:map
-   [:change/local-branches [:vector :string]]])
+   [:change/local-branchnames [:vector :string]]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations
@@ -107,17 +93,17 @@
         (remove empty?)
         (map #(str/split % #";"))
         (map (fn [[change-id commit-sha parents-str local-branches-str remote-branches-str]]
-               {:node/change-id change-id
-                :node/commit-sha commit-sha
-                :node/parents (if (empty? parents-str)
-                                []
-                                (str/split parents-str #" "))
-                :node/local-branches (if (empty? local-branches-str)
-                                       []
-                                       (str/split local-branches-str #" "))
-                :node/remote-branches (if (empty? remote-branches-str)
-                                        []
-                                        (str/split remote-branches-str #" "))})))
+               {:change/change-id change-id
+                :change/commit-sha commit-sha
+                :change/parent-ids (if (empty? parents-str)
+                                     []
+                                     (str/split parents-str #" "))
+                :change/local-branchnames (if (empty? local-branches-str)
+                                            []
+                                            (str/split local-branches-str #" "))
+                :change/remote-branchnames (if (empty? remote-branches-str)
+                                             []
+                                             (str/split remote-branches-str #" "))})))
       (str/split-lines output))))
 
 (defn read-graph

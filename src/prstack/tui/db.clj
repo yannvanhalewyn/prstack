@@ -59,9 +59,9 @@
 
 (comment
   (assoc-ui-indices
-    [[{:change/local-branches ["main"]}
-      {:change/local-branches ["feature-a"]}]
-     [{:change/local-branches ["main"]}
+    [[{:change/local-branchnames ["main"]}
+      {:change/local-branchnames ["feature-a"]}]
+     [{:change/local-branchnames ["main"]}
       {:change/local-branches ["hotfix"]}]]))
 
 (defn displayed-stacks
