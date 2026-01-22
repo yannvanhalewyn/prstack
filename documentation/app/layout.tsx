@@ -11,9 +11,9 @@ const kanit = Kanit({
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={kanit.className} suppressHydrationWarning>
+    <html lang="en" className={`dark ${kanit.className}`} suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
-        <RootProvider>{children}</RootProvider>
+        <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
       </body>
     </html>
   );

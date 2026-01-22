@@ -13,6 +13,12 @@ export function baseOptions(): BaseLayoutProps {
         url: '/docs',
       },
     ],
+    themeSwitch: {
+      enabled: false,
+    },
+    searchToggle: {
+      enabled: false,
+    },
   };
 }
 
