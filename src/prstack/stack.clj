@@ -9,7 +9,10 @@
    [:change/change-id :string]
    [:change/commit-sha :string]
    [:change/local-branches [:sequential :string]]
-   [:change/remote-branches [:sequential :string]]])
+   [:change/remote-branches [:sequential :string]]
+   ;; Changes can have multiple bookmarks. This is to preselect one of them
+   ;; respecting ignored branches.
+   [:change/selected-branch :string]])
 
 (def ^:lsp/allow-unused Stack
   ;; Every leaf is a change. The stack of changes is ordered from
@@ -19,11 +22,9 @@
 (defn- should-ignore-leaf?
   "Returns true if the leaf node should be ignored based on config. It will be
   ignored when it's either a node on the trunk branch"
-  [node {:keys [trunk-branch ignored-branches]}]
-  ;; TODO potential bug, a trunk node may not have trunk bookmark
-  (let [branch-name (first (:node/local-branches node))]
-    (or (= branch-name trunk-branch)
-        (contains? ignored-branches branch-name))))
+  [node]
+  (or (:node/is-trunk? node)
+      (not (:node/selected-branch node))))
 
 (defn- node->stack
   "Converts a leaf node to a stack by finding the path to trunk."
@@ -31,22 +32,16 @@
   (when-let [path (graph/find-path-to-trunk vcs-graph (:node/change-id node))]
     (graph/path->stack vcs-graph path config)))
 
-(defn- nodes->stacks
-  "Converts leaf nodes to stacks, filtering out ignored branches."
-  [config vcs vcs-graph nodes]
-  (into []
-    (comp
-      (remove #(should-ignore-leaf? %
-                 (assoc config :trunk-branch (vcs/trunk-branch vcs))))
-      (keep #(node->stack % vcs-graph config)))
-    nodes))
-
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
   [vcs config]
   (let [vcs-graph (vcs/read-graph vcs)
         leaves (graph/bookmarked-leaf-nodes vcs-graph)]
-    (nodes->stacks config vcs vcs-graph leaves)))
+    (into []
+      (comp
+        (remove should-ignore-leaf?)
+        (keep #(node->stack % vcs-graph config)))
+      leaves)))
 
 (defn get-current-stacks
   "Returns the stack(s) containing the current working copy.
@@ -61,10 +56,8 @@
       (comp
         (map #(graph/path->stack vcs-graph % config))
         (remove empty?)
-        (remove (fn [stack]
-                  (should-ignore-leaf?
-                    (graph/get-node vcs-graph (:change/change-id (last stack)))
-                    (assoc config :trunk-branch (vcs/trunk-branch vcs))))))
+        (map #(graph/get-node vcs-graph (:change/change-id (last %))))
+        (remove should-ignore-leaf?))
       paths)))
 
 (defn get-stack

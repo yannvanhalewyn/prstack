@@ -191,18 +191,21 @@
     :feature-base-branches - Set of strings, names of feature base branches"
   ([node]
    (node->change node {}))
-  ([node {:keys [feature-base-branches]}]
+  ([node {:keys [ignored-branches feature-base-branches]}]
    (let [local-branch (first (:node/local-branches node))
          bookmark-type (cond
                          (:node/is-trunk? node) :trunk
                          (and local-branch (contains? feature-base-branches local-branch)) :feature-base
-                         :else :regular)]
+                         :else :regular)
+         selected-branch (first (remove ignored-branches (:node/local-branches node)))]
      (cond-> {:change/change-id (:node/change-id node)
               :change/local-branches (:node/local-branches node)
               :change/remote-branches (:node/remote-branches node)
               :change/bookmark-type bookmark-type}
        (:node/commit-sha node)
-       (assoc :change/commit-sha (:node/commit-sha node))))))
+       (assoc :change/commit-sha (:node/commit-sha node))
+       selected-branch
+       (assoc :change/selected-branch selected-branch)))))
 
 (defn- node-has-bookmarks?
   "Returns true if the node has at least one local bookmark."
