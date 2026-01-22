@@ -116,13 +116,13 @@
   (let [parents (get-parent-shas commit-sha)
         local-branches (get-branches-at-commit commit-sha)
         remote-branches (get-remote-branches-at-commit commit-sha)]
-    {:node/change-id commit-sha
-     :node/commit-sha commit-sha
-     :node/parents parents
-     :node/local-branches local-branches
-     :node/remote-branches remote-branches
-     :node/is-trunk? (= commit-sha trunk-sha)
-     :node/is-merge? (> (count parents) 1)}))
+    {:change/change-id commit-sha
+     :change/commit-sha commit-sha
+     :change/parent-ids parents
+     :change/local-branchnames local-branches
+     :change/remote-branchnames remote-branches
+     :change/trunk-node? (= commit-sha trunk-sha)
+     :change/merge-node? (> (count parents) 1)}))
 
 (defn parse-graph-commits
   "Parses a collection of commit SHAs into node maps."

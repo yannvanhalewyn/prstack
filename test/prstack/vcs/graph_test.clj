@@ -5,102 +5,102 @@
 
 (deftest test-build-graph
   (testing "builds a simple linear graph"
-    (let [nodes [{:node/change-id "trunk"
-                  :node/parents []
-                  :node/local-branches ["main"]
-                  :node/remote-branches ["main@origin"]}
-                 {:node/change-id "feature-1"
-                  :node/parents ["trunk"]
-                  :node/local-branches ["feature-1"]
-                  :node/remote-branches []}
-                 {:node/change-id "feature-2"
-                  :node/parents ["feature-1"]
-                  :node/local-branches ["feature-2"]
-                  :node/remote-branches []}]
+    (let [nodes [{:change/change-id "trunk"
+                  :change/parent-ids []
+                  :change/local-branchnames ["main"]
+                  :change/remote-branchnames ["main@origin"]}
+                 {:change/change-id "feature-1"
+                  :change/parent-ids ["trunk"]
+                  :change/local-branchnames ["feature-1"]
+                  :change/remote-branchnames []}
+                 {:change/change-id "feature-2"
+                  :change/parent-ids ["feature-1"]
+                  :change/local-branchnames ["feature-2"]
+                  :change/remote-branchnames []}]
           g (graph/build-graph nodes "trunk")]
       (is (= "trunk" (:graph/trunk-id g)))
       (is (= 3 (count (:graph/nodes g))))
-      (is (= ["feature-1"] (get-in g [:graph/nodes "trunk" :node/children])))
-      (is (= ["feature-2"] (get-in g [:graph/nodes "feature-1" :node/children])))
-      (is (= [] (get-in g [:graph/nodes "feature-2" :node/children])))))
-  
+      (is (= ["feature-1"] (get-in g [:graph/nodes "trunk" :change/children-ids])))
+      (is (= ["feature-2"] (get-in g [:graph/nodes "feature-1" :change/children-ids])))
+      (is (= [] (get-in g [:graph/nodes "feature-2" :change/children-ids])))))
+
   (testing "marks trunk and merge nodes correctly"
-    (let [nodes [{:node/change-id "trunk"
-                  :node/parents []
-                  :node/local-branches ["main"]
-                  :node/remote-branches []}
-                 {:node/change-id "feature"
-                  :node/parents ["trunk"]
-                  :node/local-branches ["feature"]
-                  :node/remote-branches []}
-                 {:node/change-id "merge"
-                  :node/parents ["trunk" "feature"]
-                  :node/local-branches ["merge"]
-                  :node/remote-branches []}]
+    (let [nodes [{:change/change-id "trunk"
+                  :change/parent-ids []
+                  :change/local-branchnames ["main"]
+                  :change/remote-branchnames []}
+                 {:change/change-id "feature"
+                  :change/parent-ids ["trunk"]
+                  :change/local-branchnames ["feature"]
+                  :change/remote-branchnames []}
+                 {:change/change-id "merge"
+                  :change/parent-ids ["trunk" "feature"]
+                  :change/local-branchnames ["merge"]
+                  :change/remote-branchnames []}]
           g (graph/build-graph nodes "trunk")]
-      (is (true? (get-in g [:graph/nodes "trunk" :node/is-trunk?])))
-      (is (false? (get-in g [:graph/nodes "feature" :node/is-trunk?])))
-      (is (false? (get-in g [:graph/nodes "feature" :node/is-merge?])))
-      (is (true? (get-in g [:graph/nodes "merge" :node/is-merge?]))))))
+      (is (true? (get-in g [:graph/nodes "trunk" :change/trunk-node?])))
+      (is (false? (get-in g [:graph/nodes "feature" :change/trunk-node?])))
+      (is (false? (get-in g [:graph/nodes "feature" :change/merge-node?])))
+      (is (true? (get-in g [:graph/nodes "merge" :change/merge-node?]))))))
 
 (deftest test-leaf-nodes
   (testing "finds leaf nodes in a graph"
     (let [g (graph/build-graph
-              [{:node/change-id "trunk"
-                :node/parents []
-                :node/local-branches ["main"]
-                :node/remote-branches []}
-               {:node/change-id "feature-1"
-                :node/parents ["trunk"]
-                :node/local-branches ["feature-1"]
-                :node/remote-branches []}
-               {:node/change-id "feature-2"
-                :node/parents ["trunk"]
-                :node/local-branches ["feature-2"]
-                :node/remote-branches []}]
+              [{:change/change-id "trunk"
+                :change/parent-ids []
+                :change/local-branchnames ["main"]
+                :change/remote-branchnames []}
+               {:change/change-id "feature-1"
+                :change/parent-ids ["trunk"]
+                :change/local-branchnames ["feature-1"]
+                :change/remote-branchnames []}
+               {:change/change-id "feature-2"
+                :change/parent-ids ["trunk"]
+                :change/local-branchnames ["feature-2"]
+                :change/remote-branchnames []}]
               "trunk")
           leaves (graph/leaf-nodes g)]
       (is (= 2 (count leaves)))
-      (is (contains? (set (map :node/change-id leaves)) "feature-1"))
-      (is (contains? (set (map :node/change-id leaves)) "feature-2")))))
+      (is (contains? (set (map :change/change-id leaves)) "feature-1"))
+      (is (contains? (set (map :change/change-id leaves)) "feature-2")))))
 
 (deftest test-find-path-to-trunk
   (testing "finds path from leaf to trunk"
     (let [g (graph/build-graph
-              [{:node/change-id "trunk"
-                :node/parents []
-                :node/local-branches ["main"]
-                :node/remote-branches []}
-               {:node/change-id "feature-1"
-                :node/parents ["trunk"]
-                :node/local-branches ["feature-1"]
-                :node/remote-branches []}
-               {:node/change-id "feature-2"
-                :node/parents ["feature-1"]
-                :node/local-branches ["feature-2"]
-                :node/remote-branches []}]
+              [{:change/change-id "trunk"
+                :change/parent-ids []
+                :change/local-branchnames ["main"]
+                :change/remote-branchnames []}
+               {:change/change-id "feature-1"
+                :change/parent-ids ["trunk"]
+                :change/local-branchnames ["feature-1"]
+                :change/remote-branchnames []}
+               {:change/change-id "feature-2"
+                :change/parent-ids ["feature-1"]
+                :change/local-branchnames ["feature-2"]
+                :change/remote-branchnames []}]
               "trunk")
           path (graph/find-path-to-trunk g "feature-2")]
       (is (= ["feature-2" "feature-1" "trunk"] path))))
-  
+
   (testing "handles merge nodes by following first parent"
     (let [g (graph/build-graph
-              [{:node/change-id "trunk"
-                :node/parents []
-                :node/local-branches ["main"]
-                :node/remote-branches []}
-               {:node/change-id "branch-a"
-                :node/parents ["trunk"]
-                :node/local-branches ["branch-a"]
-                :node/remote-branches []}
-               {:node/change-id "branch-b"
-                :node/parents ["trunk"]
-                :node/local-branches ["branch-b"]
-                :node/remote-branches []}
-               {:node/change-id "merge"
-                :node/parents ["branch-a" "branch-b"]
-                :node/local-branches ["merge"]
-                :node/remote-branches []}]
+              [{:change/change-id "trunk"
+                :change/parent-ids []
+                :change/local-branchnames ["main"]
+                :change/remote-branchnames []}
+               {:change/change-id "branch-a"
+                :change/parent-ids ["trunk"]
+                :change/local-branchnames ["branch-a"]
+                :change/remote-branchnames []}
+               {:change/change-id "branch-b"
+                :change/parent-ids ["trunk"]
+                :change/local-branchnames ["branch-b"]
+                :change/remote-branchnames []}
+               {:change/change-id "merge"
+                :change/parent-ids ["branch-a" "branch-b"]
+                :change/local-branchnames ["merge"]
+                :change/remote-branchnames []}]
               "trunk")
           path (graph/find-path-to-trunk g "merge")]
       (is (= ["merge" "branch-a" "trunk"] path)))))
@@ -108,22 +108,22 @@
 (deftest test-find-all-paths-to-trunk
   (testing "finds all paths from merge node to trunk"
     (let [g (graph/build-graph
-              [{:node/change-id "trunk"
-                :node/parents []
-                :node/local-branches ["main"]
-                :node/remote-branches []}
-               {:node/change-id "branch-a"
-                :node/parents ["trunk"]
-                :node/local-branches ["branch-a"]
-                :node/remote-branches []}
-               {:node/change-id "branch-b"
-                :node/parents ["trunk"]
-                :node/local-branches ["branch-b"]
-                :node/remote-branches []}
-               {:node/change-id "merge"
-                :node/parents ["branch-a" "branch-b"]
-                :node/local-branches ["merge"]
-                :node/remote-branches []}]
+              [{:change/change-id "trunk"
+                :change/parent-ids []
+                :change/local-branchnames ["main"]
+                :change/remote-branchnames []}
+               {:change/change-id "branch-a"
+                :change/parent-ids ["trunk"]
+                :change/local-branchnames ["branch-a"]
+                :change/remote-branchnames []}
+               {:change/change-id "branch-b"
+                :change/parent-ids ["trunk"]
+                :change/local-branchnames ["branch-b"]
+                :change/remote-branchnames []}
+               {:change/change-id "merge"
+                :change/parent-ids ["branch-a" "branch-b"]
+                :change/local-branchnames ["merge"]
+                :change/remote-branchnames []}]
               "trunk")
           paths (graph/find-all-paths-to-trunk g "merge")]
       (is (= 2 (count paths)))
@@ -133,21 +133,21 @@
 (deftest test-path->stack
   (testing "converts path to stack (reversed, trunk first)"
     (let [g (graph/build-graph
-              [{:node/change-id "trunk"
-                :node/commit-sha "abc123"
-                :node/parents []
-                :node/local-branches ["main"]
-                :node/remote-branches ["main@origin"]}
-               {:node/change-id "feature-1"
-                :node/commit-sha "def456"
-                :node/parents ["trunk"]
-                :node/local-branches ["feature-1"]
-                :node/remote-branches []}
-               {:node/change-id "feature-2"
-                :node/commit-sha "ghi789"
-                :node/parents ["feature-1"]
-                :node/local-branches ["feature-2"]
-                :node/remote-branches []}]
+              [{:change/change-id "trunk"
+                :change/commit-sha "abc123"
+                :change/parent-ids []
+                :change/local-branchnames ["main"]
+                :change/remote-branchnames ["main@origin"]}
+               {:change/change-id "feature-1"
+                :change/commit-sha "def456"
+                :change/parent-ids ["trunk"]
+                :change/local-branchnames ["feature-1"]
+                :change/remote-branchnames []}
+               {:change/change-id "feature-2"
+                :change/commit-sha "ghi789"
+                :change/parent-ids ["feature-1"]
+                :change/local-branchnames ["feature-2"]
+                :change/remote-branchnames []}]
               "trunk")
           path ["feature-2" "feature-1" "trunk"]
           stack (graph/path->stack g path)]

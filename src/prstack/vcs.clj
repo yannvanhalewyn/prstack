@@ -94,19 +94,20 @@
 
     Schema:
       [:map
-       [:graph/nodes [:map-of :string Node]]
-       [:graph/trunk-id :string]]
+       [:vcs-graph/nodes [:map-of :string Node]]
+       [:vcs-graph/trunk-id :string]
+       [:vcs-graph/current-change-id :string]]
 
     Where Node is:
       [:map
-       [:node/change-id :string]
-       [:node/commit-sha {:optional true} :string]
-       [:node/parents [:sequential :string]]
-       [:node/children [:sequential :string]]
-       [:node/local-branches [:sequential :string]]
-       [:node/remote-branches [:sequential :string]]
-       [:node/is-trunk? :boolean]
-       [:node/is-merge? :boolean]]")
+       [:change/change-id :string]
+       [:change/commit-sha {:optional true} :string]
+       [:change/parents [:sequential :string]]
+       [:change/children [:sequential :string]]
+       [:change/local-branchenames [:sequential :string]]
+       [:change/remote-branchnames [:sequential :string]]
+       [:change/trunk-node? :boolean]
+       [:change/merge-node? :boolean]]")
 
   (read-current-stack-graph [this]
     "Reads a graph for the current working copy stack.
@@ -190,13 +191,13 @@
 
   (local-branchname [_this change]
     (git/remove-asterisk-from-branch-name
-      (first (:change/local-branches change))))
+      (first (:change/local-branchnames change))))
 
   (remote-branchname [_this change]
     (git/remove-asterisk-from-branch-name
       (u/find-first
         #(str/starts-with? % "origin/")
-        (:change/remote-branches change))))
+        (:change/remote-branchnames change))))
 
   (read-graph [this]
     (let [;; Get trunk commit SHA

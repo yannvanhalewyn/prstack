@@ -1,5 +1,9 @@
 (ns user
-  (:require [portal.api :as p]))
+  (:require
+    [portal.api :as p]
+    [prstack.config :as config]
+    [prstack.stack :as stack]
+    [prstack.vcs :as vcs]))
 
 (require 'hashp.preload)
 
@@ -13,4 +17,12 @@
              :port 60342})))
 
 (comment
-  (start-portal!))
+  (start-portal!)
+
+;; Testing out reading vcs graph
+(comment
+  (def config- (config/read-local))
+  (def vcs- (vcs/make config-))
+  (stack/get-current-stacks vcs- config-)
+  (stack/get-all-stacks vcs- config-))
+  )
