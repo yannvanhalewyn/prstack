@@ -2,6 +2,7 @@ import { source } from '@/lib/source';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DocsPage, DocsBody, DocsTitle, DocsDescription } from 'fumadocs-ui/page';
+import { Mermaid } from '@/components/Mermaid';
 
 export default async function Page(props: {
   params: Promise<{ slug?: string[] }>;
@@ -19,7 +20,7 @@ export default async function Page(props: {
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>
-        <MDX />
+        <MDX components={{ Mermaid }} />
       </DocsBody>
     </DocsPage>
   );

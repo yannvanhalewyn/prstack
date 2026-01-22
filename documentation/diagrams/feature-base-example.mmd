@@ -1,0 +1,22 @@
+gitGraph
+  commit id: "Initial"
+  commit id: "Setup"
+  branch ui-redesign
+  commit id: "Base: UI redesign"
+  branch redesign-header
+  commit id: "Header component"
+  commit id: "Header styles"
+  checkout ui-redesign
+  branch redesign-footer
+  commit id: "Footer component"
+  commit id: "Footer styles"
+  checkout main
+  branch api-v2
+  commit id: "Base: API v2"
+  branch api-auth
+  commit id: "Add auth endpoint"
+  commit id: "Add JWT logic"
+  checkout api-v2
+  branch api-users
+  commit id: "Add users endpoint"
+  commit id: "Add validation"

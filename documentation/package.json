@@ -8,18 +8,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "serve": "bunx serve out -p 3000"
+    "serve": "bunx serve out -p 3000",
+    "mermaid": "mmdc -t dark -b '#0a0a14' -C mermaid-config.json"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
     "fumadocs-core": "^16.4.7",
     "fumadocs-mdx": "^14.2.6",
     "fumadocs-ui": "^16.4.7",
+    "mermaid": "^11.12.2",
     "next": "^16.1.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.12.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^25.0.9",
     "@types/react": "^19.2.9",

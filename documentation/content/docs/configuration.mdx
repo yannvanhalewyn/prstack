@@ -31,17 +31,31 @@ A set of branch names to exclude from stack discovery and operations. This is us
 
 When PrStack discovers your stack, any branches in this set will be skipped and not included in the stack operations.
 
+### `:feature-base-branches`
+
+A set of branch names to treat as alternative trunk branches. Feature bases act as stopping points when discovering your stack, allowing you to create stacks of work that branch from a point other than the main trunk.
+
+**Type**: Set of strings  
+**Default**: `#{}`
+
+**Example**:
+```clojure
+{:feature-base-branches #{"feature-redesign" "experimental-api"}}
+```
+
+When PrStack discovers your stack, it will stop at any feature base branch, treating it as the trunk for that particular stack. This is useful for organizing large features that require multiple PRs or experimental work that shouldn't yet target the main trunk.
+
+You can also manage feature bases using the [`prstack feature-base`](/docs/reference/feature-base) command.
+
 ## Example Configuration
 
 Here's a complete example configuration file:
 
 ```clojure
-{:ignored-branches #{"staging" "experimental" "temp-*" "wip-*" "backup-*"}}
+{:ignored-branches #{"staging" "experimental" "temp-*" "wip-*" "backup-*"}
+ :feature-base-branches #{"feature-redesign" "experimental-api"}}
 ```
 
-This configuration will exclude any branches named:
-- `staging`
-- `experimental`
-- Any branch starting with `temp-`
-- Any branch starting with `wip-`
-- Any branch starting with `backup-`
+This configuration will:
+- Exclude branches named `staging`, `experimental`, or starting with `temp-`, `wip-`, or `backup-`
+- Treat `feature-redesign` and `experimental-api` as alternative trunk branches for stack discovery
