@@ -18,7 +18,7 @@ Use **Bun** for all package management operations:
 ### Development Commands
 - `bun dev` - Start development server (http://localhost:3000)
 - `bun build` - Build for production (outputs to `./out/` directory)
-- `bun start` - Start production server (note: configured for static export)
+- `bun serve` - Serve static export locally (uses `serve` package on port 3000)
 
 ### Build Artifacts
 - **Development:** `.next/` directory (gitignored)
@@ -292,6 +292,10 @@ This site is configured for static export (`output: 'export'` in `next.config.mj
 - **No server-side runtime** - All pages must be statically generated
 - **Images must be unoptimized** - `unoptimized: true` for next/image
 - **API routes not supported** - Use external APIs or build-time data fetching
+- **Trailing slash enabled** - `trailingSlash: true` generates `/route/index.html` structure
+  - This ensures proper routing when deployed to static hosts
+  - Routes like `/docs` will generate `out/docs/index.html` instead of `out/docs.html`
+  - Most static servers (Netlify, Vercel, GitHub Pages, etc.) handle this structure correctly
 - **Deploy anywhere** - Output can be served by any static host
 
 ## Documentation Workflow
