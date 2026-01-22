@@ -3,22 +3,18 @@ title: Advanced Workflows
 description: Advanced patterns and techniques for managing PR stacks
 ---
 
-# Advanced Workflows
-
-This guide covers advanced PrStack patterns for complex development scenarios.
-
-## Complex Multi-Level Stacks
+# Complex Multi-Level Stacks
 
 PrStack excels at managing deep stacks where changes build on top of each other. Unlike traditional PR tools, PrStack dynamically discovers your stack regardless of depth.
 
-### Deep Stack Example
+## Deep Stack Example
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'git0':'#6366f1','git1':'#f59e0b','git2':'#8b5cf6','git3':'#8b5cf6','git4':'#8b5cf6','git5':'#8b5cf6'}}}%%
 gitGraph
   commit id: "Initial"
   commit id: "Setup"
-  branch foundation
+  branch feature-add-widget
   commit id: "Core infrastructure"
   branch database-layer
   commit id: "Add database schema"
@@ -39,6 +35,8 @@ In this example, you have a 5-level deep stack:
 ```
 integration → ui-layer → api-layer → database-layer → foundation → main
 ```
+
+Running `prstack sync` on this will prompt you to create 5 PRs, one for each feature branch onto the feature base branch and one more for the feature base branch onto master / main.
 
 **Working with deep stacks:**
 
@@ -84,9 +82,9 @@ prstack create
 
 For very large features, use feature bases to organize parallel work streams. See the [feature-base command](/docs/reference/feature-base) for detailed documentation.
 
-### Megamerge Workflow
+## Megamerge Workflow
 
-The megamerge workflow uses feature bases to develop large features with multiple parallel work streams, then merge everything at once.
+The [Megamerge Workflow](https://ofcr.se/jujutsu-merge-workflow) is a workflow that allows you to work simultaneously on multiple feature branches by creating something called a mega merge, a change which is a merge of multiple parallel branches. This allows you to see the result of all these changes combined, and offers benefits like catching merge conflicts early etc.. PR Stack is very suited for such workflows, with or without feature base branches.
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'git0':'#6366f1','git1':'#f59e0b','git2':'#8b5cf6','git3':'#8b5cf6','git4':'#8b5cf6','git5':'#8b5cf6'}}}%%
@@ -150,22 +148,13 @@ prstack create
 # Creates PR: v2-rewrite → main
 ```
 
-### Use Cases for Megamerge
+# Rebasing Strategies
 
-- **Major version releases**: v1 → v2 rewrites
-- **Large architectural changes**: Microservices migration, framework upgrades
-- **Feature flags**: Develop complete features behind flags, merge all at once
-- **Coordinated releases**: Multiple teams working on components for a single release
+> **Note**: PRStack focuses on PR management, not commit history. Use your favorite tools (Git, Jujutsu, interactive rebase, etc.) to manage your tree structure and PRStack will pick up the changes. Below are some examples for how it can be used.
 
-## Rebasing Strategies
+## Common Rebasing Scenarios
 
-PrStack is **rebase-agnostic** and doesn't prescribe how you manage your commit history. You can use whatever rebasing strategy you prefer with your VCS tools.
-
-> **Note**: PrStack focuses on PR management, not commit history. Use your favorite tools (Git, Jujutsu, interactive rebase, etc.) to manage your tree structure.
-
-### Common Rebasing Scenarios
-
-#### Rebasing Entire Stack on Updated Trunk
+### Rebasing Entire Stack on Updated Trunk
 
 ```bash
 # Trunk has new commits
@@ -200,7 +189,7 @@ jj rebase -d main -s foundation
 prstack sync
 ```
 
-#### Rebasing Mid-Stack Changes
+### Rebasing Mid-Stack Changes
 
 If you update a middle branch in your stack, you may need to rebase descendants:
 
@@ -235,7 +224,7 @@ git rebase feature-b
 prstack sync
 ```
 
-#### Interactive Rebase for Cleanup
+### Interactive Rebase for Cleanup
 
 Clean up commits before review:
 
@@ -252,7 +241,7 @@ git rebase -i feature-a
 prstack sync  # Use with --force if needed
 ```
 
-### PrStack's Role in Rebasing
+## PrStack's Role in Rebasing
 
 PrStack doesn't manage rebasing for you - it focuses on PR relationships:
 
@@ -261,9 +250,9 @@ PrStack doesn't manage rebasing for you - it focuses on PR relationships:
 
 This separation keeps PrStack simple and lets you use the best tools for each job.
 
-## Parallel Development Workflows
+# Parallel Development Workflows
 
-### Working on Multiple Independent Stacks
+## Working on Multiple Independent Stacks
 
 You can have multiple independent stacks in your repository simultaneously:
 
@@ -306,7 +295,7 @@ prstack list
 # main
 ```
 
-### Cross-Stack Dependencies
+## Cross-Stack Dependencies
 
 If stacks need to depend on each other, branch from the dependency:
 
@@ -325,11 +314,11 @@ prstack list
 # main
 ```
 
-## Handling PR Merges in Stacks
+# Handling PR Merges in Stacks
 
 When a PR in your stack is merged, you need to update dependent branches.
 
-### Bottom-Up Merging (Recommended)
+## Bottom-Up Merging (Recommended)
 
 Merge PRs from bottom to top of your stack:
 
@@ -363,7 +352,7 @@ git rebase main
 gh pr edit <pr-number> --base main
 ```
 
-### Keeping Stack Structure (Alternative)
+## Keeping Stack Structure (Alternative)
 
 If you want to keep the stack structure for review purposes:
 
@@ -376,7 +365,7 @@ git rebase main  # Rebase onto main, skipping feature-a commits
 # PR base stays as feature-a (which now == main + A changes)
 ```
 
-## Handling Merge Conflicts
+# Handling Merge Conflicts
 
 When rebasing or syncing, conflicts may occur:
 
@@ -398,16 +387,16 @@ git rebase --continue
 prstack sync
 ```
 
-### Conflict Prevention Strategies
+## Conflict Prevention Strategies
 
 1. **Keep stacks focused**: Minimize overlap between stack levels
 2. **Sync frequently**: Regular syncs reduce conflict complexity
 3. **Rebase early**: Don't let branches diverge too far
 4. **Communicate**: Coordinate changes with team members working on related branches
 
-## Integration with CI/CD
+# Integration with CI/CD
 
-### Testing Stacked PRs
+## Testing Stacked PRs
 
 Each PR in a stack can be tested independently:
 
@@ -426,7 +415,7 @@ jobs:
 
 Since each PR is based on its parent, tests run against the cumulative changes.
 
-### Conditional Merging
+## Conditional Merging
 
 Use GitHub branch protection to enforce order:
 
@@ -438,7 +427,7 @@ Use GitHub branch protection to enforce order:
 # - Up-to-date branches
 ```
 
-### Auto-Updating PR Bases
+## Auto-Updating PR Bases
 
 When a stack PR merges, automatically update dependent PRs:
 
@@ -460,9 +449,9 @@ jobs:
           # Use gh CLI or GitHub API
 ```
 
-## Tips for Advanced Workflows
+# Tips for Advanced Workflows
 
-### 1. Name Branches Descriptively
+## 1. Name Branches Descriptively
 
 ```bash
 # Good: Shows hierarchy
@@ -476,16 +465,16 @@ backend
 frontend
 ```
 
-### 2. Use Feature Bases for Big Features
+## 2. Use Feature Bases for Big Features
 
 If you find yourself with more than 5 branches in a stack, consider using a feature base to organize the work.
 
-### 3. Document Stack Structure
+## 3. Document Stack Structure
 
 Add comments to your PRs explaining the stack:
 
 ```markdown
-## Stack Position
+# Stack Position
 
 This PR is part of the user authentication stack:
 - #123 feature-auth → main (foundation)
@@ -493,14 +482,14 @@ This PR is part of the user authentication stack:
 - #125 feature-auth-frontend → feature-auth (parallel)
 ```
 
-### 4. Keep PR Sizes Reasonable
+## 4. Keep PR Sizes Reasonable
 
 Even in deep stacks, keep individual PRs small:
 - Aim for < 500 lines changed per PR
 - One logical change per PR
 - Stack depth is fine; PR size should be small
 
-### 5. Use Draft PRs for WIP
+## 5. Use Draft PRs for WIP
 
 Mark PRs as draft while the stack is still being developed:
 
@@ -510,7 +499,7 @@ gh pr create --draft --base feature-auth --title "WIP: Auth backend"
 
 Convert to ready when the entire stack is complete.
 
-## See Also
+# See Also
 
 - [Feature Base Command](/docs/reference/feature-base) - Managing feature base branches
 - [Basic Workflow](/docs/basic-workflows) - Getting started with PrStack
