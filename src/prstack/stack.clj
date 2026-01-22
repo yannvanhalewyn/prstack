@@ -17,28 +17,28 @@
   [:sequential Change])
 
 (defn- should-ignore-leaf?
-  "Returns true if the leaf node should be ignored based on config."
-  [{:keys [ignored-branches]} vcs node]
-  (let [trunk-branch (vcs/trunk-branch vcs)
-        branch-name (first (:node/local-branches node))]
+  "Returns true if the leaf node should be ignored based on config. It will be
+  ignored when it's either a node on the trunk branch"
+  [node {:keys [trunk-branch ignored-branches]}]
+  ;; TODO potential bug, a trunk node may not have trunk bookmark
+  (let [branch-name (first (:node/local-branches node))]
     (or (= branch-name trunk-branch)
         (contains? ignored-branches branch-name))))
 
 (defn- node->stack
   "Converts a leaf node to a stack by finding the path to trunk."
-  [vcs config vcs-graph node]
-  (let [opts {:trunk-branch (vcs/trunk-branch vcs)
-              :feature-base-branches (:feature-base-branches config)}]
-    (when-let [path (graph/find-path-to-trunk vcs-graph (:node/change-id node))]
-      (graph/path->stack vcs-graph path opts))))
+  [node vcs-graph config]
+  (when-let [path (graph/find-path-to-trunk vcs-graph (:node/change-id node))]
+    (graph/path->stack vcs-graph path config)))
 
 (defn- nodes->stacks
   "Converts leaf nodes to stacks, filtering out ignored branches."
   [config vcs vcs-graph nodes]
   (into []
     (comp
-      (remove #(should-ignore-leaf? config vcs %))
-      (keep #(node->stack vcs config vcs-graph %)))
+      (remove #(should-ignore-leaf? %
+                 (assoc config :trunk-branch (vcs/trunk-branch vcs))))
+      (keep #(node->stack % vcs-graph config)))
     nodes))
 
 (defn get-all-stacks
@@ -56,29 +56,16 @@
   [vcs config]
   (let [vcs-graph (vcs/read-current-stack-graph vcs)
         current-id (vcs/current-change-id vcs)
-        #_#_
-        opts {:trunk-branch (vcs/trunk-branch vcs)
-              :ignored-branches (:ignored-branches config)
-              :feature-base-branches (:feature-base-branches config)}]
-    (if-let [megamerge (graph/find-megamerge-in-path vcs-graph current-id)]
-      ;; Handle megamerge: get all paths from megamerge to trunk
-      (let [paths (graph/find-all-paths-to-trunk vcs-graph (:node/change-id megamerge))
-            stacks (mapv #(graph/path->stack vcs-graph % opts) paths)]
-        (into []
-          (comp
-            (remove empty?)
-            (remove (fn [stack]
-                      (should-ignore-leaf? config vcs
-                        (graph/get-node vcs-graph
-                          (:change/change-id (last stack)))))))
-          stacks))
-      ;; Single path
-      (when-let [path (graph/find-path-to-trunk vcs-graph current-id)]
-        (println "singlepath")
-        (let [stack (graph/path->stack vcs-graph path opts)]
-          (when-not (should-ignore-leaf? config vcs (graph/get-node vcs-graph
-                                                      (:change/change-id (last stack))))
-            [stack]))))))
+        paths (graph/find-all-paths-to-trunk vcs-graph current-id)]
+    (into []
+      (comp
+        (map #(graph/path->stack vcs-graph % config))
+        (remove empty?)
+        (remove (fn [stack]
+                  (should-ignore-leaf?
+                    (graph/get-node vcs-graph (:change/change-id (last stack)))
+                    (assoc config :trunk-branch (vcs/trunk-branch vcs))))))
+      paths)))
 
 (defn get-stack
   "Returns a single stack for the given ref."
@@ -90,7 +77,7 @@
                        node))
                    (:graph/nodes vcs-graph))]
     (when node
-      (node->stack vcs config vcs-graph node))))
+      (node->stack config vcs-graph node))))
 
 (defn reverse-stacks
   "Reverses the order of the changes in every stack. Stacks are represented in
@@ -163,7 +150,7 @@
                                    node))
                                (:graph/nodes vcs-graph))]
                 (when node
-                  (let [stack (node->stack vcs config vcs-graph node)]
+                  (let [stack (node->stack node vcs-graph config)]
                     ;; Only return if:
                     ;; 1. Stack exists
                     ;; 2. Starts with trunk

@@ -1,6 +1,6 @@
 (ns prstack.vcs.graph
   "VCS-agnostic graph representation and traversal algorithms.
-  
+
   A graph represents the commit DAG with bidirectional edges (parent/child)
   and metadata about branches, trunk, and merge status."
   (:require
@@ -52,11 +52,11 @@
 
 (defn build-graph
   "Builds a graph from a collection of node maps.
-  
+
   Args:
     nodes - collection of maps with :node/change-id, :node/parents, etc.
     trunk-id - change-id of the trunk node
-    
+
   Returns:
     Graph map with bidirectional edges computed."
   [nodes trunk-id]
@@ -122,10 +122,10 @@
 
 (defn find-path-to-trunk
   "Finds a path from node-id to trunk, following parent edges.
-  
+
   Returns:
     A vector of change-ids [node-id ... trunk-id], or nil if no path exists.
-    
+
   For merge nodes with multiple parents, follows the first parent."
   [graph node-id]
   (let [trunk-id (:graph/trunk-id graph)]
@@ -136,15 +136,15 @@
         ;; Found trunk
         (= current-id trunk-id)
         (conj path current-id)
-        
+
         ;; Cycle detection
         (contains? visited current-id)
         nil
-        
+
         ;; Dead end
         (nil? current-id)
         nil
-        
+
         :else
         (let [node (get-node graph current-id)
               parent-id (first (:node/parents node))]
@@ -154,9 +154,9 @@
 
 (defn find-all-paths-to-trunk
   "Finds all paths from node-id to trunk, following all parent edges.
-  
+
   For merge nodes, explores all parent paths (produces multiple paths).
-  
+
   Returns:
     A vector of paths, where each path is [node-id ... trunk-id]."
   [graph node-id]
@@ -166,11 +166,11 @@
                 ;; Found trunk
                 (= current-id trunk-id)
                 [(conj path current-id)]
-                
+
                 ;; Cycle or dead end
                 (or (contains? visited current-id) (nil? current-id))
                 []
-                
+
                 :else
                 (let [node (get-node graph current-id)
                       parents (:node/parents node)]
@@ -180,41 +180,18 @@
                             parents)))))]
       (dfs node-id [] #{}))))
 
-(defn find-megamerge-in-path
-  "Finds the first megamerge (merge node) in the path from node-id to trunk.
-  
-  Returns:
-    The node map of the megamerge, or nil if none found."
-  [graph node-id]
-  (let [trunk-id (:graph/trunk-id graph)]
-    (loop [current-id node-id
-           visited #{}]
-      (cond
-        (= current-id trunk-id)
-        nil
-        
-        (contains? visited current-id)
-        nil
-        
-        :else
-        (let [node (get-node graph current-id)]
-          (if (:node/is-merge? node)
-            node
-            (recur (first (:node/parents node))
-                   (conj visited current-id))))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Conversion to legacy Change format
 
 (defn node->change
   "Converts a Node to the legacy Change format used by the rest of the codebase.
-  
+
   Options:
     :trunk-branch - String, name of trunk branch (for :trunk type detection)
     :feature-base-branches - Set of strings, names of feature base branches"
   ([node]
    (node->change node {}))
-  ([node {:keys [trunk-branch feature-base-branches]}]
+  ([node {:keys [feature-base-branches]}]
    (let [local-branch (first (:node/local-branches node))
          bookmark-type (cond
                          (:node/is-trunk? node) :trunk
@@ -234,24 +211,24 @@
 
 (defn path->stack
   "Converts a path (vector of change-ids) to a Stack (vector of Changes).
-  
+
   Only includes nodes that have bookmarks (local branches). This filters out
   intermediate unbookmarked commits.
-  
+
   Args:
     graph - the graph containing the nodes
     path - vector of change-ids [leaf ... trunk]
     opts - options map with :trunk-branch and :feature-base-branches
-    
+
   Returns:
     Vector of Change maps ordered from trunk to leaf, containing only bookmarked nodes."
   ([graph path]
    (path->stack graph path {}))
-  ([graph path opts]
+  ([graph path config]
    (->> path
         (map #(get-node graph %))
         (filter node-has-bookmarks?)
-        (map #(node->change % opts))
+        (map #(node->change % config))
         (reverse)
         (into []))))
 
@@ -272,7 +249,7 @@
         :node/local-branches ["feature-2"]
         :node/remote-branches []}]
       "trunk"))
-  
+
   (leaf-nodes test-graph)
   (find-path-to-trunk test-graph "feature-2")
   (path->stack test-graph (find-path-to-trunk test-graph "feature-2")))
