@@ -88,6 +88,38 @@ export function Mermaid({ chart }: MermaidProps) {
         fillType5: '#8484a8',
         fillType6: '#b0b0c8',
         fillType7: '#d4d4e8',
+        // Git branch colors
+        git0: '#8484a8',  // Gray for trunk/main
+        git1: '#fbbf24',  // Amber/yellow for feature-base
+        git2: '#c084fc',  // Purple for features
+        git3: '#22d3ee',  // Cyan for features
+        git4: '#ec4899',  // Pink/magenta for features
+        git5: '#a855f7',  // Deep purple for features
+        git6: '#10b981',  // Green for features
+        git7: '#f59e0b',  // Orange for features
+        gitBranchLabel0: '#0a0a14',
+        gitBranchLabel1: '#0a0a14',
+        gitBranchLabel2: '#0a0a14',
+        gitBranchLabel3: '#0a0a14',
+        gitBranchLabel4: '#0a0a14',
+        gitBranchLabel5: '#0a0a14',
+        gitBranchLabel6: '#0a0a14',
+        gitBranchLabel7: '#0a0a14',
+        gitInv0: '#0a0a14',
+        gitInv1: '#0a0a14',
+        gitInv2: '#0a0a14',
+        gitInv3: '#0a0a14',
+        gitInv4: '#0a0a14',
+        gitInv5: '#0a0a14',
+        gitInv6: '#0a0a14',
+        gitInv7: '#0a0a14',
+        commitLabelColor: '#d4d4e8',
+        commitLabelBackground: '#1a1a3e',
+        commitLabelFontSize: '16px',
+        tagLabelColor: '#0a0a14',
+        tagLabelBackground: '#22d3ee',
+        tagLabelBorder: '#06b6d4',
+        tagLabelFontSize: '14px',
       },
     });
 
