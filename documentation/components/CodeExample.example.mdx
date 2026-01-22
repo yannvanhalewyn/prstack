@@ -1,0 +1,61 @@
+# CodeExample Component Examples
+
+## Basic Usage
+
+<CodeExample
+  jj={`jj new -m "Add user authentication"`}
+  git={`git checkout -b feature/auth
+git commit -m "Add user authentication"`}
+/>
+
+## With Code Blocks
+
+<CodeExample
+  jj={
+```bash
+jj new main -m "Implement login feature"
+jj new -m "Add password validation"
+jj new -m "Add tests"
+```
+  }
+  git={
+```bash
+git checkout main
+git checkout -b feature/login
+git commit -m "Implement login feature"
+git commit -m "Add password validation"
+git commit -m "Add tests"
+```
+  }
+/>
+
+## Complex Example
+
+<CodeExample
+  jj={
+```bash
+# Create a new change
+jj new -m "Fix bug in authentication"
+
+# Make your changes
+# ... edit files ...
+
+# Push to review
+prstack push
+```
+  }
+  git={
+```bash
+# Create a new branch
+git checkout -b fix/auth-bug
+
+# Make your changes
+# ... edit files ...
+
+# Commit and push
+git add .
+git commit -m "Fix bug in authentication"
+git push origin fix/auth-bug
+```
+  }
+/>
