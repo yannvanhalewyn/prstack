@@ -44,6 +44,9 @@
   [ref1 ref2]
   (str/trim (u/run-cmd ["git" "merge-base" ref1 ref2])))
 
+(defn- remove-asterisk-from-branch-name [branch-name]
+  (str/replace branch-name #"^\*\s+" ""))
+
 (defn- get-branches-at-commit
   "Returns all local branches pointing to the given commit SHA."
   [commit-sha]
@@ -53,7 +56,8 @@
         (map str/trim)
         (map #(str/replace % #"^\*\s+" ""))
         (remove #(str/starts-with? % "("))
-        (remove empty?))
+        (remove empty?)
+        (map remove-asterisk-from-branch-name))
       (str/split-lines output))))
 
 (defn- get-remote-branches-at-commit
@@ -114,6 +118,7 @@
   "Builds a node map from a commit SHA."
   [commit-sha trunk-sha]
   (let [parents (get-parent-shas commit-sha)
+        ;; This is the reason git implementation is slow
         local-branches (get-branches-at-commit commit-sha)
         remote-branches (get-remote-branches-at-commit commit-sha)]
     {:change/change-id commit-sha
@@ -131,6 +136,3 @@
     (map #(build-node % trunk-sha))
     commit-shas))
 
-(defn remove-asterisk-from-branch-name [branch-name]
-  (when branch-name
-    (str/replace branch-name #"^\*\s+" "")))

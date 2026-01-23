@@ -36,7 +36,7 @@
               pr (github/find-pr head-branch base-branch)]
           (if pr
             (println
-              (format "PR already exists for %s onto %s, skipping. (%s)"
+              (format "PR already exists for %s onto %s, skipping. (%s)\n"
                 (ansi/colorize :blue head-branch)
                 (ansi/colorize :blue base-branch)
                 (ansi/colorize :gray (str "#" (:pr/number pr)))))
@@ -62,5 +62,5 @@
              (first (stack/get-current-stacks vcs config)))
            processed-stacks
            (stack/process-stacks-with-feature-bases vcs config [stack])]
-       (ui/print-stacks processed-stacks vcs {:include-prs? true})
+       (ui/print-stacks processed-stacks {:include-prs? true})
        (create-prs! vcs {:stack stack})))})
