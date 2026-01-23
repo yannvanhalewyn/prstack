@@ -1,6 +1,5 @@
 (ns bb-tty.tty
   (:require
-    [bb-tty.ansi :as ansi]
     [bblgum.core :as b]
     [clojure.string :as str]
     [prstack.utils :as u]))
