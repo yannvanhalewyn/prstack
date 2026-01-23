@@ -17,15 +17,16 @@
       (if include-prs?
         (let [head-branch cur-branch
               base-branch (:change/selected-branchname prev-change)
-              pr-info (or (github/find-pr head-branch base-branch)
-                          {:missing true})
+              [pr-info err] (github/find-pr head-branch base-branch)
               formatted-branch (ui/format-change cur-change)
               ;; Use uncolored text for width calculation
               uncolored-branch (ui/format-change cur-change {:no-color? true})
               visual-len (count uncolored-branch)
               padding-needed (- max-width visual-len)
               padding (apply str (repeat padding-needed " "))]
-          (println (str formatted-branch padding " " (ui/format-pr-info pr-info))))
+          (println (str formatted-branch padding " "
+                        (ui/format-pr-info pr-info
+                          {:error (:error/message err)}))))
         (println (ui/format-change cur-change)))))
   ;; Print the base branch at the bottom
   (println (ui/format-change (last stack)))
@@ -37,9 +38,7 @@
   stacks must be a map with :regular-stacks and :feature-base-stacks"
   [stacks opts]
   (let [{:keys [regular-stacks feature-base-stacks]} stacks
-
         all-stacks (concat regular-stacks feature-base-stacks)
-
         max-width
         (when-let [counts
                    (seq
@@ -50,7 +49,7 @@
                            stack))
                        (stack/reverse-stacks all-stacks)))]
           (apply max counts))
-        name-column-width (max 30 (or max-width 0))]
+        name-column-width (max 20 (or max-width 0))]
 
     (when-not (seq regular-stacks)
       (println (ansi/colorize :cyan "No stacks detetected")))

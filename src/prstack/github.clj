@@ -35,14 +35,21 @@
 (defn find-pr
   "Find a PR using the GitHub CLI"
   [head-branch base-branch]
-  (parse-pr
-    (json/read-str
-      (not-empty
-        (u/run-cmd ["gh" "pr" "list"
-                    "--head" head-branch
-                    "--base" base-branch
-                    "--limit" "1"
-                    "--json" "title,number,url,latestReviews" "--jq" ".[0]"])))))
+  (let [[result err]
+        (try
+          [(u/run-cmd ["gh" "pr" "list"
+                       "--head" head-branch
+                       "--base" base-branch
+                       "--limit" "1"
+                       "--json" "title,number,url,latestReviews" "--jq" ".[0]"])]
+          (catch Exception e
+            (if (= (ex-message e) "no git remotes found")
+              [nil {:error/type :github/no-remotes
+                    :error/message "No remotes found."}]
+              (throw e))))]
+    (if result
+      [(parse-pr (json/read-str (not-empty result)))]
+      [nil err])))
 
 (defn create-pr!
   "Create a PR using the GitHub CLI"

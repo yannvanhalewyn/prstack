@@ -33,18 +33,20 @@
       (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
         (let [head-branch (:change/selected-branchname next-change)
               base-branch (:change/selected-branchname cur-change)
-              pr (github/find-pr head-branch base-branch)]
-          (if pr
-            (println
-              (format "PR already exists for %s onto %s, skipping. (%s)\n"
-                (ansi/colorize :blue head-branch)
-                (ansi/colorize :blue base-branch)
-                (ansi/colorize :gray (str "#" (:pr/number pr)))))
-            (do
-              (ansi/colorize :yellow "Checking remote branches")
-              (when (ensure-remote-branch! vcs cur-change "Base branch not pushed to remote.")
-                (when (ensure-remote-branch! vcs next-change "Head branch not pushed to remote.")
-                  (prompt-and-create-prs! head-branch base-branch))))))))
+              [pr err] (github/find-pr head-branch base-branch)]
+          (if err
+            (println (ansi/colorize :red (str "Error: " err)))
+            (if pr
+              (println
+                (format "PR already exists for %s onto %s, skipping. (%s)\n"
+                  (ansi/colorize :blue head-branch)
+                  (ansi/colorize :blue base-branch)
+                  (ansi/colorize :gray (str "#" (:pr/number pr)))))
+              (do
+                (ansi/colorize :yellow "Checking remote branches")
+                (when (ensure-remote-branch! vcs cur-change "Base branch not pushed to remote.")
+                  (when (ensure-remote-branch! vcs next-change "Head branch not pushed to remote.")
+                    (prompt-and-create-prs! head-branch base-branch)))))))))
     (println (ansi/colorize :cyan "No PRs to create"))))
 
 ;; TODO also check if branch is pushed before making PR

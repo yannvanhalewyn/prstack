@@ -149,9 +149,14 @@
     (swap! app-state assoc-in (pr-path head-branch base-branch)
       {:http/status :status/pending})
     (future
-      (swap! app-state assoc-in (pr-path head-branch base-branch)
-        (or (github/find-pr head-branch base-branch)
-            {:missing true})))))
+      (let [[pr-info err] (github/find-pr head-branch base-branch)]
+        (swap! app-state update-in (pr-path head-branch base-branch)
+          merge
+          (if err
+            {:http/status :status/failed
+             :http/error err}
+            {:http/status :status/success
+             :http/result pr-info}))))))
 
 (defmethod dispatch! :event/refresh
   [_evt]
