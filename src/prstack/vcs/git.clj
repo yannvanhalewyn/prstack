@@ -44,32 +44,39 @@
   [ref1 ref2]
   (str/trim (u/run-cmd ["git" "merge-base" ref1 ref2])))
 
-(defn- remove-asterisk-from-branch-name [branch-name]
-  (str/replace branch-name #"^\*\s+" ""))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Parsing Branche Info
 
-(defn- get-branches-at-commit
-  "Returns all local branches pointing to the given commit SHA."
-  [commit-sha]
-  (let [output (u/run-cmd ["git" "branch" "--points-at" commit-sha])]
+;; Example line:
+;; docs-prod+++5c090cb3+++(refactor): remove `:node/` namespace in favor of `:change/`
+(defn- parse-branch-info [branch-line]
+  (when-let [[branchname sha subject] (str/split branch-line #"\+\+\+" 3)]
+    (let [[_ local-branchname]
+          (re-find #"heads/(.*)" branchname)
+          [_ remote-name remote-branchname]
+          (re-find #"remotes/(.*)/(.*)" branchname)]
+      (cond->
+        {:branch/name (or local-branchname remote-branchname)
+         :branch/commit-sha sha
+         :branch/title subject}
+        remote-name (assoc :branch/remote remote-name)))))
+
+(defn- get-branches []
+  (->>
+    (u/run-cmd ["git" "branch" "-v" "--all"
+                "--format" "%(refname:lstrip=1)+++%(objectname:short)+++%(subject)"])
+    (str/split-lines)
     (into []
       (comp
         (map str/trim)
-        (map #(str/replace % #"^\*\s+" ""))
+        ;; (HEAD detached at ...)
         (remove #(str/starts-with? % "("))
-        (remove empty?)
-        (map remove-asterisk-from-branch-name))
-      (str/split-lines output))))
+        (keep parse-branch-info)))))
 
-(defn- get-remote-branches-at-commit
-  "Returns all remote branches pointing to the given commit SHA."
-  [commit-sha]
-  (let [output (u/run-cmd ["git" "branch" "-r" "--points-at" commit-sha])]
-    (into []
-      (comp
-        (map str/trim)
-        (remove #(str/includes? % "HEAD ->"))
-        (remove empty?))
-      (str/split-lines output))))
+(comment
+  (parse-branch-info
+    "heads/docs/add-workflows-and-diagrams+++7534a572+++(feat): add code example component")
+  (map :branch/name (get-branches)))
 
 (defn- get-parent-shas
   "Returns the parent commit SHAs for a given commit."
@@ -114,25 +121,30 @@
         all-commits (mapcat #(get-commits-between trunk-branch %) branches)]
     (into #{} all-commits)))
 
+(defn- remote-branch? [branch]
+  (contains? branch :branch/remote))
+
 (defn- build-node
   "Builds a node map from a commit SHA."
-  [commit-sha trunk-sha]
-  (let [parents (get-parent-shas commit-sha)
-        ;; This is the reason git implementation is slow
-        local-branches (get-branches-at-commit commit-sha)
-        remote-branches (get-remote-branches-at-commit commit-sha)]
+  [commit-sha trunk-sha branch-idx]
+  ;; This is the reason git implementation is slow
+  (let [parents (get-parent-shas commit-sha)]
     {:change/change-id commit-sha
      :change/commit-sha commit-sha
      :change/parent-ids parents
-     :change/local-branchnames local-branches
-     :change/remote-branchnames remote-branches
+     :change/local-branchnames (->> (get branch-idx commit-sha)
+                                 (remove remote-branch?)
+                                 (map :branch/name))
+     :change/remote-branchnames (->> (get branch-idx commit-sha)
+                                  (filter remote-branch?)
+                                  (map :branch/name))
      :change/trunk-node? (= commit-sha trunk-sha)
      :change/merge-node? (> (count parents) 1)}))
 
 (defn parse-graph-commits
   "Parses a collection of commit SHAs into node maps."
   [commit-shas trunk-sha]
-  (into []
-    (map #(build-node % trunk-sha))
-    commit-shas))
-
+  (let [branch-idx (group-by :branch/commit-sha (get-branches))]
+    (into []
+      (map #(build-node % trunk-sha branch-idx))
+      commit-shas)))
