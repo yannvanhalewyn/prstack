@@ -64,7 +64,7 @@
 (defn- get-branches []
   (->>
     (u/run-cmd ["git" "branch" "-v" "--all"
-                "--format" "%(refname:lstrip=1)+++%(objectname:short)+++%(subject)"])
+                "--format" "%(refname:lstrip=1)+++%(objectname)+++%(subject)"])
     (str/split-lines)
     (into []
       (comp
