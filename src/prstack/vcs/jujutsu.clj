@@ -17,8 +17,7 @@
   "Detects wether the trunk branch is named 'master' or 'main'"
   []
   (first
-    (into
-      []
+    (into []
       (comp
         (map #(str/replace % #"\*" ""))
         (filter #{"master" "main"}))
@@ -34,11 +33,7 @@
 (defn config
   "Reads the VCS configuration"
   []
-  {:vcs-config/trunk-branch
-   ;; Check this out: replacing with "feature-base" brings 'main' in a branch
-   ;; with strange ordering. It seems that 'ensure-trunk-branch' is not very
-   ;; flexible.
-   (detect-trunk-branch!)})
+  {:vcs-config/trunk-branch (detect-trunk-branch!)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Basic operations
@@ -112,13 +107,12 @@
 
   Returns a Graph (see prstack.vcs.graph/Graph)"
   [{:vcs-config/keys [trunk-branch]}]
-  (let [;; Get trunk change-id
-        trunk-change-id (str/trim
+  (let [trunk-change-id (str/trim
                           (u/run-cmd
                             ["jj" "log" "--no-graph" "-r" trunk-branch
                              "-T" "change_id.short()"]))
         ;; Get all changes from trunk to all bookmark heads (inclusive)
-        ;; Include all intermediate changes, not just bookmarked ones
+        ;; Include all intermediate changes
         revset (format "ancestors(bookmarks()) & %s::" trunk-branch)
         output (u/run-cmd
                  ["jj" "log" "--no-graph"

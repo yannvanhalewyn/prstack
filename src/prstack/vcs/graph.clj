@@ -1,8 +1,7 @@
 (ns prstack.vcs.graph
-  "VCS-agnostic graph representation and traversal algorithms.
-
-  A graph represents the commit DAG with bidirectional edges (parent/child)
-  and metadata about branches, trunk, and merge status.")
+  "VCS-agnostic graph representation of a commit log and traversal algorithms.
+  It uses a DAG with bidirectional edges (parent/child) and metadata about
+  branches, trunk, and merge status.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
@@ -12,8 +11,8 @@
   [:map
    [:change/change-id :string]
    [:change/commit-sha {:optional true} :string]
-   [:change/parent-ids [:sequential :string]]  ; parent change-ids
-   [:change/children-ids [:sequential :string]] ; child change-ids (computed)
+   [:change/parent-ids [:sequential :string]]
+   [:change/children-ids [:sequential :string]]
    [:change/local-branchnames [:sequential :string]]
    [:change/remote-branchnames [:sequential :string]]
    [:change/trunk-node? :boolean]
@@ -22,7 +21,7 @@
 (def ^:lsp/allow-unused Graph
   "A directed acyclic graph of commits/changes."
   [:map
-   [:graph/nodes [:map-of :string Node]] ; change-id -> Node
+   [:graph/nodes [:map-of :string Node]] ;; change-id -> Node
    [:graph/trunk-id :string]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -81,15 +80,6 @@
   [vcs-graph change-id]
   (get-in vcs-graph [:graph/nodes change-id]))
 
-(defn leaf-nodes
-  "Returns all leaf nodes (nodes with no children) in the graph."
-  [vcs-graph]
-  (into []
-    (comp
-      (filter (fn [[_id node]] (empty? (:change/children-ids node))))
-      (map second))
-    (:graph/nodes vcs-graph)))
-
 (defn bookmarked-leaf-nodes
   "Returns all leaf nodes that have local bookmarks.
   These are the 'real' leaves that represent feature branches."
@@ -98,7 +88,7 @@
     (comp
       (filter (fn [[_id node]]
                 (and (empty? (:change/children-ids node))
-                     (seq (:change/local-branchnames node)))))
+                     (:change/selected-branchname node))))
       (map second))
     (:graph/nodes vcs-graph)))
 
@@ -182,5 +172,4 @@
         :change/local-branchnames ["feature-2"]
         :change/remote-branchnames []}]
       "trunk"))
-  (leaf-nodes test-graph)
   (find-path-to-trunk test-graph "feature-2"))

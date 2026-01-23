@@ -130,7 +130,7 @@
 (defrecord JujutsuVCS []
   VCS
   (read-vcs-config [_this]
-    {:vcs-config/trunk-branch (jj/detect-trunk-branch!)})
+    (jj/config))
 
   (push-branch [_this branch-name]
     (jj/push-branch branch-name))

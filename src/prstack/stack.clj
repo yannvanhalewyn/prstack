@@ -44,8 +44,8 @@
 (defn path->stack
   "Converts a path (vector of change-ids) to a Stack (vector of Changes).
 
-  Only includes nodes that have bookmarks (local branches). This filters out
-  intermediate unbookmarked commits.
+  Only includes nodes that have a selected bookmark. This effecively filters
+  out intermediate unbookmarked commits or ignored bookmarks.
 
   Args:
     graph - the graph containing the nodes
@@ -68,50 +68,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public
 
-(defn- should-ignore-node?
-  "Returns true if the leaf node should be ignored based on config. It will be
-  ignored when it's either a node on the trunk branch"
-  [node]
-  (or (:change/trunk-node? node)
-      (not (:change/selected-branchname node))))
-
 (defn- node->stack
   "Converts a leaf node to a stack by finding the path to trunk."
   [node vcs-graph config]
   (when-let [path (vcs.graph/find-path-to-trunk vcs-graph (:change/change-id node))]
     (path->stack vcs-graph path config)))
 
-(comment
-  (def vcs-graph (vcs/read-graph vcs-))
-  (into []
-    (comp
-      (keep #(node->stack % vcs-graph config-))
-      (remove (fn [stack]
-                (should-ignore-node? (last stack)))))
-    (vcs.graph/bookmarked-leaf-nodes (vcs/read-graph vcs-))))
-
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
   [vcs config]
   (let [vcs-graph (vcs/read-graph vcs)
         leaves (vcs.graph/bookmarked-leaf-nodes vcs-graph)]
-    (into []
-      (comp
-        (keep #(node->stack % vcs-graph config))
-        (remove (fn [stack]
-                  (should-ignore-node? (last stack)))))
-      leaves)))
-
-(comment
-  (vcs.graph/find-all-paths-to-trunk vcs-graph "vyonxkyqxnns")
-
-  (into []
-    (comp
-      (map #(path->stack vcs-graph % config-))
-      (remove
-        (fn [stack]
-          (should-ignore-node? (last stack)))))
-    (vcs.graph/find-all-paths-to-trunk vcs-graph "vyonxkyqxnns")))
+    (keep #(node->stack % vcs-graph config) leaves)))
 
 (defn get-current-stacks
   "Returns the stack(s) containing the current working copy.
@@ -122,13 +90,7 @@
   (let [vcs-graph (vcs/read-current-stack-graph vcs)
         current-id (vcs/current-change-id vcs)
         paths (vcs.graph/find-all-paths-to-trunk vcs-graph current-id)]
-    (into []
-      (comp
-        (map #(path->stack vcs-graph % config))
-        (remove
-          (fn [stack]
-           (should-ignore-node? (last stack)))))
-      paths)))
+    (keep #(path->stack vcs-graph % config) paths)))
 
 (defn get-stack
   "Returns a single stack for the given ref."
