@@ -175,10 +175,9 @@
       (not= fork-point remote-trunk)))
 
   (remote-branchname [_this change]
-    (git/remove-asterisk-from-branch-name
-      (u/find-first
-        #(str/starts-with? % "origin/")
-        (:change/remote-branchnames change))))
+    (u/find-first
+      #(str/starts-with? % "origin/")
+      (:change/remote-branchnames change)))
 
   (read-graph [this]
     (let [;; Get trunk commit SHA

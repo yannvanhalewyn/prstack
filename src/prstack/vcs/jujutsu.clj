@@ -62,19 +62,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Change data structure
 
-(defn- remove-asterisk-from-branch-name [branch-name]
-  (when branch-name
-    (str/replace branch-name #"\*$" "")))
-
-(defn local-branchname [change]
-  (remove-asterisk-from-branch-name
-    (:change/selected-branchname change)))
-
 (defn remote-branchname [change]
-  (remove-asterisk-from-branch-name
-    (u/find-first
-      #(not (str/ends-with? % "@git"))
-      (:change/remote-branchnames change))))
+  (u/find-first
+    #(not (str/ends-with? % "@git"))
+    (:change/remote-branchnames change)))
 
 (def ^:lsp/allow-unused Leaf
   [:map
@@ -82,6 +73,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations
+
+(defn- remove-asterisk-from-branch-name [branch-name]
+  (when branch-name
+    (str/replace branch-name #"\*$" "")))
+
+(defn- parse-branchnames [log-str]
+  (if (empty? log-str)
+    []
+    (into []
+      (map remove-asterisk-from-branch-name)
+      (str/split log-str #" "))))
 
 (defn- parse-graph-output
   "Parses jj log output into a collection of node maps."
@@ -98,12 +100,8 @@
                 :change/parent-ids (if (empty? parents-str)
                                      []
                                      (str/split parents-str #" "))
-                :change/local-branchnames (if (empty? local-branches-str)
-                                            []
-                                            (str/split local-branches-str #" "))
-                :change/remote-branchnames (if (empty? remote-branches-str)
-                                             []
-                                             (str/split remote-branches-str #" "))})))
+                :change/local-branchnames (parse-branchnames local-branches-str)
+                :change/remote-branchnames (parse-branchnames remote-branches-str)})))
       (str/split-lines output))))
 
 (defn read-graph
