@@ -138,8 +138,7 @@
      :change/remote-branchnames (->> (get branch-idx commit-sha)
                                   (filter remote-branch?)
                                   (map :branch/name))
-     :change/trunk-node? (= commit-sha trunk-sha)
-     :change/merge-node? (> (count parents) 1)}))
+     :change/trunk-node? (= commit-sha trunk-sha)}))
 
 (defn parse-graph-commits
   "Parses a collection of commit SHAs into node maps."

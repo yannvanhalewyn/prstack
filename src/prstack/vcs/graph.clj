@@ -15,8 +15,7 @@
    [:change/children-ids [:sequential :string]]
    [:change/local-branchnames [:sequential :string]]
    [:change/remote-branchnames [:sequential :string]]
-   [:change/trunk-node? :boolean]
-   [:change/merge-node? :boolean]])
+   [:change/trunk-node? :boolean]])
 
 (def ^:lsp/allow-unused Graph
   "A directed acyclic graph of commits/changes."
