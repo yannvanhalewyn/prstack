@@ -44,12 +44,12 @@
 (defn- sort-stacks-by-base
   "Sorts stacks with non-feature-base stacks first, then feature-base stacks
    alphabetically by base branch name."
-  [vcs stacks]
+  [stacks]
   (let [partition-fn (fn [stack]
                        (let [base-change (first stack)
                              base-type (:change/bookmark-type base-change)]
                          (if (= base-type :feature-base)
-                           [:feature-base (vcs/local-branchname vcs base-change)]
+                           [:feature-base (:change/selected-branchname base-change)]
                            [:non-feature-base ""])))
         grouped (group-by (comp first partition-fn) stacks)
         non-feature-base (get grouped :non-feature-base [])
@@ -80,7 +80,7 @@
                      @(:app-state/all-stacks state))
         ;; Sort stacks for "All Stacks" tab (tab 1)
         sorted-raw-stacks (if (= 1 (:app-state/selected-tab state))
-                            (sort-stacks-by-base (:app-state/vcs state) raw-stacks)
+                            (sort-stacks-by-base raw-stacks)
                             raw-stacks)
         {:keys [regular-stacks feature-base-stacks]}
         (stack/process-stacks-with-feature-bases
@@ -125,8 +125,8 @@
   (when-let [{:keys [selected-change prev-change]}
              (selected-and-prev-change state)]
     (find-pr state
-      (vcs/local-branchname (:app-state/vcs state) selected-change)
-      (vcs/local-branchname (:app-state/vcs state) prev-change))))
+      (:change/selected-branchname selected-change)
+      (:change/selected-branchname prev-change))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
@@ -156,26 +156,24 @@
 (defmethod dispatch! :event/refresh
   [_evt]
   (dispatch! [:event/read-local-repo])
-  (let [vcs (:app-state/vcs @app-state)]
-    (doseq [stack (all-displayed-stacks @app-state)]
-      (doseq [[cur-change prev-change] (u/consecutive-pairs stack)]
-        (when prev-change
-          (dispatch! [:event/fetch-pr
-                      (vcs/local-branchname vcs cur-change)
-                      (vcs/local-branchname vcs prev-change)]))))))
+  (doseq [stack (all-displayed-stacks @app-state)]
+    (doseq [[cur-change prev-change] (u/consecutive-pairs stack)]
+      (when prev-change
+        (dispatch! [:event/fetch-pr
+                    (:change/selected-branchname cur-change)
+                    (:change/selected-branchname prev-change)])))))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
   (when-let [{:keys [selected-change prev-change]}
              (selected-and-prev-change @app-state)]
-    (let [vcs (:app-state/vcs @app-state)]
-      (swap! app-state assoc :app-state/run-in-fg
-        #(u/shell-out
-           [(System/getenv "EDITOR") "-c"
-            (format "Difft %s..%s"
-              (or (:change/commit-sha prev-change)
-                  (vcs/local-branchname vcs prev-change))
-              (:change/commit-sha selected-change))])))
+    (swap! app-state assoc :app-state/run-in-fg
+      #(u/shell-out
+         [(System/getenv "EDITOR") "-c"
+          (format "Difft %s..%s"
+            (or (:change/commit-sha prev-change)
+                (:change/selected-branchname prev-change))
+            (:change/commit-sha selected-change))]))
     (tui/close!))
 
   (defmethod dispatch! :event/open-pr
@@ -188,9 +186,8 @@
   (when-let [{:keys [selected-change prev-change]}
              (and (not (:pr/url (current-pr @app-state)))
                   (selected-and-prev-change @app-state))]
-    (let [vcs (:app-state/vcs @app-state)
-          head-branch (vcs/local-branchname vcs selected-change)
-          base-branch (vcs/local-branchname vcs prev-change)]
+    (let [head-branch (:change/selected-branchname selected-change)
+          base-branch (:change/selected-branchname prev-change)]
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
           (println "Creating PR for"
@@ -207,12 +204,13 @@
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
           (when (tty/prompt-confirm
-                  (format "Would you like to merge PR %s %s?\nThis will merge %s onto %s."
-                    (ansi/colorize :blue (str "#" (:pr/number current-pr)))
-                    (:pr/title current-pr)
-                    ;; TODO get actual PRs branches
-                    (ansi/colorize :blue "HEAD")
-                    (ansi/colorize :blue "BASE")))
+                  {:prompt
+                   (format "Would you like to merge PR %s %s?\nThis will merge %s onto %s."
+                     (ansi/colorize :blue (str "#" (:pr/number current-pr)))
+                     (:pr/title current-pr)
+                     ;; TODO get actual PRs branches
+                     (ansi/colorize :blue "HEAD")
+                     (ansi/colorize :blue "BASE"))})
             (github/merge-pr! (:pr/number current-pr))
             ((:exec commands.sync/command) []))))
       (tui/close!))))
