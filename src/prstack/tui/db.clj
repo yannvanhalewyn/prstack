@@ -124,9 +124,10 @@
 (defn current-pr [state]
   (when-let [{:keys [selected-change prev-change]}
              (selected-and-prev-change state)]
-    (find-pr state
-      (:change/selected-branchname selected-change)
-      (:change/selected-branchname prev-change))))
+    (:http/result
+      (find-pr state
+        (:change/selected-branchname selected-change)
+        (:change/selected-branchname prev-change)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
@@ -179,12 +180,12 @@
             (or (:change/commit-sha prev-change)
                 (:change/selected-branchname prev-change))
             (:change/commit-sha selected-change))]))
-    (tui/close!))
+    (tui/close!)))
 
-  (defmethod dispatch! :event/open-pr
-    [_evt]
-    (when-let [url (:pr/url (current-pr @app-state))]
-      (browse/browse-url url))))
+(defmethod dispatch! :event/open-pr
+  [_evt]
+  (when-let [url (:pr/url (current-pr @app-state))]
+    (browse/browse-url url)))
 
 (defmethod dispatch! :event/create-pr
   [_evt]
@@ -205,7 +206,7 @@
 (defmethod dispatch! :event/merge-pr
   [_evt]
   (let [current-pr (current-pr @app-state)]
-    (when (and current-pr (not (:missing current-pr)))
+    (when current-pr
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
           (when (tty/prompt-confirm
