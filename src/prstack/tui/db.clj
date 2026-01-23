@@ -62,7 +62,7 @@
     [[{:change/local-branchnames ["main"]}
       {:change/local-branchnames ["feature-a"]}]
      [{:change/local-branchnames ["main"]}
-      {:change/local-branches ["hotfix"]}]]))
+      {:change/local-branchnames ["hotfix"]}]]))
 
 (defn displayed-stacks
   "Returns a map with :regular-stacks and :feature-base-stacks,
@@ -206,7 +206,7 @@
     (when (and current-pr (not (:missing current-pr)))
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
-          (when (tty/prompt-yes
+          (when (tty/prompt-confirm
                   (format "Would you like to merge PR %s %s?\nThis will merge %s onto %s."
                     (ansi/colorize :blue (str "#" (:pr/number current-pr)))
                     (:pr/title current-pr)

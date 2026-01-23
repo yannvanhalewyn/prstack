@@ -25,7 +25,7 @@
       (when-not (seq branches)
         (println (ansi/colorize :red "Error") "No branches found")
         (System/exit 1))
-      (ui/prompt-selection branches {:header prompt}))))
+      (ui/prompt-selection branches {:prompt prompt}))))
 
 (defn- list-feature-base-branches [_args]
   (doseq [branch (:feature-base-branches (config/read-local))]

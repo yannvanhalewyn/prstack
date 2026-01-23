@@ -38,20 +38,28 @@
 (defmacro in-raw-mode [& body]
   `(run-in-raw-mode (fn [] ~@body)))
 
-(defn replace-last-line [new-text]
-  (print (str ansi/CURSOR_UP ansi/CURSOR_UP "\r" ansi/CLEAR_LINE new-text "\r\n"))
-  (flush))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Prompts
 
-(defn read-single-char []
-  (.read System/in))
-
-;; Maybe use (not (nil? (System/getenv "USE_BBLGUM")))?
-(def use-bblgum? true)
-
-(defn prompt-yes [prompt]
+(defn prompt-confirm [prompt]
   (print prompt)
   (flush)
-  (if use-bblgum?
-   (b/gum :confirm :as :bool)
-   (in-raw-mode
-     (= (read-single-char) (int \y)))))
+  (b/gum :confirm :as :bool))
+
+(defn- gum-args [{:keys [prompt limit]}]
+  (cond-> [:limit (or limit 1)]
+    prompt (concat [:header prompt])))
+
+(defn prompt-pick
+  [{:keys [options render-option]
+    :as opts
+    :arglists '([prompt options render-option limit])}]
+  (apply b/gum :choose (map (or render-option identity) options)
+    (gum-args opts)))
+
+(defn prompt-filter
+  [{:keys [options render-option]
+    :as opts
+    :arglists '([prompt options render-option limit])}]
+  (apply b/gum :filter (map (or render-option identity) options)
+    (gum-args opts)))
