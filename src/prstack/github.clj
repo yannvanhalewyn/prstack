@@ -42,8 +42,7 @@
                     "--head" head-branch
                     "--base" base-branch
                     "--limit" "1"
-                    "--json" "title,number,url,latestReviews" "--jq" ".[0]"]
-          {:dir "/Users/yannvanhalewyn/spronq/arqiver"})))))
+                    "--json" "title,number,url,latestReviews" "--jq" ".[0]"])))))
 
 (defn create-pr!
   "Create a PR using the GitHub CLI"
