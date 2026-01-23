@@ -62,7 +62,6 @@
        (comp
          (map #(vcs.graph/get-node graph %))
          (map #(parse-change % config))
-         #_
          (filter :change/selected-branchname))
        path))))
 
