@@ -7,13 +7,12 @@
     [clojure.string :as str]
     [prstack.tui.db :as db]
     [prstack.ui :as ui]
-    [prstack.utils :as u]
-    [prstack.vcs :as vcs]))
+    [prstack.utils :as u]))
 
 (defn- render-stack-section
   "Renders a single stack with PR information.
    Returns a sequence of lines to display."
-  [vcs state stack max-width]
+  [state stack max-width]
   (concat
     ;; Render each branch in the stack (except the last one which is the base)
     (for [[cur-change prev-change]
@@ -21,16 +20,16 @@
             (for [change stack]
               (let [is-selected? (= (:ui/idx change) (:app-state/selected-item-idx state))
                     ;; Always calculate uncolored for padding purposes
-                    uncolored (ui/format-change vcs change {:no-color? true})
+                    uncolored (ui/format-change change {:no-color? true})
                     ;; Also get the colored version for non-selected items
-                    colored (ui/format-change vcs change)]
+                    colored (ui/format-change change)]
                 (assoc change
                   :ui/uncolored uncolored
                   :ui/colored colored
                   :ui/is-selected? is-selected?))))]
       (let [pr-info (db/sub-pr
-                      (vcs/local-branchname vcs cur-change)
-                      (vcs/local-branchname vcs prev-change))
+                      (:change/selected-branchname cur-change)
+                      (:change/selected-branchname prev-change))
             ;; Pad the uncolored version to get consistent visual width
             padded-uncolored (format (str "%-" max-width "s")
                                (:ui/uncolored cur-change))
@@ -66,7 +65,7 @@
 
                :else ""))))
     ;; Render the base branch at the bottom
-    [(ui/format-change vcs (last stack))]))
+    [(ui/format-change (last stack))]))
 
 (defn- render-stacks
   [vcs]
@@ -96,7 +95,7 @@
                              (fn [stack]
                                ;; Calculate visual width using uncolored text
                                (map (fn [change]
-                                      (count (ui/format-change vcs change {:no-color? true})))
+                                      (count (ui/format-change change {:no-color? true})))
                                  stack))
                              all-stacks))]
                 (apply max counts)))]
@@ -118,7 +117,7 @@
                      (str "\uf51e "
                           (if (zero? i) "Current Stack" "Other Stack")
                           " (" (dec (count stack)) ")"))]
-                  (render-stack-section vcs state stack max-width)
+                  (render-stack-section state stack max-width)
                   ;; Add blank line between stacks
                   (when-not (and (= i (dec (count regular-stacks)))
                                  (empty? feature-base-stacks))
@@ -133,7 +132,7 @@
               (mapcat
                 (fn [stack]
                   (concat
-                    (render-stack-section vcs state stack max-width)
+                    (render-stack-section state stack max-width)
                     [""]))
                 feature-base-stacks))))))))
 

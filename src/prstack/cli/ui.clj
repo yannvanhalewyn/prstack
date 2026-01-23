@@ -8,19 +8,19 @@
 
 (defn- print-stack-section
   "Prints a single stack with optional PR information."
-  [vcs stack config {:keys [include-prs? max-width header]}]
+  [vcs stack {:keys [include-prs? max-width header]}]
   (when header
     (println (ansi/colorize :cyan header)))
   ;; Print each branch in the stack (except the last one which is the base)
   (let [trunk-branch (vcs/trunk-branch vcs)]
     (doseq [[cur-change prev-change]
             (partition 2 1 stack)]
-      (let [cur-branch (vcs/local-branchname vcs cur-change)]
+      (let [cur-branch (:change/selected-branchname cur-change)]
         (if include-prs?
           (let [head-branch cur-branch
-                base-branch (vcs/local-branchname vcs prev-change)
+                base-branch (:change/selected-branchname prev-change)
                 pr (github/find-pr head-branch base-branch)
-                formatted-branch (ui/format-change vcs cur-change)
+                formatted-branch (ui/format-change cur-change)
                 padded-branch (format (str "%-" max-width "s") formatted-branch)]
             (println padded-branch
               (cond
@@ -31,9 +31,9 @@
                 (not= head-branch trunk-branch)
                 (str (ansi/colorize :red "X") " No PR Found")
                 :else "")))
-          (println (ui/format-change vcs cur-change)))))
+          (println (ui/format-change cur-change)))))
     ;; Print the base branch at the bottom
-    (println (ui/format-change vcs (last stack))))
+    (println (ui/format-change (last stack))))
   (println))
 
 (defn print-stacks
@@ -48,7 +48,7 @@
         max-width
         (when-let [counts
                    (seq
-                     (mapcat #(map (comp count (partial ui/format-change vcs)) %)
+                     (mapcat #(map (comp count ui/format-change) %)
                        (stack/reverse-stacks all-stacks)))]
           (apply max counts))]
 
@@ -58,7 +58,7 @@
     ;; Print regular stacks
     (let [reversed-stacks (stack/reverse-stacks regular-stacks)]
       (doseq [[i stack] (map-indexed vector reversed-stacks)]
-        (print-stack-section vcs stack config
+        (print-stack-section vcs stack
           (assoc opts
             :max-width max-width
             :header (str "\uf51e "
@@ -70,5 +70,5 @@
       (println (ansi/colorize :cyan "\n\uf126 Feature Base Branches"))
       (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
         (doseq [stack reversed-stacks]
-          (print-stack-section vcs stack config
+          (print-stack-section vcs stack
             (assoc opts :max-width max-width :header nil)))))))

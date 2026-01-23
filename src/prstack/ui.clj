@@ -2,8 +2,7 @@
   "Shared UI formatting utilities for CLI and TUI."
   (:require
     [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
-    [prstack.vcs :as vcs]))
+    [bb-tty.tty :as tty]))
 
 (defn format-change
   "Formats a branch name with appropriate icon and color based on bookmark type.
@@ -16,13 +15,13 @@
   Options:
     :trunk? - Override to force trunk styling (for backwards compatibility)
     :no-color? - If true, returns uncolored text (useful for applying background colors)"
-  ([vcs change]
-   (format-change vcs change {}))
-  ([vcs change {:keys [trunk? no-color?]}]
+  ([change]
+   (format-change change {}))
+  ([change {:keys [trunk? no-color?]}]
    (let [bookmark-type (if trunk?
                          :trunk
                          (:change/bookmark-type change))
-         branch-name (vcs/local-branchname vcs change)
+         branch-name (:change/selected-branchname change)
          [icon color] (case bookmark-type
                         :trunk        ["◆" :blue]
                         :feature-base ["◉" :bright-yellow]

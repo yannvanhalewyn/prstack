@@ -155,12 +155,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Feature base branch handling
 
-;; TODO precompute local branch-name so it doesn't require the whole VCS
-;; client
 (defn- is-feature-base-branch?
   "Returns true if the change is a feature base branch."
-  [vcs {:keys [feature-base-branches]} change]
-  (contains? feature-base-branches (vcs/local-branchname vcs change)))
+  [change {:keys [feature-base-branches]}]
+  (contains? feature-base-branches (:change/selected-branchname change)))
 
 (defn- truncate-stack-at-feature-base
   "Truncates a stack to stop at the first feature base branch.
@@ -170,12 +168,12 @@
   Everything before the feature base (including trunk) is removed.
 
   Returns the truncated stack, or the original stack if no feature base found."
-  [vcs config stack]
+  [config stack]
   (let [feature-base-branches (:feature-base-branches config)]
     (if (empty? feature-base-branches)
       stack
       (let [feature-base-idx (some (fn [idx]
-                                     (when (is-feature-base-branch? vcs config (nth stack idx))
+                                     (when (is-feature-base-branch? (nth stack idx) config)
                                        idx))
                                    (range (count stack)))]
         (if feature-base-idx
@@ -185,15 +183,15 @@
 
 (comment
   (truncate-stack-at-feature-base
-    vcs- config-
+    {:feature-base-branches #{"feature-2-base"}}
     [{:change/description "Main Change"
-      :change/local-branchnames ["main"]}
+      :change/selected-branchname "main"}
      {:change/description "Feature 2 merge base"
-      :change/local-branchnames ["feature-2-base"]}
+      :change/selected-branchname "feature-2-base"}
      {:change/description "Feature 2 part 1"
-      :change/local-branchnames ["feature-2-part-1"]}
+      :change/selected-branchname "feature-2-part-1"}
      {:change/description "Feature 2 part 2"
-      :change/local-branchnames ["feature-2-part-2"]}]))
+      :change/selected-branchname "feature-2-part-2"}]))
 
 (defn get-feature-base-stacks
   "Returns stacks for all feature base branches onto trunk.
@@ -218,7 +216,7 @@
                     ;; 3. Has exactly 2 elements (trunk + feature-base)
                     (when (and stack
                                (= 2 (count stack))
-                               (= trunk-branch (vcs/local-branchname vcs (first stack))))
+                               (= trunk-branch (:change/selected-branchname vcs (first stack))))
                       stack))))))
       (:feature-base-branches config))))
 
@@ -230,7 +228,7 @@
     :feature-base-stacks - stacks from trunk to each feature base branch"
   [vcs config stacks]
   (let [feature-base-stacks (get-feature-base-stacks vcs config)
-        regular-stacks (mapv #(truncate-stack-at-feature-base vcs config %) stacks)]
+        regular-stacks (mapv #(truncate-stack-at-feature-base config %) stacks)]
     {:regular-stacks regular-stacks
      :feature-base-stacks feature-base-stacks}))
 

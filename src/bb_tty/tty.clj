@@ -41,25 +41,29 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Prompts
 
-(defn prompt-confirm [prompt]
-  (print prompt)
-  (flush)
-  (b/gum :confirm :as :bool))
+(defn- gum-args
+  ([opts]
+   (gum-args {} opts))
+  ([base {:keys [prompt]}]
+   (cond-> (into [] (mapcat identity base))
+     prompt (concat [:header prompt]))))
 
-(defn- gum-args [{:keys [prompt limit]}]
-  (cond-> [:limit (or limit 1)]
-    prompt (concat [:header prompt])))
+(defn prompt-confirm [{:keys [prompt]}]
+  (:result (b/gum :confirm [prompt] :as :bool)))
 
 (defn prompt-pick
-  [{:keys [options render-option]
+  [{:keys [options render-option limit]
+    :or {limit 1}
     :as opts
     :arglists '([prompt options render-option limit])}]
-  (apply b/gum :choose (map (or render-option identity) options)
-    (gum-args opts)))
+  (:result
+    (apply b/gum :choose (map (or render-option identity) options)
+      (gum-args {:limit limit} opts))))
 
 (defn prompt-filter
-  [{:keys [options render-option]
+  [{:keys [options render-option limit]
     :as opts
     :arglists '([prompt options render-option limit])}]
-  (apply b/gum :filter (map (or render-option identity) options)
-    (gum-args opts)))
+  (:result
+   (apply b/gum :filter (map (or render-option identity) options)
+     (gum-args {:limit limit} opts))))

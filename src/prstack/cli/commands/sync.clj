@@ -36,7 +36,8 @@
            (u/shell-out ["jj" "bookmark" "set" trunk-branch
                          "-r" (str trunk-branch "@origin")]
              {:echo? true})
-           (when (tty/prompt-confirm (format "\nRebase on %s?" (ansi/colorize :blue trunk-branch)))
+           (when (tty/prompt-confirm
+                   {:prompt (format "\nRebase on %s?" (ansi/colorize :blue trunk-branch))})
              (u/shell-out ["jj" "rebase" "-d" trunk-branch]
                {:echo? true})))
          (println (format "Local %s is already up to date with remote. No need to rebase"
@@ -57,7 +58,8 @@
          (doseq [stack regular-stacks]
            (println "Syncing stack:" (ansi/colorize :blue (first (:change/local-branchnames (last stack)))))
            (if (> (count stack) 1)
-             (when (tty/prompt-confirm "Would you like to create missing PRs?")
-               (commands.create-prs/create-prs vcs {:stack stack}))
+             (when (tty/prompt-confirm
+                     {:prompt "Would you like to create missing PRs?"})
+               (commands.create-prs/create-prs! vcs {:stack stack}))
              (println "No missing PRs to create."))
            (println)))))})

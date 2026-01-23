@@ -59,18 +59,6 @@
     Schema:
       :boolean")
 
-  (local-branchname [this change]
-    "Extracts the local branch name from a change.
-
-    Args:
-      change - Change map (see prstack.vcs.graph/node->change)
-
-    Returns:
-      String or nil, the first local branch name without markers
-
-    Schema:
-      [:maybe :string]")
-
   (remote-branchname [this change]
     "Extracts the remote branch name from a change.
 
@@ -150,9 +138,6 @@
   (trunk-moved? [this]
     (jj/trunk-moved? (vcs-config this)))
 
-  (local-branchname [_this change]
-    (jj/local-branchname change))
-
   (remote-branchname [_this change]
     (jj/remote-branchname change))
 
@@ -188,10 +173,6 @@
       (println (ansi/colorize :cyan "Fork point") fork-point)
       (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk)
       (not= fork-point remote-trunk)))
-
-  (local-branchname [_this change]
-    (git/remove-asterisk-from-branch-name
-      (first (:change/local-branchnames change))))
 
   (remote-branchname [_this change]
     (git/remove-asterisk-from-branch-name
