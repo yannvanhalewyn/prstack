@@ -173,7 +173,7 @@
                             (for [kb keybindings]
                               (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
 
-(defn run! []
+(defn run-app! []
   (loop []
     (db/dispatch! [:event/read-local-repo])
     (tui/run-ui!
@@ -198,3 +198,9 @@
       (swap! db/app-state dissoc :app-state/run-in-fg nil)
       (run-in-fg)
       (recur))))
+
+(defn run! []
+  (try
+    (run-app!)
+    (catch Exception e
+      (println (ansi/colorize :red (str "Error: " (.getMessage e)))))))
