@@ -25,4 +25,4 @@
              (stack/get-current-stacks vcs config))
            processed-stacks
            (stack/process-stacks-with-feature-bases vcs config stacks)]
-       (ui/print-stacks processed-stacks vcs config opts)))})
+       (ui/print-stacks processed-stacks opts)))})

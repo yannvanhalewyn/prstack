@@ -3,8 +3,7 @@
     [bb-tty.ansi :as ansi]
     [prstack.github :as github]
     [prstack.stack :as stack]
-    [prstack.ui :as ui]
-    [prstack.vcs :as vcs]))
+    [prstack.ui :as ui]))
 
 (defn- print-stack-section
   "Prints a single stack with optional PR information."
@@ -36,7 +35,7 @@
   "Prints regular stacks and optionally feature base stacks.
 
   stacks must be a map with :regular-stacks and :feature-base-stacks"
-  [stacks vcs opts]
+  [stacks opts]
   (let [{:keys [regular-stacks feature-base-stacks]} stacks
 
         all-stacks (concat regular-stacks feature-base-stacks)
