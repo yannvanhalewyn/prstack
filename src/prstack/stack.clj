@@ -31,12 +31,12 @@
   ([change]
    (parse-change change {}))
   ([change {:keys [ignored-branches feature-base-branches]}]
-   (let [local-branch (first (:change/local-branchnames change))
-         selected-branch (first (remove ignored-branches (:change/local-branchnames change)))
+   (let [selected-branch (first (remove ignored-branches (:change/local-branchnames change)))
+         feature-base? (and selected-branch (contains? feature-base-branches selected-branch))
          bookmark-type
          (cond
            (:change/trunk-node? change) :trunk
-           (and local-branch (contains? feature-base-branches local-branch)) :feature-base
+           feature-base? :feature-base
            :else :regular)]
      (cond-> (assoc change :change/bookmark-type bookmark-type)
       selected-branch (assoc :change/selected-branchname selected-branch)))))
@@ -62,9 +62,11 @@
        (comp
          (map #(vcs.graph/get-node graph %))
          (map #(parse-change % config))
+         #_
          (filter :change/selected-branchname))
        path))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public
 
 (defn- should-ignore-node?

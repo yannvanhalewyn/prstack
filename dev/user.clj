@@ -22,7 +22,7 @@
 
 ;; Testing out reading vcs graph
 (comment
-  (def config- (config/read-local))
+  (def config- (assoc (config/read-local) :vcs :git))
   (def vcs- (vcs/make config-))
   (stack/get-current-stacks vcs- config-)
   (stack/get-all-stacks vcs- config-))
@@ -31,6 +31,7 @@
   (def vcs-graph- (vcs/read-current-stack-graph vcs-))
   (def current-id- (vcs/current-change-id vcs-))
   (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-))
+  (stack/path->stack vcs-graph- (first paths-) config-)
   (map #(stack/path->stack vcs-graph- % config-) paths-)
   (map #(vcs.graph/get-node vcs-graph- %) (first paths-))
 

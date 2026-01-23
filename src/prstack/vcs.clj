@@ -165,9 +165,7 @@
 
   (trunk-moved? [this]
     (let [trunk-branch (:vcs-config/trunk-branch (vcs-config this))
-          ;; Get the merge base between current HEAD and trunk
           fork-point (git/merge-base "HEAD" trunk-branch)
-          ;; Get the remote trunk commit
           remote-trunk (git/commit-sha (str "origin/" trunk-branch))]
       (println (ansi/colorize :yellow "\nChecking if trunk moved"))
       (println (ansi/colorize :cyan "Fork point") fork-point)
@@ -180,32 +178,23 @@
       (:change/remote-branchnames change)))
 
   (read-graph [this]
-    (let [;; Get trunk commit SHA
-          trunk-branch* (trunk-branch this)
+    (let [trunk-branch* (trunk-branch this)
           trunk-sha (git/commit-sha trunk-branch*)
-          ;; Get all commits in the range from trunk to all branches
           commit-shas (git/get-all-commits-in-range trunk-branch*)
-          ;; Add trunk itself
           all-commits (conj commit-shas trunk-sha)
-          ;; Build nodes
           nodes (git/parse-graph-commits all-commits trunk-sha)]
       (graph/build-graph nodes trunk-sha)))
 
   (read-current-stack-graph [this]
-    (let [;; Get trunk commit SHA
-          trunk-branch (:vcs-config/trunk-branch (vcs-config this))
+    (let [trunk-branch (:vcs-config/trunk-branch (vcs-config this))
           trunk-sha (git/commit-sha trunk-branch)
-          ;; Get current HEAD
           head-sha (git/commit-sha "HEAD")
-          ;; Get commits from trunk to HEAD
           commit-shas (git/get-commits-between trunk-branch "HEAD")
-          ;; Add trunk and HEAD
           all-commits (-> commit-shas
                         (conj trunk-sha)
                         (conj head-sha)
                         distinct
                         vec)
-          ;; Build nodes
           nodes (git/parse-graph-commits all-commits trunk-sha)]
       (graph/build-graph nodes trunk-sha)))
 
