@@ -44,31 +44,12 @@
                                    padding-needed (- max-width visual-len)
                                    padding (apply str (repeat padding-needed " "))]
                                (str colored padding)))]
-        (str display-branch
-             " "
-             (cond
-               (= (:http/status pr-info) :status/pending)
-               (ansi/colorize :gray "Fetching...")
-
-               (:pr/url pr-info)
-               (str (case (:pr/status pr-info)
-                      :pr.status/approved (ansi/colorize :green "✓")
-                      :pr.status/changes-requested (ansi/colorize :red "✗")
-                      :pr.status/review-required (ansi/colorize :yellow "●")
-                      (ansi/colorize :gray "?"))
-                    " "
-                    (ansi/colorize :blue (str "#" (:pr/number pr-info)))
-                    " " (:pr/title pr-info))
-
-               (:missing pr-info)
-               (str (ansi/colorize :red "X") " No PR Found")
-
-               :else ""))))
+        (str display-branch " " (ui/format-pr-info pr-info))))
     ;; Render the base branch at the bottom
     [(ui/format-change (last stack))]))
 
 (defn- render-stacks
-  [vcs]
+  [_vcs]
   (tui/component
     {:on-key-press
      (fn [key]

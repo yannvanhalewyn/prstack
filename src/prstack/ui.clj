@@ -32,6 +32,38 @@
        (str " " (ansi/colorize color icon) " "
             (ansi/colorize color branch-name))))))
 
+(defn format-pr-info
+  "Formats PR information for display.
+
+  Takes a pr-info map which may contain:
+    :http/status :status/pending - PR is being fetched
+    :pr/url - PR URL (indicates PR exists)
+    :pr/number - PR number
+    :pr/title - PR title
+    :pr/status - One of :pr.status/approved, :pr.status/changes-requested, :pr.status/review-required
+    :missing - true if no PR was found
+
+  Returns a formatted string with status indicator, PR number, and title."
+  [pr-info]
+  (cond
+    (= (:http/status pr-info) :status/pending)
+    (ansi/colorize :gray "Fetching...")
+
+    (:pr/url pr-info)
+    (str (case (:pr/status pr-info)
+           :pr.status/approved (ansi/colorize :green "✓")
+           :pr.status/changes-requested (ansi/colorize :red "✗")
+           :pr.status/review-required (ansi/colorize :yellow "●")
+           (ansi/colorize :gray "?"))
+         " "
+         (ansi/colorize :blue (str "#" (:pr/number pr-info)))
+         " " (:pr/title pr-info))
+
+    (:missing pr-info)
+    (str (ansi/colorize :red "X") " No PR Found")
+
+    :else ""))
+
 (defn prompt-selection
   "Prompts the user to select from a list of options using gum.
 
