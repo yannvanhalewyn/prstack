@@ -1,7 +1,9 @@
 (ns prstack.vcs.graph
   "VCS-agnostic graph representation of a commit log and traversal algorithms.
   It uses a DAG with bidirectional edges (parent/child) and metadata about
-  branches, trunk, and merge status.")
+  branches, trunk, and merge status."
+  (:require
+   [prstack.utils :as u]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
@@ -63,17 +65,46 @@
   [vcs-graph change-id]
   (get-in vcs-graph [:graph/nodes change-id]))
 
+(defn all-nodes [vcs-graph]
+  (vals (:graph/nodes vcs-graph)))
+
 (defn bookmarked-leaf-nodes
   "Returns all leaf nodes that have local bookmarks.
   These are the 'real' leaves that represent feature branches."
+  [bookmarks-graph]
+  (remove (comp seq :change/children-ids) (all-nodes bookmarks-graph)))
+
+(declare remove-node)
+
+(defn bookmarks-subgraph
+  "Returns a subgraph with only bookmarks. This is useful for performing
+  further analysis on the bookmarks structure."
   [vcs-graph]
-  (into []
-    (comp
-      (filter (fn [[_id node]]
-                (and (empty? (:change/children-ids node))
-                     (:change/selected-branchname node))))
-      (map second))
-    (:graph/nodes vcs-graph)))
+  (let [ids-without-bookmarks (->> (all-nodes vcs-graph)
+                                (remove :change/selected-branchname)
+                                (map :change/change-id))]
+    (reduce remove-node vcs-graph ids-without-bookmarks)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Graph manipulation
+
+(defn- remove-node
+  "Removes a node from the graph, erasing it from the nodes list as well as
+  clearing references to it from it's parents and children."
+  [vcs-graph node-id]
+  (let [node (get-node vcs-graph node-id)
+        remove-refs
+        (fn [graph remove-id node-ids relation-key]
+          (reduce
+            (fn [graph* parent-id]
+              (update-in graph* [:graph/nodes parent-id relation-key]
+                #(remove #{remove-id} %)))
+            graph
+            node-ids))]
+    (-> vcs-graph
+      (u/dissoc-in [:graph/nodes node-id])
+      (remove-refs node-id (:change/parent-ids node) :change/children-ids)
+      (remove-refs node-id (:change/children-ids node) :change/parent-ids))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph traversal

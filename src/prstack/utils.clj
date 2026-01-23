@@ -7,6 +7,13 @@
 (defn find-first [pred coll]
   (first (filter pred coll)))
 
+(defn dissoc-in
+  "Dissoc's the element at path in coll"
+  [coll path]
+  (if (= 1 (count path))
+    (dissoc coll (first path))
+    (update-in coll (butlast path) dissoc (last path))))
+
 (defn run-cmd [cmd & [{:keys [echo? dir]}]]
   (when echo?
     (println (ansi/colorize :gray (str "$ " (str/join " " cmd)))))

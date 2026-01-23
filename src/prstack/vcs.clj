@@ -71,34 +71,10 @@
     Schema:
       [:maybe :string]")
 
-  (read-graph [this]
-    "Reads the full VCS graph from trunk to all bookmark heads.
+  (read-all-nodes [this])
 
-    Builds a complete graph representation with parent/child relationships
-    for all commits between trunk and bookmarked branches.
-
-    Returns:
-      Graph - See prstack.vcs.graph/Graph
-
-    Schema:
-      [:map
-       [:vcs-graph/nodes [:map-of :string Node]]
-       [:vcs-graph/trunk-id :string]
-       [:vcs-graph/current-change-id :string]]
-
-    Where Node is:
-      [:map
-       [:change/change-id :string]
-       [:change/commit-sha {:optional true} :string]
-       [:change/parents [:sequential :string]]
-       [:change/children [:sequential :string]]
-       [:change/local-branchenames [:sequential :string]]
-       [:change/remote-branchnames [:sequential :string]]
-       [:change/trunk-node? :boolean]
-       [:change/merge-node? :boolean]]")
-
-  (read-current-stack-graph [this]
-    "Reads a graph for the current working copy stack.
+  (read-current-stack-nodes [this]
+    "TODO fix Reads a graph for the current working copy stack.
 
     Includes all changes from trunk to the current working copy, even if
     the current change is not bookmarked.
@@ -141,15 +117,38 @@
   (remote-branchname [_this change]
     (jj/remote-branchname change))
 
-  (read-graph [this]
-    (jj/read-graph (vcs-config this)))
+  (read-all-nodes [this]
+    (jj/read-all-nodes (vcs-config this)))
 
-  (read-current-stack-graph [this]
-    (jj/read-current-stack-graph (vcs-config this)))
+  (read-current-stack-nodes [this]
+    (jj/read-current-stack-nodes (vcs-config this)))
 
   (current-change-id [_this]
     (jj/current-change-id)))
 
+(defn- parse-change
+  [change {:keys [ignored-branches feature-base-branches]}]
+  (let [selected-branch (first (remove ignored-branches (:change/local-branchnames change)))
+        feature-base? (and selected-branch (contains? feature-base-branches selected-branch))
+        type
+        (cond
+          (:change/trunk-node? change) :trunk
+          feature-base? :feature-base
+          :else :regular)]
+    (cond-> (assoc change :change/type type)
+      selected-branch (assoc :change/selected-branchname selected-branch))))
+
+(defn read-graph [vcs config]
+  (let [{:keys [nodes trunk-change-id]} (read-all-nodes vcs)
+        nodes (map #(parse-change % config) nodes)]
+    (graph/build-graph nodes trunk-change-id)))
+
+;; TODO maybe we don't care about 'read-current-stack-nodes'. Just read it all
+;; and the current stack based on current id
+(defn read-current-stack-graph [vcs config]
+  (let [{:keys [nodes trunk-change-id]} (read-current-stack-nodes vcs)
+        nodes (map #(parse-change % config) nodes)]
+    (graph/build-graph nodes trunk-change-id)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Git Implementation
@@ -177,15 +176,16 @@
       #(str/starts-with? % "origin/")
       (:change/remote-branchnames change)))
 
-  (read-graph [this]
+  (read-all-nodes [this]
     (let [trunk-branch* (trunk-branch this)
           trunk-sha (git/commit-sha trunk-branch*)
           commit-shas (git/get-all-commits-in-range trunk-branch*)
           all-commits (conj commit-shas trunk-sha)
           nodes (git/parse-graph-commits all-commits trunk-sha)]
-      (graph/build-graph nodes trunk-sha)))
+      {:nodes nodes
+       :trunk-change-id trunk-sha}))
 
-  (read-current-stack-graph [this]
+  (read-current-stack-nodes [this]
     (let [trunk-branch (:vcs-config/trunk-branch (vcs-config this))
           trunk-sha (git/commit-sha trunk-branch)
           head-sha (git/commit-sha "HEAD")
@@ -194,9 +194,8 @@
                         (conj trunk-sha)
                         (conj head-sha)
                         distinct
-                        vec)
-          nodes (git/parse-graph-commits all-commits trunk-sha)]
-      (graph/build-graph nodes trunk-sha)))
+                        vec)]
+     (git/parse-graph-commits all-commits trunk-sha)))
 
   (current-change-id [_this]
     (git/commit-sha "HEAD")))

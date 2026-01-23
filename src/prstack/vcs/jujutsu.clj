@@ -62,10 +62,6 @@
     #(not (str/ends-with? % "@git"))
     (:change/remote-branchnames change)))
 
-(def ^:lsp/allow-unused Leaf
-  [:map
-   [:change/local-branchnames [:vector :string]]])
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations
 
@@ -76,13 +72,12 @@
 (defn- parse-branchnames [log-str]
   (if (empty? log-str)
     []
-    (into []
-      (map remove-asterisk-from-branch-name)
+    (map remove-asterisk-from-branch-name
       (str/split log-str #" "))))
 
-(defn- parse-graph-output
+(defn- parse-log
   "Parses jj log output into a collection of node maps."
-  [output _trunk-branch]
+  [output]
   (when (not-empty output)
     (into []
       (comp
@@ -99,7 +94,7 @@
                 :change/remote-branchnames (parse-branchnames remote-branches-str)})))
       (str/split-lines output))))
 
-(defn read-graph
+(defn read-all-nodes
   "Reads the full VCS graph from jujutsu.
 
   Reads all commits from trunk to all bookmark heads, building a complete
@@ -107,10 +102,11 @@
 
   Returns a Graph (see prstack.vcs.graph/Graph)"
   [{:vcs-config/keys [trunk-branch]}]
-  (let [trunk-change-id (str/trim
-                          (u/run-cmd
-                            ["jj" "log" "--no-graph" "-r" trunk-branch
-                             "-T" "change_id.short()"]))
+  (let [trunk-change-id
+        (str/trim
+          (u/run-cmd
+            ["jj" "log" "--no-graph" "-r" trunk-branch
+             "-T" "change_id.short()"]))
         ;; Get all changes from trunk to all bookmark heads (inclusive)
         ;; Include all intermediate changes
         revset (format "ancestors(bookmarks()) & %s::" trunk-branch)
@@ -123,48 +119,37 @@
                             "parents.map(|p| p.change_id().short()).join(' '), "
                             "local_bookmarks.join(' '), "
                             "remote_bookmarks.join(' ')) "
-                            "++ \"\\n\"")])
-        nodes (parse-graph-output output trunk-branch)]
-    (graph/build-graph nodes trunk-change-id)))
+                            "++ \"\\n\"")])]
+    {:nodes (parse-log output)
+     :trunk-change-id trunk-change-id}))
 
 (defn current-change-id
   "Returns the change-id of the current working copy (@)."
   []
   (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id.short()"])))
 
-(defn read-current-stack-graph
-  "Reads a graph specifically for the current working copy stack.
+(defn read-current-stack-nodes
+  "TODO fix Reads a graph specifically for the current working copy stack.
 
   This includes all changes from trunk to @, even if @ is not bookmarked.
 
   Returns a Graph (see prstack.vcs.graph/Graph)"
   [{:vcs-config/keys [trunk-branch]}]
-  (let [;; Get trunk change-id
-        trunk-change-id (str/trim
-                          (u/run-cmd
-                            ["jj" "log" "--no-graph" "-r" trunk-branch
-                             "-T" "change_id.short()"]))
-        ;; Get all changes from fork point to current, including unbookmarked
-        revset "fork_point(trunk() | @)::@"
-        output (u/run-cmd
-                 ["jj" "log" "--no-graph"
-                  "-r" revset
-                  "-T" (str "separate(';', "
-                            "change_id.short(), "
-                            "commit_id, "
-                            "parents.map(|p| p.change_id().short()).join(' '), "
-                            "local_bookmarks.join(' '), "
-                            "remote_bookmarks.join(' ')) "
-                            "++ \"\\n\"")])
-        nodes (parse-graph-output output trunk-branch)]
-    (graph/build-graph nodes trunk-change-id)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Public API
-
-(comment
-  (def graph* (read-graph (config)))
-  (tap> graph*)
-  (graph/find-all-paths-to-trunk graph* "wmkwotut")
-  (detect-trunk-branch!)
-  (config))
+  {:nodes
+   (parse-log
+     (u/run-cmd
+       ["jj" "log" "--no-graph"
+        ;; Gets all changes from fork point to current
+        "-r" "fork_point(trunk() | @)::@"
+        "-T" (str "separate(';', "
+                  "change_id.short(), "
+                  "commit_id, "
+                  "parents.map(|p| p.change_id().short()).join(' '), "
+                  "local_bookmarks.join(' '), "
+                  "remote_bookmarks.join(' ')) "
+                  "++ \"\\n\"")]))
+   :trunk-change-id
+   (str/trim
+     (u/run-cmd
+       ["jj" "log" "--no-graph" "-r" trunk-branch
+        "-T" "change_id.short()"]))})

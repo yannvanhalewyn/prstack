@@ -22,25 +22,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parsing graph nodes
 
-(defn parse-change
-  "Converts a Node to the legacy Change format used by the rest of the codebase.
-
-  Options:
-    :trunk-branch - String, name of trunk branch (for :trunk type detection)
-    :feature-base-branches - Set of strings, names of feature base branches"
-  ([change]
-   (parse-change change {}))
-  ([change {:keys [ignored-branches feature-base-branches]}]
-   (let [selected-branch (first (remove ignored-branches (:change/local-branchnames change)))
-         feature-base? (and selected-branch (contains? feature-base-branches selected-branch))
-         bookmark-type
-         (cond
-           (:change/trunk-node? change) :trunk
-           feature-base? :feature-base
-           :else :regular)]
-     (cond-> (assoc change :change/bookmark-type bookmark-type)
-      selected-branch (assoc :change/selected-branchname selected-branch)))))
-
 (defn path->stack
   "Converts a path (vector of change-ids) to a Stack (vector of Changes).
 
@@ -54,32 +35,30 @@
 
   Returns:
     Vector of Change maps ordered from trunk to leaf, containing only bookmarked nodes."
-  ([graph path]
-   (path->stack graph path {}))
-  ([graph path config]
-   (reverse
-     (into []
-       (comp
-         (map #(vcs.graph/get-node graph %))
-         (map #(parse-change % config))
-         (filter :change/selected-branchname))
-       path))))
+  [graph path]
+  (reverse
+    (into []
+      (comp
+        (map #(vcs.graph/get-node graph %))
+        (filter :change/selected-branchname))
+      path)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public
 
 (defn- node->stack
   "Converts a leaf node to a stack by finding the path to trunk."
-  [node vcs-graph config]
+  [node vcs-graph]
   (when-let [path (vcs.graph/find-path-to-trunk vcs-graph (:change/change-id node))]
-    (path->stack vcs-graph path config)))
+    (path->stack vcs-graph path)))
 
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
   [vcs config]
-  (let [vcs-graph (vcs/read-graph vcs)
-        leaves (vcs.graph/bookmarked-leaf-nodes vcs-graph)]
-    (keep #(node->stack % vcs-graph config) leaves)))
+  (let [vcs-graph (vcs/read-graph vcs config)
+        bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
+        leaves (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)]
+    (keep #(node->stack % vcs-graph) leaves)))
 
 (defn get-current-stacks
   "Returns the stack(s) containing the current working copy.
@@ -87,22 +66,22 @@
   If the current change is a megamerge (multiple parents), returns multiple
   stacks - one for each parent path. Otherwise, returns a single stack."
   [vcs config]
-  (let [vcs-graph (vcs/read-current-stack-graph vcs)
+  (let [vcs-graph (vcs/read-current-stack-graph vcs config)
         current-id (vcs/current-change-id vcs)
         paths (vcs.graph/find-all-paths-to-trunk vcs-graph current-id)]
-    (keep #(path->stack vcs-graph % config) paths)))
+    (keep #(path->stack vcs-graph %) paths)))
 
 (defn get-stack
   "Returns a single stack for the given ref."
   [vcs config ref]
-  (let [vcs-graph (vcs/read-graph vcs)
+  (let [vcs-graph (vcs/read-graph vcs config)
         ;; For now, assume ref is a branch name and find the node with that branch
         node (some (fn [[_id node]]
                      (when (some #{ref} (:change/local-branchnames node))
                        node))
-                   (:graph/nodes vcs-graph))]
+               (:graph/nodes vcs-graph))]
     (when node
-      (node->stack config vcs-graph node))))
+      (node->stack node vcs-graph))))
 
 (defn reverse-stacks
   "Reverses the order of the changes in every stack. Stacks are represented in
@@ -138,7 +117,7 @@
       (let [feature-base-idx (some (fn [idx]
                                      (when (is-feature-base-branch? (nth stack idx) config)
                                        idx))
-                                   (range (count stack)))]
+                               (range (count stack)))]
         (if feature-base-idx
           ;; Cut the stack from the feature base to the end (including feature base as base)
           (subvec (vec stack) feature-base-idx)
@@ -163,16 +142,16 @@
   Only includes feature bases that are direct descendants of trunk
   (i.e., the stack has length 2)."
   [vcs config]
-  (let [vcs-graph (vcs/read-graph vcs)
+  (let [vcs-graph (vcs/read-graph vcs config)
         trunk-branch (vcs/trunk-branch vcs)]
     (into []
       (keep (fn [branch-name]
               (let [node (some (fn [[_id node]]
                                  (when (some #{branch-name} (:change/local-branchnames node))
                                    node))
-                               (:graph/nodes vcs-graph))]
+                           (:graph/nodes vcs-graph))]
                 (when node
-                  (let [stack (node->stack node vcs-graph config)]
+                  (let [stack (node->stack node vcs-graph)]
                     ;; Only return if:
                     ;; 1. Stack exists
                     ;; 2. Starts with trunk
@@ -194,15 +173,3 @@
         regular-stacks (mapv #(truncate-stack-at-feature-base config %) stacks)]
     {:regular-stacks regular-stacks
      :feature-base-stacks feature-base-stacks}))
-
-(comment
-  (require '[prstack.config :as config])
-  (def config- (config/read-local))
-  (def vcs- (vcs/make config-))
-  (tap> (get-all-stacks vcs- config-))
-  (tap> (get-current-stacks vcs- config-))
-  (tap> (get-stack vcs- config- "test-branch"))
-  (get-all-stacks vcs- {:ignored-branches #{}})
-  (tap>
-   (process-stacks-with-feature-bases vcs- config-
-     (get-all-stacks vcs- config-))))

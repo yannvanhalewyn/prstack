@@ -18,21 +18,26 @@
              :port 60342})))
 
 (comment
-  (start-portal!)
+  (start-portal!))
+
+(comment
+  (vcs/read-current-stack-nodes vcs-))
 
 ;; Testing out reading vcs graph
 (comment
-  (def config- (assoc (config/read-local) :vcs :git))
-  (def vcs- (vcs/make config-))
+  (do
+    (def config- (assoc (config/read-local) :vcs :jujutsu))
+    (def vcs- (vcs/make config-)))
+
   (stack/get-current-stacks vcs- config-)
-  (stack/get-all-stacks vcs- config-))
+  (stack/get-all-stacks vcs- config-)
 
   ;; Deeper
-  (def vcs-graph- (vcs/read-current-stack-graph vcs-))
-  (def current-id- (vcs/current-change-id vcs-))
-  (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-))
-  (stack/path->stack vcs-graph- (first paths-) config-)
+  (do
+    (def vcs-graph- (vcs/read-current-stack-graph vcs- config-))
+    (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
+    (def current-id- (vcs/current-change-id vcs-))
+    (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
+  (stack/path->stack vcs-graph- (first paths-))
   (map #(stack/path->stack vcs-graph- % config-) paths-)
-  (map #(vcs.graph/get-node vcs-graph- %) (first paths-))
-
-  )
+  (map #(vcs.graph/get-node vcs-graph- %) (first paths-)))
