@@ -12,12 +12,12 @@
 (defn- ensure-remote-branch [vcs change msg]
   (or (vcs/remote-branchname vcs change)
       (let [branchname (vcs/local-branchname vcs change)]
-        (when (tty/prompt-yes (str msg (format " Push %s?" (ansi/colorize :blue branchname))))
+        (when (tty/prompt-confirm (str msg (format " Push %s?" (ansi/colorize :blue branchname))))
           (vcs/push-branch vcs branchname)
           true))))
 
 (defn- prompt-and-create-prs! [head-branch base-branch]
-  (when (tty/prompt-yes
+  (when (tty/prompt-confirm
           (format "Create a PR for %s onto %s?"
             (ansi/colorize :blue head-branch)
             (ansi/colorize :blue base-branch)))
@@ -47,7 +47,7 @@
 
 ;; TODO also check if branched is pushed before making PR
 (def command
-  {:name "create"
+  {:name "create-prs"
    :description "Creates missing PRs in the current stack"
    :exec
    (fn create-prs-cmd [args]

@@ -1,16 +1,16 @@
 ---
-title: prstack create
+title: prstack create-prs
 description: Create missing PRs for the current stack
 ---
 
-# prstack create
+# prstack create-prs
 
 Creates missing pull requests for the current stack.
 
 ## Usage
 
 ```bash
-prstack create
+prstack create-prs
 ```
 
 ## What It Does
@@ -24,14 +24,14 @@ The `create` command:
 ## Example
 
 ```bash
-prstack create
+prstack create-prs
 
 # Output:
 # Discovered stack: feature-c → feature-a → main
 # Missing PRs:
 #   - feature-a → main
 #   - feature-c → feature-a
-# 
+#
 # Create PR for feature-a → main? (y/n) y
 # Creating PR...
 # Created: https://github.com/owner/repo/pull/122
@@ -53,7 +53,7 @@ This ensures that PRs in your stack are properly chained.
 
 ## When to Use
 
-Use `prstack create` when you want to:
+Use `prstack create-prs` when you want to:
 
 - Create PRs for a new stack of branches
 - Fill in missing PRs after branching off existing work
