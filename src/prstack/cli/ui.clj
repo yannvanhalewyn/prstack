@@ -49,7 +49,8 @@
                                 (count (ui/format-change change {:no-color? true})))
                            stack))
                        (stack/reverse-stacks all-stacks)))]
-          (apply max counts))]
+          (apply max counts))
+        name-column-width (max 30 (or max-width 0))]
 
     (when-not (seq regular-stacks)
       (println (ansi/colorize :cyan "No stacks detetected")))
@@ -59,7 +60,7 @@
       (doseq [[i stack] (map-indexed vector reversed-stacks)]
         (print-stack-section stack
           (assoc opts
-            :max-width max-width
+            :max-width name-column-width
             :header (str "\uf51e "
                          (if (zero? i) "Current Stack" "Other Stack")
                          " (" (dec (count stack)) ")")))))
@@ -70,4 +71,4 @@
       (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
         (doseq [stack reversed-stacks]
           (print-stack-section stack
-            (assoc opts :max-width max-width :header nil)))))))
+            (assoc opts :max-width name-column-width :header nil)))))))
