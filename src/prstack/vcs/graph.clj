@@ -26,27 +26,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph construction
 
-(defn- compute-children
-  "Given nodes map, computes and adds `:change/children-ids` to each node based
-  on parent edges."
-  [nodes]
-  (let [;; Build child->parents map
-        children (reduce
-                   (fn [acc [node-id node]]
-                     (reduce
-                       (fn [acc parent-id]
-                         (update acc parent-id (fnil conj []) node-id))
-                       acc
-                       (:change/parent-ids node)))
-                   {}
-                   nodes)]
-    ;; Add children to nodes
-    (reduce-kv
-      (fn [nodes node-id child-ids]
-        (assoc-in nodes [node-id :change/children-ids] child-ids))
-      nodes
-      children)))
-
 (defn build-graph
   "Builds a graph from a collection of node maps.
 
@@ -57,17 +36,22 @@
   Returns:
     Graph map with bidirectional edges computed."
   [nodes trunk-id]
-  (let [;; Create nodes map keyed by change-id
+  (let [parent->children (reduce
+                           (fn [acc node]
+                             (reduce
+                               (fn [acc parent-id]
+                                 (update acc parent-id (fnil conj []) (:change/change-id node)))
+                               acc
+                               (:change/parent-ids node)))
+                           {}
+                           nodes)
         nodes-map (into {}
                     (map (fn [node]
                            [(:change/change-id node)
                             (assoc node
-                              :change/children-ids []
-                              :change/trunk-node? (= (:change/change-id node) trunk-id)
-                              :change/merge-node? (> (count (:change/parent-ids node)) 1))]))
-                    nodes)
-        ;; Compute children from parent edges
-        nodes-map (compute-children nodes-map)]
+                              :change/children-ids (parent->children (:change/change-id node))
+                              :change/trunk-node? (= (:change/change-id node) trunk-id))]))
+                    nodes)]
     {:graph/nodes nodes-map
      :graph/trunk-id trunk-id}))
 
