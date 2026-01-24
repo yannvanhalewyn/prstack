@@ -118,9 +118,11 @@
           (u/run-cmd
             ["jj" "log" "--no-graph" "-r" trunk-branch
              "-T" "change_id.short()"]))
-        ;; Get all changes from trunk to all bookmark heads (inclusive)
-        ;; Include all intermediate changes
-        revset (format "ancestors(bookmarks()) & %s::" trunk-branch)
+        ;; Get all changes from any trunk commit to all bookmark heads
+        ;; This uses trunk()::bookmarks() to include stacks that forked from
+        ;; old trunk commits (before trunk advanced), rather than restricting
+        ;; to descendants of the current trunk bookmark position
+        revset "trunk()::bookmarks()"
         output (u/run-cmd
                  ["jj" "log" "--no-graph"
                   "-r" revset
