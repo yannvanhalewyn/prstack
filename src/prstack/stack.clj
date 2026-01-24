@@ -56,7 +56,9 @@
   [vcs config]
   (let [vcs-graph (vcs/read-current-stack-graph vcs)
         current-id (vcs/current-change-id vcs)
+        #_#_
         opts {:trunk-branch (vcs/trunk-branch vcs)
+              :ignored-branches (:ignored-branches config)
               :feature-base-branches (:feature-base-branches config)}]
     (if-let [megamerge (graph/find-megamerge-in-path vcs-graph current-id)]
       ;; Handle megamerge: get all paths from megamerge to trunk
@@ -72,7 +74,11 @@
           stacks))
       ;; Single path
       (when-let [path (graph/find-path-to-trunk vcs-graph current-id)]
-        [(graph/path->stack vcs-graph path opts)]))))
+        (println "singlepath")
+        (let [stack (graph/path->stack vcs-graph path opts)]
+          (when-not (should-ignore-leaf? config vcs (graph/get-node vcs-graph
+                                                      (:change/change-id (last stack))))
+            [stack]))))))
 
 (defn get-stack
   "Returns a single stack for the given ref."

@@ -1,6 +1,8 @@
 (ns user
   (:require [portal.api :as p]))
 
+(require 'hashp.preload)
+
 (def portal-instance (atom nil))
 
 (defn start-portal! []
