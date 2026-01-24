@@ -2,7 +2,7 @@
 
 # PrStack
 
-A VCS-agnostic CLI and TUI app for effortless PR stack management that embraces the chaos of day-to-day development.
+A CLI and TUI app for effortless PR stack management that embraces the chaos of day-to-day development.
 
 ## What is PrStack?
 
@@ -10,12 +10,13 @@ PrStack dynamically discovers your PR stacks by tracing from your current branch
 
 ## Why PrStack?
 
-Traditional PR stack tools require upfront planning and rigid adherence to predefined structures. PrStack recognizes that development is organic - branch anywhere, pivot freely, and let the tool adapt to you.
+Traditional PR stack tools require upfront planning and rigid adherence to predefined structures. PrStack recognizes that development is organic. You use it by using your VCS however you want, make branches and pivot freely, and let the tool adapt to you. It attempts to minimize most common actions of creating and merging PRs to a few keystrokes.
+
+It's designed to work with any Version Control System (VCS) and remote repos via Clojure protocols. It currently works with [Jujutsu](https://github.com/martinvonz/jj) and [Git](https://git-scm.com/), and [Github](https://www.github.com) as host. It is designed primarily for Jujutsu and I recommend using that one. In the future I may add a plugin system for adding more VCS but for now if you want to use it with something else than Git / Github create an [issue](https://www.github.com/yannvanhalewyn/prstack/issues/new).
 
 ## How it works
 
-PRStack extracts a Directed Acyclic Graph (DAG) of your commit history and uses that graph to find all the paths back to the trunk. From here it offers
-a set of commands to manage PRs for your stacks. Running `prstack sync` will:
+PRStack infers a Directed Acyclic Graph (DAG) from your commit history, then traverses that graph to find all the paths back to the trunk. Then it offers a set of commands to manage PRs for your stacks integrating with a remote repo like Github. Running `prstack sync` will:
 
 - Discover your stacks automatically
 - Detect the stack you are currently working on (`--all` for syncing all stacks)
@@ -24,7 +25,7 @@ a set of commands to manage PRs for your stacks. Running `prstack sync` will:
 - Create PRs with correct head and base branches
 - Keep everything in sync
 
-Learn more about CLI commands in the [Commands Reference](./docs/reference/commands).
+Learn more about CLI commands in the [Commands Reference](https://prstack.dev/docs/reference/commands).
 
 ## Key Features
 
