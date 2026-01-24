@@ -36,30 +36,32 @@
 
   Returns:
     Vector of Change maps ordered from trunk to leaf, containing only bookmarked nodes."
-  [graph path]
+  [path vcs-graph]
   (reverse
     (into []
       (comp
-        (map #(vcs.graph/get-node graph %))
+        (map #(vcs.graph/get-node vcs-graph %))
         (filter :change/selected-branchname))
       path)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public
 
-(defn- node->stack
+(defn- node->stacks
   "Converts a leaf node to a stack by finding the path to trunk."
   [node vcs-graph]
-  (when-let [path (vcs.graph/find-path-to-trunk vcs-graph (:change/change-id node))]
-    (path->stack vcs-graph path)))
+  (->> (vcs.graph/find-all-paths-to-trunk vcs-graph (:change/change-id node))
+    (map #(path->stack % vcs-graph))))
 
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
   [vcs config]
   (let [vcs-graph (vcs/read-graph vcs config)
         bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
+        ;; We did this work to get the bookmarks graph but I could've just
+        ;; found all the leaves and worked from there.
         leaves (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)]
-    (keep #(node->stack % vcs-graph) leaves)))
+    (keep #(node->stacks % vcs-graph) leaves)))
 
 (defn get-current-stacks
   "Returns the stack(s) containing the current working copy.
@@ -68,11 +70,26 @@
   stacks - one for each parent path. Otherwise, returns a single stack."
   [vcs config]
   (let [vcs-graph (vcs/read-current-stack-graph vcs config)
+        bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
+        ;; Need to move up the graph to find the first bookmarks
+        ;; Might as well just get the stack directly?
         current-id (vcs/current-change-id vcs)
-        paths (vcs.graph/find-all-paths-to-trunk vcs-graph current-id)]
-    (keep #(path->stack vcs-graph %) paths)))
+        paths (vcs.graph/find-all-paths-to-trunk bookmarks-graph current-id)]
+    (keep #(path->stack % vcs-graph) paths)))
 
-(defn get-stack
+(comment
+  (def config- (assoc (prstack.config/read-local) :vcs :jujutsu #_:git))
+  (def vcs- (vcs/make config-))
+  (def vcs-graph- (vcs/read-current-stack-graph vcs- config-))
+  (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
+  (def current-id- (vcs/current-change-id vcs-))
+  (def paths- (vcs.graph/find-all-paths-to-trunk bookmarks-graph- current-id-))
+  (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-)
+  (node->stacks (first (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-))
+    vcs-graph-)
+  )
+
+(defn get-stacks
   "Returns a single stack for the given ref."
   [vcs config ref]
   (let [vcs-graph (vcs/read-graph vcs config)
@@ -82,7 +99,7 @@
                        node))
                (:graph/nodes vcs-graph))]
     (when node
-      (node->stack node vcs-graph))))
+      (node->stacks node vcs-graph))))
 
 (defn reverse-stacks
   "Reverses the order of the changes in every stack. Stacks are represented in

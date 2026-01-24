@@ -26,27 +26,28 @@
     (github/create-pr! head-branch base-branch)
     (println (ansi/colorize :green "\n✅ Created PR ... \n"))))
 
-(defn create-prs! [vcs {:keys [stack]}]
-  (if (seq stack)
+(defn create-prs! [vcs {:keys [stacks]}]
+  (if (seq stacks)
     (do
       (println (ansi/colorize :cyan "Let's create the PRs!\n"))
-      (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
-        (let [head-branch (:change/selected-branchname next-change)
-              base-branch (:change/selected-branchname cur-change)
-              [pr err] (github/find-pr head-branch base-branch)]
-          (if err
-            (println (ansi/colorize :red (str "Error: " err)))
-            (if pr
-              (println
-                (format "PR already exists for %s onto %s, skipping. (%s)\n"
-                  (ansi/colorize :blue head-branch)
-                  (ansi/colorize :blue base-branch)
-                  (ansi/colorize :gray (str "#" (:pr/number pr)))))
-              (do
-                (ansi/colorize :yellow "Checking remote branches")
-                (when (ensure-remote-branch! vcs cur-change "Base branch not pushed to remote.")
-                  (when (ensure-remote-branch! vcs next-change "Head branch not pushed to remote.")
-                    (prompt-and-create-prs! head-branch base-branch)))))))))
+      (doseq [stack stacks]
+        (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
+          (let [head-branch (:change/selected-branchname next-change)
+                base-branch (:change/selected-branchname cur-change)
+                [pr err] (github/find-pr head-branch base-branch)]
+            (if err
+              (println (ansi/colorize :red (str "Error: " err)))
+              (if pr
+                (println
+                  (format "PR already exists for %s onto %s, skipping. (%s)\n"
+                    (ansi/colorize :blue head-branch)
+                    (ansi/colorize :blue base-branch)
+                    (ansi/colorize :gray (str "#" (:pr/number pr)))))
+                (do
+                  (ansi/colorize :yellow "Checking remote branches")
+                  (when (ensure-remote-branch! vcs cur-change "Base branch not pushed to remote.")
+                    (when (ensure-remote-branch! vcs next-change "Head branch not pushed to remote.")
+                      (prompt-and-create-prs! head-branch base-branch))))))))))
     (println (ansi/colorize :cyan "No PRs to create"))))
 
 ;; TODO also check if branch is pushed before making PR
@@ -58,11 +59,11 @@
      (let [ref (first args)
            config (config/read-local)
            vcs (vcs/make config)
-           stack
+           stacks
            (if ref
-             (stack/get-stack vcs config ref)
-             (first (stack/get-current-stacks vcs config)))
+             (stack/get-stacks vcs config ref)
+             (stack/get-current-stacks vcs config))
            processed-stacks
-           (stack/process-stacks-with-feature-bases vcs config [stack])]
+           (stack/process-stacks-with-feature-bases vcs config stacks)]
        (ui/print-stacks processed-stacks {:include-prs? true})
-       (create-prs! vcs {:stack stack})))})
+       (create-prs! vcs {:stacks stacks})))})

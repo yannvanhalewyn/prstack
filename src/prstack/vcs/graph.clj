@@ -126,38 +126,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph traversal
 
-(defn find-path-to-trunk
-  "Finds a path from node-id to trunk, following parent edges.
-
-  Returns:
-    A vector of change-ids [node-id ... trunk-id], or nil if no path exists.
-
-  For merge nodes with multiple parents, follows the first parent."
-  [vcs-graph node-id]
-  (let [trunk-id (:graph/trunk-id vcs-graph)]
-    (loop [path []
-           current-id node-id
-           visited #{}]
-      (cond
-        ;; Found trunk
-        (= current-id trunk-id)
-        (conj path current-id)
-
-        ;; Cycle detection
-        (contains? visited current-id)
-        nil
-
-        ;; Dead end
-        (nil? current-id)
-        nil
-
-        :else
-        (let [node (get-node vcs-graph current-id)
-              parent-id (first (:change/parent-ids node))]
-          (recur (conj path current-id)
-                 parent-id
-                 (conj visited current-id)))))))
-
 (defn find-all-paths-to-trunk
   "Finds all paths from node-id to trunk, following all parent edges.
 
@@ -167,24 +135,19 @@
     A vector of paths, where each path is [node-id ... trunk-id]."
   [vcs-graph node-id]
   (let [trunk-id (:graph/trunk-id vcs-graph)]
-    (letfn [(dfs [current-id path visited]
+    (letfn [(dfs [current-id path]
               (cond
                 ;; Found trunk
-                (= current-id trunk-id)
-                [(conj path current-id)]
-
-                ;; Cycle or dead end
-                (or (contains? visited current-id) (nil? current-id))
-                []
-
+                (= current-id trunk-id) [(conj path current-id)]
+                (nil? current-id) []
                 :else
                 (let [node (get-node vcs-graph current-id)
                       parents (:change/parent-ids node)]
                   (if (empty? parents)
                     []
-                    (mapcat #(dfs % (conj path current-id) (conj visited current-id))
+                    (mapcat #(dfs % (conj path current-id))
                             parents)))))]
-      (dfs node-id [] #{}))))
+      (dfs node-id []))))
 
 (comment
   (def test-graph
@@ -200,6 +163,15 @@
        {:change/change-id "feature-2"
         :change/parent-ids ["feature-1"]
         :change/local-branchnames ["feature-2"]
-        :change/remote-branchnames []}]
+        :change/remote-branchnames []}
+       {:change/change-id "feature-parallel"
+        :change/parent-ids ["trunk"]
+        :change/local-branchnames ["feature-parallel"]
+        :change/remote-branchnames []}
+       {:change/change-id "megamerge"
+        :change/parent-ids ["feature-parallel" "feature-2"]
+        :change/local-branchnames []
+        :change/remote-branchnames []} ]
       "trunk"))
-  (find-path-to-trunk test-graph "feature-2"))
+  (find-all-paths-to-trunk test-graph "feature-2")
+  (find-all-paths-to-trunk test-graph "megamerge"))

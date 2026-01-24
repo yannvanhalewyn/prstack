@@ -17,12 +17,9 @@
     :no-color? - If true, returns uncolored text (useful for applying background colors)"
   ([change]
    (format-change change {}))
-  ([change {:keys [trunk? no-color?]}]
-   (let [bookmark-type (if trunk?
-                         :trunk
-                         (:change/bookmark-type change))
-         branch-name (:change/selected-branchname change)
-         [icon color] (case bookmark-type
+  ([change {:keys [no-color?]}]
+   (let [branch-name (:change/selected-branchname change)
+         [icon color] (case (:change/type change)
                         :trunk        ["◆" :blue]
                         :feature-base ["◉" :bright-yellow]
                         :regular      ["\ue0a0" :default]
