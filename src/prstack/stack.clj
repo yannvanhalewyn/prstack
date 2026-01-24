@@ -1,5 +1,6 @@
 (ns prstack.stack
   (:require
+    [prstack.utils :as u]
     [prstack.vcs :as vcs]
     [prstack.vcs.graph :as vcs.graph]))
 

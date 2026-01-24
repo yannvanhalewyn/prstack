@@ -78,7 +78,9 @@
 
 (defn bookmarks-subgraph
   "Returns a subgraph with only bookmarks. This is useful for performing
-  further analysis on the bookmarks structure."
+  further analysis on the bookmarks structure.
+  Using the original vcs graph and filtering it ensures existing paths are
+  maintained"
   [vcs-graph]
   (let [ids-without-bookmarks (->> (all-nodes vcs-graph)
                                 (remove :change/selected-branchname)
@@ -88,23 +90,38 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph manipulation
 
+;; This is not the most efficient way to do this because we want to remove many
+;; nodes and keep only a few, causing many intermittent ref updates. But it's
+;; the simplest way to reason about for now.
 (defn- remove-node
-  "Removes a node from the graph, erasing it from the nodes list as well as
-  clearing references to it from it's parents and children."
+  "Removes a node from the graph. This will:
+  - erase it from the nodes list
+  - clear references to it from it's parents and children
+  - connect it's parents an children to eachother"
   [vcs-graph node-id]
   (let [node (get-node vcs-graph node-id)
-        remove-refs
-        (fn [graph remove-id node-ids relation-key]
+        update-refs
+        (fn [graph {:keys [target-ids relation-key remove-id add-ids]}]
           (reduce
             (fn [graph* parent-id]
               (update-in graph* [:graph/nodes parent-id relation-key]
-                #(remove #{remove-id} %)))
+                #(->> %
+                   (remove #{remove-id})
+                   (concat add-ids))))
             graph
-            node-ids))]
+            target-ids)) ]
     (-> vcs-graph
       (u/dissoc-in [:graph/nodes node-id])
-      (remove-refs node-id (:change/parent-ids node) :change/children-ids)
-      (remove-refs node-id (:change/children-ids node) :change/parent-ids))))
+      (update-refs
+        {:target-ids (:change/parent-ids node)
+         :relation-key :change/children-ids
+         :remove-id node-id
+         :add-ids (:change/children-ids node)})
+      (update-refs
+        {:target-ids (:change/children-ids node)
+         :relation-key :change/parent-ids
+         :remove-id node-id
+         :add-ids (:change/parent-ids node)}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph traversal
@@ -170,7 +187,6 @@
       (dfs node-id [] #{}))))
 
 (comment
-  ;; Example usage
   (def test-graph
     (build-graph
       [{:change/change-id "trunk"
