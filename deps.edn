@@ -5,6 +5,7 @@
         io.github.lispyclouds/bblgum {:git/sha "df647fb50f32e05b26e46e58d7249b4798e469e6"}}
  :aliases
  {:dev {:extra-paths ["dev"]
-        :extra-deps {djblue/portal {:mvn/version "0.37.1"}}}
+        :extra-deps {org.clojure/tools.namespace {:mvn/version "1.5.1"}
+                     djblue/portal {:mvn/version "0.37.1"}}}
   :test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.77.1234"}}}}}

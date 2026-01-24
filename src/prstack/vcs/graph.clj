@@ -3,7 +3,7 @@
   It uses a DAG with bidirectional edges (parent/child) and metadata about
   branches, trunk, and merge status."
   (:require
-   [prstack.utils :as u]))
+    [prstack.utils :as u]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
@@ -131,23 +131,30 @@
 
   For merge nodes, explores all parent paths (produces multiple paths).
 
+  Args:
+    vcs-graph - the graph to search
+    node-id - the node to start from
+    trunk-id - (optional) the trunk node to find paths to. If not provided,
+               uses the trunk-id from the graph.
+
   Returns:
     A vector of paths, where each path is [node-id ... trunk-id]."
-  [vcs-graph node-id]
-  (let [trunk-id (:graph/trunk-id vcs-graph)]
-    (letfn [(dfs [current-id path]
-              (cond
-                ;; Found trunk
-                (= current-id trunk-id) [(conj path current-id)]
-                (nil? current-id) []
-                :else
-                (let [node (get-node vcs-graph current-id)
-                      parents (:change/parent-ids node)]
-                  (if (empty? parents)
-                    []
-                    (mapcat #(dfs % (conj path current-id))
-                            parents)))))]
-      (dfs node-id []))))
+  ([vcs-graph node-id]
+   (find-all-paths-to-trunk vcs-graph node-id (:graph/trunk-id vcs-graph)))
+  ([vcs-graph node-id trunk-id]
+   (letfn [(dfs [current-id path]
+             (cond
+               ;; Found trunk
+               (= current-id trunk-id) [(conj path current-id)]
+               (nil? current-id) []
+               :else
+               (let [node (get-node vcs-graph current-id)
+                     parents (:change/parent-ids node)]
+                 (if (empty? parents)
+                   []
+                   (mapcat #(dfs % (conj path current-id))
+                     parents)))))]
+     (dfs node-id []))))
 
 (comment
   (def test-graph

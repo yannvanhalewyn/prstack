@@ -92,6 +92,21 @@
       String, identifier for current working copy
 
     Schema:
+      :string")
+
+  (find-fork-point [this ref]
+    "Finds the fork point (merge base) between a ref and trunk.
+
+    This is the common ancestor where the ref diverged from the trunk line.
+    Used to find the correct trunk anchor for stacks when trunk has advanced.
+
+    Args:
+      ref - String, the ref to find the fork point for (branch name, change-id, etc.)
+
+    Returns:
+      String, the change-id/commit-sha of the fork point
+
+    Schema:
       :string"))
 
 (defn vcs-config [vcs]
@@ -124,7 +139,10 @@
     (jj/read-current-stack-nodes (vcs-config this)))
 
   (current-change-id [_this]
-    (jj/current-change-id)))
+    (jj/current-change-id))
+
+  (find-fork-point [_this ref]
+    (jj/find-fork-point ref)))
 
 (defn- parse-change
   [change {:keys [ignored-branches feature-base-branches]}]
@@ -197,7 +215,11 @@
        :trunk-change-id trunk-sha}))
 
   (current-change-id [_this]
-    (git/commit-sha "HEAD")))
+    (git/commit-sha "HEAD"))
+
+  (find-fork-point [this ref]
+    (let [trunk-branch (:vcs-config/trunk-branch (vcs-config this))]
+      (git/merge-base ref trunk-branch))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public API

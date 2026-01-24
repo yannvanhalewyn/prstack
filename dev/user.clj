@@ -1,5 +1,6 @@
 (ns user
   (:require
+    [clojure.tools.namespace.repl :as repl]
     [portal.api :as p]
     [prstack.config :as config]
     [prstack.stack :as stack]
@@ -18,6 +19,7 @@
              :port 60342})))
 
 (comment
+  (repl/refresh)
   (start-portal!))
 
 (comment
@@ -39,6 +41,7 @@
     (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
     (def current-id- (vcs/current-change-id vcs-))
     (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
+  (vcs/read-all-nodes vcs-)
   (stack/path->stack (first paths-) vcs-graph-)
   (map #(stack/path->stack % vcs-graph-) paths-)
   (map #(vcs.graph/get-node vcs-graph- %) (first paths-)))

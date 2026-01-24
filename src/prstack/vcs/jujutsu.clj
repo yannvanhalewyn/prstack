@@ -7,8 +7,7 @@
   (:require
     [bb-tty.ansi :as ansi]
     [clojure.string :as str]
-    [prstack.utils :as u]
-    [prstack.vcs.graph :as graph]))
+    [prstack.utils :as u]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -61,6 +60,18 @@
   (u/find-first
     #(not (str/ends-with? % "@git"))
     (:change/remote-branchnames change)))
+
+(defn find-fork-point
+  "Finds the fork point (common ancestor) between a ref and trunk.
+
+  Uses jj's fork_point() revset function to find where the ref diverged
+  from the trunk line."
+  [ref]
+  (str/trim
+    (u/run-cmd
+      ["jj" "log" "--no-graph"
+       "-r" (format "fork_point(trunk() | %s)" ref)
+       "-T" "change_id.short()"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations

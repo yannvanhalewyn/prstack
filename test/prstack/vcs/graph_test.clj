@@ -43,27 +43,6 @@
       (is (false? (get-in g [:graph/nodes "feature" :change/merge-node?])))
       (is (true? (get-in g [:graph/nodes "merge" :change/merge-node?]))))))
 
-(deftest test-leaf-nodes
-  (testing "finds leaf nodes in a graph"
-    (let [g (graph/build-graph
-              [{:change/change-id "trunk"
-                :change/parent-ids []
-                :change/local-branchnames ["main"]
-                :change/remote-branchnames []}
-               {:change/change-id "feature-1"
-                :change/parent-ids ["trunk"]
-                :change/local-branchnames ["feature-1"]
-                :change/remote-branchnames []}
-               {:change/change-id "feature-2"
-                :change/parent-ids ["trunk"]
-                :change/local-branchnames ["feature-2"]
-                :change/remote-branchnames []}]
-              "trunk")
-          leaves (graph/leaf-nodes g)]
-      (is (= 2 (count leaves)))
-      (is (contains? (set (map :change/change-id leaves)) "feature-1"))
-      (is (contains? (set (map :change/change-id leaves)) "feature-2")))))
-
 (deftest test-find-path-to-trunk
   (testing "finds path from leaf to trunk"
     (let [g (graph/build-graph
@@ -80,8 +59,8 @@
                 :change/local-branchnames ["feature-2"]
                 :change/remote-branchnames []}]
               "trunk")
-          path (graph/find-path-to-trunk g "feature-2")]
-      (is (= ["feature-2" "feature-1" "trunk"] path))))
+          paths (graph/find-all-paths-to-trunk g "feature-2")]
+      (is (= [["feature-2" "feature-1" "trunk"]] paths))))
 
   (testing "handles merge nodes by following first parent"
     (let [g (graph/build-graph
@@ -102,8 +81,8 @@
                 :change/local-branchnames ["merge"]
                 :change/remote-branchnames []}]
               "trunk")
-          path (graph/find-path-to-trunk g "merge")]
-      (is (= ["merge" "branch-a" "trunk"] path)))))
+          paths (graph/find-all-paths-to-trunk g "merge")]
+      (is (= [["merge" "branch-a" "trunk"]] paths)))))
 
 (deftest test-find-all-paths-to-trunk
   (testing "finds all paths from merge node to trunk"
@@ -130,28 +109,33 @@
       (is (contains? (set paths) ["merge" "branch-a" "trunk"]))
       (is (contains? (set paths) ["merge" "branch-b" "trunk"])))))
 
-(deftest test-path->stack
-  (testing "converts path to stack (reversed, trunk first)"
-    (let [g (graph/build-graph
-              [{:change/change-id "trunk"
-                :change/commit-sha "abc123"
+(deftest test-find-all-paths-with-custom-trunk
+  (testing "finds paths to a custom trunk node when trunk has advanced"
+    (let [;; Simulate trunk advancement: old-trunk -> new-trunk-1 -> new-trunk-2
+          ;; and a stack forked from old-trunk: old-trunk -> feature-1 -> feature-2
+          g (graph/build-graph
+              [{:change/change-id "old-trunk"
                 :change/parent-ids []
+                :change/local-branchnames []
+                :change/remote-branchnames []}
+               {:change/change-id "new-trunk-1"
+                :change/parent-ids ["old-trunk"]
+                :change/local-branchnames []
+                :change/remote-branchnames []}
+               {:change/change-id "new-trunk-2"
+                :change/parent-ids ["new-trunk-1"]
                 :change/local-branchnames ["main"]
-                :change/remote-branchnames ["main@origin"]}
+                :change/remote-branchnames []}
                {:change/change-id "feature-1"
-                :change/commit-sha "def456"
-                :change/parent-ids ["trunk"]
+                :change/parent-ids ["old-trunk"]
                 :change/local-branchnames ["feature-1"]
                 :change/remote-branchnames []}
                {:change/change-id "feature-2"
-                :change/commit-sha "ghi789"
                 :change/parent-ids ["feature-1"]
                 :change/local-branchnames ["feature-2"]
                 :change/remote-branchnames []}]
-              "trunk")
-          path ["feature-2" "feature-1" "trunk"]
-          stack (graph/path->stack g path)]
-      (is (= 3 (count stack)))
-      (is (= "trunk" (:change/change-id (first stack))))
-      (is (= "feature-2" (:change/change-id (last stack))))
-      (is (= "abc123" (:change/commit-sha (first stack)))))))
+              "new-trunk-2")
+          ;; Find path from feature-2 to the actual fork point (old-trunk)
+          paths (graph/find-all-paths-to-trunk g "feature-2" "old-trunk")]
+      (is (= 1 (count paths)))
+      (is (= ["feature-2" "feature-1" "old-trunk"] (first paths))))))

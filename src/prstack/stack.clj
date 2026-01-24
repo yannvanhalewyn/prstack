@@ -48,10 +48,18 @@
 ;; Public
 
 (defn- node->stacks
-  "Converts a leaf node to a stack by finding the path to trunk."
-  [node vcs-graph]
-  (->> (vcs.graph/find-all-paths-to-trunk vcs-graph (:change/change-id node))
-    (map #(path->stack % vcs-graph))))
+  "Converts a leaf node to a stack by finding the path to trunk.
+  
+  Optionally accepts a fork-point-id to use as the trunk anchor for this
+  specific stack. This is useful when trunk has advanced and the stack is
+  forked from an older trunk commit."
+  ([node vcs-graph]
+   (node->stacks node vcs-graph nil))
+  ([node vcs-graph fork-point-id]
+   (let [paths (if fork-point-id
+                 (vcs.graph/find-all-paths-to-trunk vcs-graph (:change/change-id node) fork-point-id)
+                 (vcs.graph/find-all-paths-to-trunk vcs-graph (:change/change-id node)))]
+     (map #(path->stack % vcs-graph) paths))))
 
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
@@ -61,7 +69,14 @@
         ;; We did this work to get the bookmarks graph but I could've just
         ;; found all the leaves and worked from there.
         leaves (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)]
-    (mapcat #(node->stacks % vcs-graph) leaves)))
+    (mapcat
+      (fn [leaf]
+        ;; Find the fork point for this leaf to handle cases where trunk has advanced
+        (let [leaf-ref (or (:change/selected-branchname leaf)
+                           (:change/change-id leaf))
+              fork-point-id (vcs/find-fork-point vcs leaf-ref)]
+          (node->stacks leaf vcs-graph fork-point-id)))
+      leaves)))
 
 (defn get-current-stacks
   "Returns the stack(s) containing the current working copy.
@@ -70,10 +85,10 @@
   stacks - one for each parent path. Otherwise, returns a single stack."
   [vcs config]
   (let [vcs-graph (vcs/read-current-stack-graph vcs config)
-        ;; Need to move up the graph to find the first bookmarks
-        ;; Might as well just get the stack directly?
         current-id (vcs/current-change-id vcs)
-        paths (vcs.graph/find-all-paths-to-trunk vcs-graph current-id)]
+        ;; Find the fork point for the current change to handle advanced trunk
+        fork-point-id (vcs/find-fork-point vcs "@")
+        paths (vcs.graph/find-all-paths-to-trunk vcs-graph current-id fork-point-id)]
     (keep #(path->stack % vcs-graph) paths)))
 
 (comment
@@ -98,7 +113,8 @@
                        node))
                (:graph/nodes vcs-graph))]
     (when node
-      (node->stacks node vcs-graph))))
+      (let [fork-point-id (vcs/find-fork-point vcs ref)]
+        (node->stacks node vcs-graph fork-point-id)))))
 
 (defn reverse-stacks
   "Reverses the order of the changes in every stack. Stacks are represented in
