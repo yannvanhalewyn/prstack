@@ -199,7 +199,9 @@
 
 (defmethod dispatch! :event/merge-pr
   [_evt]
-  (let [current-pr (current-pr @app-state)]
+  (let [current-pr (current-pr @app-state)
+        {:keys [selected-change prev-change]}
+        (selected-and-prev-change @app-state)]
     (when current-pr
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
@@ -208,9 +210,8 @@
                    (format "Would you like to merge PR %s %s?\nThis will merge %s onto %s."
                      (ansi/colorize :blue (str "#" (:pr/number current-pr)))
                      (:pr/title current-pr)
-                     ;; TODO get actual PRs branches
-                     (ansi/colorize :blue "HEAD")
-                     (ansi/colorize :blue "BASE"))})
+                     (ansi/colorize :blue (:change/selected-branchname selected-change))
+                     (ansi/colorize :blue (:change/selected-branchname prev-change)))})
             (github/merge-pr! (:pr/number current-pr))
             ((:exec commands.sync/command) []))))
       (tui/close!))))

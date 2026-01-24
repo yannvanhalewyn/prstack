@@ -45,8 +45,8 @@
                     (ansi/colorize :gray (str "#" (:pr/number pr)))))
                 (do
                   (ansi/colorize :yellow "Checking remote branches")
-                  (when (ensure-remote-branch! vcs cur-change "Base branch not pushed to remote.")
-                    (when (ensure-remote-branch! vcs next-change "Head branch not pushed to remote.")
+                  (when (ensure-remote-branch! vcs cur-change "Base branch not pushed to remote. ")
+                    (when (ensure-remote-branch! vcs next-change "Head branch not pushed to remote. ")
                       (prompt-and-create-prs! head-branch base-branch))))))))))
     (println (ansi/colorize :cyan "No PRs to create"))))
 

@@ -66,7 +66,7 @@
 
     ;; Print feature base stacks
     (when (seq feature-base-stacks)
-      (println (ansi/colorize :cyan "\n\uf126 Feature Base Branches"))
+      (println (ansi/colorize :cyan "\uf126 Feature Base Branches"))
       (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
         (doseq [stack reversed-stacks]
           (print-stack-section stack

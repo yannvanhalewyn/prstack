@@ -112,7 +112,6 @@
           ;; Render feature base stacks
           (when (seq feature-base-stacks)
             (concat
-              [""]  ; Blank line before section
               [(ansi/colorize :cyan "\uf126 Feature Base Branches")]
               (mapcat
                 (fn [stack]

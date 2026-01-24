@@ -49,7 +49,7 @@
 
 (defn- node->stacks
   "Converts a leaf node to a stack by finding the path to trunk.
-  
+
   Optionally accepts a fork-point-id to use as the trunk anchor for this
   specific stack. This is useful when trunk has advanced and the stack is
   forked from an older trunk commit."
