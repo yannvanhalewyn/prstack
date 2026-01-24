@@ -21,7 +21,8 @@
   (start-portal!))
 
 (comment
-  (vcs/read-current-stack-nodes vcs-))
+  (vcs/read-current-stack-nodes vcs-)
+  (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-))
 
 ;; Testing out reading vcs graph
 (comment
@@ -38,6 +39,6 @@
     (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
     (def current-id- (vcs/current-change-id vcs-))
     (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
-  (stack/path->stack vcs-graph- (first paths-))
-  (map #(stack/path->stack vcs-graph- % config-) paths-)
+  (stack/path->stack (first paths-) vcs-graph-)
+  (map #(stack/path->stack % vcs-graph-) paths-)
   (map #(vcs.graph/get-node vcs-graph- %) (first paths-)))

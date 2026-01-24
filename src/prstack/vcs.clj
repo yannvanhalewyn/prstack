@@ -143,8 +143,6 @@
         nodes (map #(parse-change % config) nodes)]
     (graph/build-graph nodes trunk-change-id)))
 
-;; TODO maybe we don't care about 'read-current-stack-nodes'. Just read it all
-;; and the current stack based on current id
 (defn read-current-stack-graph [vcs config]
   (let [{:keys [nodes trunk-change-id]} (read-current-stack-nodes vcs)
         nodes (map #(parse-change % config) nodes)]
@@ -195,7 +193,8 @@
                         (conj head-sha)
                         distinct
                         vec)]
-     (git/parse-graph-commits all-commits trunk-sha)))
+      {:nodes (git/parse-graph-commits all-commits trunk-sha)
+       :trunk-change-id trunk-sha}))
 
   (current-change-id [_this]
     (git/commit-sha "HEAD")))

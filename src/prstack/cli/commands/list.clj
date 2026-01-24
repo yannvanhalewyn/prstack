@@ -13,7 +13,7 @@
   {:name "list"
    :description "Lists the current PR stack"
    :flags [["--all" "-a" "Looks for any stacks, not just current"]
-           ["--include-prs" "-I" "Also fetch a matching PR for each branch"]]
+           ["--include-prs" "-I" "Also fetch the matching PR for each branch"]]
    :exec
    (fn list [args]
      (let [opts (parse-opts args)
@@ -23,6 +23,14 @@
            (if (:all? opts)
              (stack/get-all-stacks vcs config)
              (stack/get-current-stacks vcs config))
-           processed-stacks
-           (stack/process-stacks-with-feature-bases vcs config stacks)]
-       (ui/print-stacks processed-stacks opts)))})
+           split-stacks
+           (stack/split-feature-base-stacks stacks)]
+       (ui/print-stacks split-stacks opts)))})
+
+(comment
+  (do
+    (def config- (assoc (prstack.config/read-local) :vcs :jujutsu))
+    (def vcs- (prstack.vcs/make config-)))
+
+  (stack/get-current-stacks vcs- config-)
+  (stack/get-all-stacks vcs- config-))

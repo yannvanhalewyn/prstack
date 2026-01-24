@@ -51,18 +51,18 @@
   (:result (b/gum :confirm [prompt] :as :bool)))
 
 (defn prompt-pick
+  {:arglists '([{:keys [prompt options render-option limit]}])}
   [{:keys [options render-option limit]
     :or {limit 1}
-    :as opts
-    :arglists '([prompt options render-option limit])}]
+    :as opts}]
   (:result
     (apply b/gum :choose (map (or render-option identity) options)
       (gum-args {:limit limit} opts))))
 
 (defn prompt-filter
+  {:arglists '([{:keys [prompt options render-option limit]}])}
   [{:keys [options render-option limit]
-    :as opts
-    :arglists '([prompt options render-option limit])}]
+    :as opts}]
   (:result
    (apply b/gum :filter (map (or render-option identity) options)
      (gum-args {:limit limit} opts))))

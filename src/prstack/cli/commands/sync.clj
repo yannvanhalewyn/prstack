@@ -51,11 +51,10 @@
              (if (:all? opts)
                (stack/get-all-stacks vcs config)
                (stack/get-current-stacks vcs config))
-             processed-stacks
-             (stack/process-stacks-with-feature-bases vcs config stacks)
-             regular-stacks (:regular-stacks processed-stacks)]
-         (ui/print-stacks processed-stacks (assoc opts :include-prs? true))
-         (doseq [stack regular-stacks]
+             split-stacks
+             (stack/split-feature-base-stacks stacks)]
+         (ui/print-stacks split-stacks (assoc opts :include-prs? true))
+         (doseq [stack stacks]
            (println "Syncing stack:" (ansi/colorize :blue (first (:change/local-branchnames (last stack)))))
            (if (> (count stack) 1)
              (when (tty/prompt-confirm

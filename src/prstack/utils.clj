@@ -7,6 +7,18 @@
 (defn find-first [pred coll]
   (first (filter pred coll)))
 
+(defn indexed
+  "Returns an list of tuples of the form [index item]. Returns a transducer when called with no arguments"
+  [coll]
+  (map-indexed vector coll))
+
+(defn find-index [pred coll]
+  (some
+    (fn [[idx el]]
+      (when (pred el)
+        idx))
+    (indexed coll)))
+
 (defn dissoc-in
   "Dissoc's the element at path in coll"
   [coll path]

@@ -36,8 +36,8 @@
   "Prints regular stacks and optionally feature base stacks.
 
   stacks must be a map with :regular-stacks and :feature-base-stacks"
-  [stacks opts]
-  (let [{:keys [regular-stacks feature-base-stacks]} stacks
+  [split-stacks opts]
+  (let [{:keys [regular-stacks feature-base-stacks]} split-stacks
         all-stacks (concat regular-stacks feature-base-stacks)
         max-width
         (when-let [counts

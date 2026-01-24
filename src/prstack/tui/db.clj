@@ -47,7 +47,7 @@
   [stacks]
   (let [partition-fn (fn [stack]
                        (let [base-change (first stack)
-                             base-type (:change/bookmark-type base-change)]
+                             base-type (:change/type base-change)]
                          (if (= base-type :feature-base)
                            [:feature-base (:change/selected-branchname base-change)]
                            [:non-feature-base ""])))
@@ -83,19 +83,13 @@
                             (sort-stacks-by-base raw-stacks)
                             raw-stacks)
         {:keys [regular-stacks feature-base-stacks]}
-        (stack/process-stacks-with-feature-bases
-          (:app-state/vcs state)
-          (:app-state/config state)
-          sorted-raw-stacks)
-        ;; Reverse both stack groups
-        reversed-regular (stack/reverse-stacks regular-stacks)
-        reversed-feature-base (stack/reverse-stacks feature-base-stacks)
-        ;; Index them together as a single sequence
-        all-indexed (assoc-ui-indices (concat reversed-regular reversed-feature-base))
-        ;; Split them back into separate groups
-        regular-count (count reversed-regular)
-        indexed-regular (take regular-count all-indexed)
-        indexed-feature-base (drop regular-count all-indexed)]
+        (stack/split-feature-base-stacks sorted-raw-stacks)
+        ;; Reverse both stack groups, then index them as a single sequence for
+        ;; the UI
+        all-indexed (assoc-ui-indices (concat
+                                        (stack/reverse-stacks regular-stacks)
+                                        (stack/reverse-stacks feature-base-stacks)))
+        [indexed-regular indexed-feature-base] (split-at (count regular-stacks) all-indexed)]
     {:regular-stacks (vec indexed-regular)
      :feature-base-stacks (vec indexed-feature-base)}))
 
