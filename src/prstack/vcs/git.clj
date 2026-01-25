@@ -6,10 +6,34 @@
   standard git commands to manage PR stacks."
   (:refer-clojure :exclude [parents])
   (:require
-   [bb-tty.ansi :as ansi]
-   [clojure.string :as str]
-   [prstack.utils :as u]
-   [prstack.vcs :as vcs]))
+    [clojure.string :as str]
+    [prstack.utils :as u]
+    [prstack.vcs :as vcs]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Branch Operations
+
+(defn fetch! []
+  (u/run-cmd ["git" "fetch" "origin"]
+    {:echo? true}))
+
+(defn set-bookmark-to-remote! [branch-name]
+  (u/run-cmd ["git" "branch" "-f" branch-name (str "origin/" branch-name)]
+    {:echo? true}))
+
+(defn rebase-on-trunk! [trunk-branch]
+  (u/run-cmd ["git" "rebase" trunk-branch]
+    {:echo? true}))
+
+(defn push-tracked! []
+  ;; Git doesn't have a built-in "push all tracked branches" command
+  ;; We'll push the current branch with --force-with-lease
+  ;; For a more complete implementation, we could iterate over all branches
+  ;; that have upstream tracking configured
+  (let [current-branch (str/trim (u/run-cmd ["git" "branch" "--show-current"]))]
+    (when-not (str/blank? current-branch)
+      (u/run-cmd ["git" "push" "origin" current-branch "--force-with-lease"]
+        {:echo? true}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -207,4 +231,14 @@
   (fork-info [this]
     (fork-info this))
 
-  )
+  (fetch! [_this]
+    (fetch!))
+
+  (set-bookmark-to-remote! [_this branch-name]
+    (set-bookmark-to-remote! branch-name))
+
+  (rebase-on-trunk! [this]
+    (rebase-on-trunk! (vcs/trunk-branch this)))
+
+  (push-tracked! [_this]
+    (push-tracked!)))

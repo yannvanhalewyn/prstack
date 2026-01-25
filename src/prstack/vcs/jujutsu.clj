@@ -3,9 +3,7 @@
 
   This implementation uses Jujutsu (jj) commands to manage PR stacks,
   leveraging jj's change-based model and powerful revset queries."
-  (:refer-clojure :exclude [parents])
   (:require
-    [bb-tty.ansi :as ansi]
     [clojure.string :as str]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
@@ -40,6 +38,23 @@
 
 (defn push-branch [branch-name]
   (u/run-cmd ["jj" "git" "push" "-b" branch-name "--allow-new"]
+    {:echo? true}))
+
+(defn fetch! []
+  (u/run-cmd ["jj" "git" "fetch"]
+    {:echo? true}))
+
+(defn set-bookmark-to-remote! [branch-name]
+  (u/run-cmd ["jj" "bookmark" "set" branch-name
+              "-r" (str branch-name "@origin")]
+    {:echo? true}))
+
+(defn rebase-on-trunk! [trunk-branch]
+  (u/run-cmd ["jj" "rebase" "-d" trunk-branch]
+    {:echo? true}))
+
+(defn push-tracked! []
+  (u/run-cmd ["jj" "git" "push" "--tracked"]
     {:echo? true}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -198,4 +213,16 @@
     (find-fork-point ref))
 
   (fork-info [this]
-    (fork-info this)))
+    (fork-info this))
+
+  (fetch! [_this]
+    (fetch!))
+
+  (set-bookmark-to-remote! [_this branch-name]
+    (set-bookmark-to-remote! branch-name))
+
+  (rebase-on-trunk! [this]
+    (rebase-on-trunk! (vcs/trunk-branch this)))
+
+  (push-tracked! [_this]
+    (push-tracked!)))

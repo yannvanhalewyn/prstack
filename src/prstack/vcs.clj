@@ -95,7 +95,52 @@
   (fork-info [this]
     "{:fork-info/fork-point-id \"fork-point-change-id\"
       :fork-info/local-trunk-id \"local-trunk-change-id\"
-      :fork-info/remote-trunk-id \"remote-trunk-change-id\"}"))
+      :fork-info/remote-trunk-id \"remote-trunk-change-id\"}")
+
+  (fetch! [this]
+    "Fetches all branches from the remote repository.
+
+     Side effects:
+       Updates local tracking information from remote
+
+     Returns:
+       String, output from the fetch command")
+
+  (set-bookmark-to-remote! [this branch-name]
+    "Sets a local branch/bookmark to match its remote counterpart.
+
+     Args:
+       branch-name - String, the name of the branch/bookmark to update
+
+     Side effects:
+       Updates local branch/bookmark to point to remote version
+
+     Returns:
+       String, output from the command")
+
+  (rebase-on-trunk! [this]
+    "Rebases the current change/commit onto the trunk branch.
+
+     Side effects:
+       Rebases current working copy onto trunk
+
+     Returns:
+       String, output from the rebase command
+
+     Throws:
+       ExceptionInfo if rebase fails")
+
+  (push-tracked! [this]
+    "Pushes all tracked branches to the remote repository.
+
+     Side effects:
+       Pushes all locally tracked branches to remote
+
+     Returns:
+       String, output from the push command
+
+     Throws:
+       ExceptionInfo if push fails"))
 
 (defn vcs-config [vcs]
   (:vcs/config vcs))

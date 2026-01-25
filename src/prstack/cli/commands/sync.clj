@@ -7,7 +7,6 @@
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.system :as system]
-    [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
 (defn parse-opts [args]
@@ -40,25 +39,21 @@
            vcs (:system/vcs system)
            {:vcs-config/keys [trunk-branch]} (vcs/vcs-config vcs) ]
        (println (ansi/colorize :yellow "\nFetching branches from remote..."))
-       (u/shell-out ["jj" "git" "fetch"]
-         {:echo? true})
+       (vcs/fetch! vcs)
 
        (if (trunk-moved? vcs)
          (do
            (println (ansi/colorize :yellow "\nRemote Trunk has changed."))
            (println (format "\nSetting local %s to remote..." (ansi/colorize :blue trunk-branch)))
-           (u/shell-out ["jj" "bookmark" "set" trunk-branch
-                         "-r" (str trunk-branch "@origin")]
-             {:echo? true})
+           (vcs/set-bookmark-to-remote! vcs trunk-branch)
            (when (tty/prompt-confirm
                    {:prompt (format "\nRebase on %s?" (ansi/colorize :blue trunk-branch))})
-             (u/shell-out ["jj" "rebase" "-d" trunk-branch]
-               {:echo? true})))
+             (vcs/rebase-on-trunk! vcs)))
          (println (format "Local %s is already up to date with remote. No need to rebase"
                     trunk-branch)))
 
        (println (ansi/colorize :yellow "\nPushing local tracked branches..."))
-       (u/shell-out ["jj" "git" "push" "--tracked"] {:echo? true})
+       (vcs/push-tracked! vcs)
        (println "\n")
 
        (let [stacks
