@@ -54,13 +54,6 @@
 (defn create-pr!
   "Create a PR using the GitHub CLI"
   [head-branch base-branch]
-  (comment ;; This works as expected
-    (u/shell-out
-      ["echo" "pr" "create" "--head" head-branch "--base" base-branch]
-      {:echo? true})
-    (println (.read System/in))
-    (Thread/sleep 5000))
-  ;; This doesn't
   (u/shell-out-interactive
     ["gh" "pr" "create" "--head" head-branch "--base" base-branch]
     {:echo? true}))

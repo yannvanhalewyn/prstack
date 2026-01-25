@@ -1,19 +1,20 @@
 (ns prstack.stack
   (:require
+    [prstack.change :as change]
+    [prstack.tools.schema :as tools.schema]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]
     [prstack.vcs.graph :as vcs.graph]))
 
+;; Changes in stacks can have a bit more information associated than just
+;; the change as outputted by the VCS
 (def Change
-  [:map
-   [:change/description :string]
-   [:change/change-id :string]
-   [:change/commit-sha :string]
-   [:change/local-branchnames [:sequential :string]]
-   [:change/remote-branchnames [:sequential :string]]
-   ;; Changes can have multiple bookmarks. This is to preselect one of them
-   ;; respecting ignored branches.
-   [:change/selected-branchname :string]])
+  (tools.schema/merge
+    change/Change
+    [:map
+     ;; Changes can have multiple bookmarks. This is to preselect one of them
+     ;; respecting ignored branches.
+     [:change/selected-branchname :string]]))
 
 (def ^:lsp/allow-unused Stack
   ;; Every leaf is a change. The stack of changes is ordered from

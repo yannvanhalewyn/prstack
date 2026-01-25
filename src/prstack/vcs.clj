@@ -10,6 +10,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Protocol Definition
 
+(def ^:lsp/allow-unused VCSConfig
+  [:map
+   [:vcs-config/trunk-branch :string]])
+
+(def ^:lsp/allow-unused ForkpointInfo
+  [:map
+   ;; the change-id where the current branch diverged from
+   ;; trunk
+   [:forkpoint-info/fork-point-change-id :string]
+   ;; the change-id of the local trunk branch
+   [:forkpoint-info/local-trunk-change-id :string]
+   ;; the change-id/commit-sha of the remote trunk branch
+   [:forkpoint-info/remote-trunk-change-id :string]])
+
 (defprotocol VCS
   "Protocol defining version control system operations.
 
@@ -23,12 +37,7 @@
     "Returns the VCS configuration by consultiung the VCS
 
     Returns:
-      VCSConfig - A map containing:
-        :vcs-config/trunk-branch - String, name of trunk branch (e.g., 'main' or 'master')
-
-    Schema:
-      [:map
-       [:vcs-config/trunk-branch :string]]")
+      VCSConfig - A map according to `VCSConfig` schema")
 
   (push-branch [this branch-name]
     "Pushes a local branch to the remote repository.
@@ -49,33 +58,54 @@
       change - Change map (see prstack.vcs.graph/node->change)
 
     Returns:
-      String or nil, the remote branch name without markers
+      String or nil, the remote branch name without markers")
 
-    Schema:
-      [:maybe :string]")
+  (read-all-nodes [this]
+    "Reads all nodes from the VCS graph.
 
-  (read-all-nodes [this])
+     Reads all commits/changes from trunk to all branch/bookmark heads,
+     building a complete graph representation with parent/child relationships.
+     This is used to visualize and manage all PR stacks in the repository.
+
+     Returns:
+       Map containing:
+         :nodes - Vector of Change maps (see prstack.vcs.graph for schema)
+         :trunk-change-id - String, the change-id/commit-sha of the trunk branch
+
+     Schema:
+     ```clojure
+     [:map
+      [:nodes [:vector prstack.stack/Change]]
+      [:trunk-change-id :string]]
+     ```")
 
   (read-current-stack-nodes [this]
-    "TODO fix Reads a graph for the current working copy stack.
-
-    Includes all changes from trunk to the current working copy, even if
-    the current change is not bookmarked.
+    "Returns a history of all changes between current working copy (HEAD)
+    and the fork point with trunk.
 
     Returns:
-      Graph - See prstack.vcs.graph/Graph (same schema as read-graph)")
+      Graph - See prstack.vcs.graph/Graph (same schema as read-graph)
+
+    Returns:
+      Map containing:
+        :nodes - Vector of `prstack.change/Change` maps
+        :trunk-change-id - String, the change-id of the trunk branch
+
+    Schema:
+    ```clojure
+    [:map
+     [:nodes [:vector prstack.stack/Change]]
+     [:trunk-change-id :string]]
+    ```")
 
   (current-change-id [this]
     "Returns the change-id of the current working copy.
 
-    For Git, this would be the current commit SHA or HEAD.
+    For Git, this would be the current commit SHA of HEAD.
     For Jujutsu, this is the change-id of @.
 
     Returns:
-      String, identifier for current working copy
-
-    Schema:
-      :string")
+      String, identifier for current working copy")
 
   (find-fork-point [this ref]
     "Finds the fork point (merge base) between a ref and trunk.
@@ -87,15 +117,16 @@
       ref - String, the ref to find the fork point for (branch name, change-id, etc.)
 
     Returns:
-      String, the change-id/commit-sha of the fork point
-
-    Schema:
-      :string")
+      String, the change-id/commit-sha of the fork point")
 
   (fork-info [this]
-    "{:fork-info/fork-point-id \"fork-point-change-id\"
-      :fork-info/local-trunk-id \"local-trunk-change-id\"
-      :fork-info/remote-trunk-id \"remote-trunk-change-id\"}")
+    "Returns information about the fork point and trunk state.
+
+     This is used to determine if the local trunk has diverged from the remote trunk,
+     which helps decide whether a rebase is needed during sync operations.
+
+     Returns:
+       ForkpointInfo - a map containing some information about the forkpoint with trunk")
 
   (fetch! [this]
     "Fetches all branches from the remote repository.

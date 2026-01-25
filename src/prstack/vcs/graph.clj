@@ -3,21 +3,22 @@
   It uses a DAG with bidirectional edges (parent/child) and metadata about
   branches, trunk, and merge status."
   (:require
-    [prstack.utils :as u]))
+   [prstack.change :as change]
+   [prstack.tools.schema :as tools.schema]
+   [prstack.utils :as u]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
 
 (def Node
   "A node in the commit graph representing a single change/commit."
-  [:map
-   [:change/change-id :string]
-   [:change/commit-sha {:optional true} :string]
-   [:change/parent-ids [:sequential :string]]
-   [:change/children-ids [:sequential :string]]
-   [:change/local-branchnames [:sequential :string]]
-   [:change/remote-branchnames [:sequential :string]]
-   [:change/trunk-node? :boolean]])
+  (tools.schema/merge
+    change/Change
+    [:map
+     ;; While the VCS is responsible for setting the correct parent-ids
+     ;; When it becomes a graph we pre-calculate the children-ids to
+     ;; make it easier to navigate in both directions.
+     [:change/children-ids [:sequential :string]]]))
 
 (def ^:lsp/allow-unused Graph
   "A directed acyclic graph of commits/changes."
