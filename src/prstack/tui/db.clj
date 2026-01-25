@@ -8,9 +8,8 @@
     [prstack.config :as config]
     [prstack.github :as github]
     [prstack.stack :as stack]
-    [prstack.utils :as u]
     [prstack.system :as system]
-    [prstack.vcs :as vcs]))
+    [prstack.utils :as u]))
 
 (def AppState
   [:map
@@ -32,11 +31,11 @@
          :app-state/prs {}
          :app-state/selected-tab 0}))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Selectors
-
 (defn vcs [state]
   (get-in state [:app-state/system :system/vcs]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Displaying Stacks
 
 (defn- assoc-ui-indices
   "Takes a list of stacks, and assoc's a `:ui/idx` key to every change in each
@@ -118,6 +117,9 @@
   [state]
   (let [{:keys [regular-stacks feature-base-stacks]} (displayed-stacks state)]
     (concat regular-stacks feature-base-stacks)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Pull Requests
 
 (defn selected-and-prev-change [state]
   (let [leaves (stack/leaves (all-displayed-stacks state))
