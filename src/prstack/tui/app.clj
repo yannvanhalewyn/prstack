@@ -143,10 +143,10 @@
 (defn- render-tab-content
   [state]
   (case (:app-state/selected-tab state)
-    0 (render-stacks (:app-state/vcs state))
-    1 (render-stacks (:app-state/vcs state))
+    0 (render-stacks (db/vcs state))
+    1 (render-stacks (db/vcs state))
     2 (render-all-stacks-tab)
-    (render-stacks (:app-state/vcs state))))
+    (render-stacks (db/vcs state))))
 
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)

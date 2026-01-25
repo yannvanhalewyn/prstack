@@ -6,6 +6,7 @@
     [prstack.cli.ui :as ui]
     [prstack.config :as config]
     [prstack.stack :as stack]
+    [prstack.system :as system]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
@@ -18,12 +19,13 @@
 
 (def command
   {:name "sync"
+   :flags [["--all" "-a" "Looks all your stacks, not just the current one"]]
    :description "Syncs the current stack with the remote"
    :exec
    (fn sync [args]
      (let [opts (parse-opts args)
-           config (config/read-local)
-           vcs (vcs/make config)
+           system (system/new (config/read-local))
+           vcs (:system/vcs system)
            {:vcs-config/keys [trunk-branch]} (vcs/vcs-config vcs) ]
        (println (ansi/colorize :yellow "\nFetching branches from remote..."))
        (u/shell-out ["jj" "git" "fetch"]
@@ -49,8 +51,8 @@
 
        (let [stacks
              (if (:all? opts)
-               (stack/get-all-stacks vcs config)
-               (stack/get-current-stacks vcs config))
+               (stack/get-all-stacks system)
+               (stack/get-current-stacks system))
              split-stacks
              (stack/split-feature-base-stacks stacks)]
          (ui/print-stacks split-stacks (assoc opts :include-prs? true))

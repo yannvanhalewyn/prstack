@@ -6,8 +6,10 @@
   standard git commands to manage PR stacks."
   (:refer-clojure :exclude [parents])
   (:require
-    [clojure.string :as str]
-    [prstack.utils :as u]))
+   [bb-tty.ansi :as ansi]
+   [clojure.string :as str]
+   [prstack.utils :as u]
+   [prstack.vcs :as vcs]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -32,7 +34,7 @@
       (throw (ex-info "Could not detect trunk branch" {}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Basic operations
+;; Querying commit log
 
 (defn commit-sha
   "Returns the commit SHA for a given ref."
@@ -61,6 +63,17 @@
          :branch/title subject}
         remote-name (assoc :branch/remote remote-name)))))
 
+(defn- remote-branch? [branch]
+  (contains? branch :branch/remote))
+
+(defn- get-parent-shas
+  "Returns the parent commit SHAs for a given commit."
+  [commit-sha]
+  (let [output (u/run-cmd ["git" "rev-list" "--parents" "-n" "1" commit-sha])
+        parts (str/split (str/trim output) #"\s+")]
+    ;; First part is the commit itself, rest are parents
+    (into [] (rest parts))))
+
 (defn- get-branches []
   (->>
     (u/run-cmd ["git" "branch" "-v" "--all"
@@ -77,17 +90,6 @@
   (parse-branch-info
     "heads/docs/add-workflows-and-diagrams+++7534a572+++(feat): add code example component")
   (map :branch/name (get-branches)))
-
-(defn- get-parent-shas
-  "Returns the parent commit SHAs for a given commit."
-  [commit-sha]
-  (let [output (u/run-cmd ["git" "rev-list" "--parents" "-n" "1" commit-sha])
-        parts (str/split (str/trim output) #"\s+")]
-    ;; First part is the commit itself, rest are parents
-    (into [] (rest parts))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Graph operations
 
 (defn get-commits-between
   "Gets all commit SHAs between trunk and the given ref (inclusive).
@@ -121,10 +123,10 @@
         all-commits (mapcat #(get-commits-between trunk-branch %) branches)]
     (into #{} all-commits)))
 
-(defn- remote-branch? [branch]
-  (contains? branch :branch/remote))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Graph operations
 
-(defn- build-node
+(defn- parse-change
   "Builds a node map from a commit SHA."
   [commit-sha trunk-sha branch-idx]
   ;; This is the reason git implementation is slow
@@ -141,9 +143,65 @@
      :change/trunk-node? (= commit-sha trunk-sha)}))
 
 (defn parse-graph-commits
-  "Parses a collection of commit SHAs into node maps."
+  "Parses a collection of commit SHAs into Change maps."
   [commit-shas trunk-sha]
   (let [branch-idx (group-by :branch/commit-sha (get-branches))]
     (into []
-      (map #(build-node % trunk-sha branch-idx))
+      (map #(parse-change % trunk-sha branch-idx))
       commit-shas)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; VCS Implementation
+
+(defrecord GitVCS []
+  vcs/VCS
+  (read-vcs-config [_this]
+    {:vcs-config/trunk-branch (detect-trunk-branch!)})
+
+  (push-branch [_this branch-name]
+    (u/run-cmd ["git" "push" "-u" "origin" branch-name "--force-with-lease"]
+      {:echo? true}))
+
+  (trunk-moved? [this]
+    (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config this))
+          fork-point (merge-base "HEAD" trunk-branch)
+          remote-trunk (commit-sha (str "origin/" trunk-branch))]
+      (println (ansi/colorize :yellow "\nChecking if trunk moved"))
+      (println (ansi/colorize :cyan "Fork point") fork-point)
+      (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk)
+      (not= fork-point remote-trunk)))
+
+  (remote-branchname [_this change]
+    (u/find-first
+      #(str/starts-with? % "origin/")
+      (:change/remote-branchnames change)))
+
+  (read-all-nodes [this]
+    (let [trunk-branch* (vcs/trunk-branch this)
+          trunk-sha (commit-sha trunk-branch*)
+          commit-shas (get-all-commits-in-range trunk-branch*)
+          all-commits (conj commit-shas trunk-sha)
+          nodes (parse-graph-commits all-commits trunk-sha)]
+      {:nodes nodes
+       :trunk-change-id trunk-sha}))
+
+  (read-current-stack-nodes [this]
+    (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config this))
+          trunk-sha (commit-sha trunk-branch)
+          head-sha (commit-sha "HEAD")
+          commit-shas (get-commits-between trunk-branch "HEAD")
+          all-commits (-> commit-shas
+                        (conj trunk-sha)
+                        (conj head-sha)
+                        distinct
+                        vec)]
+      {:nodes (parse-graph-commits all-commits trunk-sha)
+       :trunk-change-id trunk-sha}))
+
+  (current-change-id [_this]
+    (commit-sha "HEAD"))
+
+  (find-fork-point [this ref]
+    (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config this))]
+      (merge-base ref trunk-branch))))
+

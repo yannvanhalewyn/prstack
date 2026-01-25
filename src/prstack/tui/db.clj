@@ -9,7 +9,23 @@
     [prstack.github :as github]
     [prstack.stack :as stack]
     [prstack.utils :as u]
+    [prstack.system :as system]
     [prstack.vcs :as vcs]))
+
+(def AppState
+  [:map
+   ;; System
+   [:app-state/system system/System]
+
+   ;; Stacks
+   [:app-state/current-stacks [:fn #(instance? clojure.lang.Delay %)]]
+   [:app-state/all-stacks [:fn #(instance? clojure.lang.Delay %)]]
+   [:app-state/prs :map-of :string :map]
+
+   ;; UI
+   [:app-state/selected-tab :int]
+   [:app-state/selected-item-idx :int]
+   [:app-state/run-in-fg :fn]])
 
 (defonce app-state
   (atom {:app-state/selected-item-idx 0
@@ -18,6 +34,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Selectors
+
+(defn vcs [state]
+  (get-in state [:app-state/system :system/vcs]))
 
 (defn- assoc-ui-indices
   "Takes a list of stacks, and assoc's a `:ui/idx` key to every change in each
@@ -130,13 +149,11 @@
 
 (defmethod dispatch! :event/read-local-repo
   [_evt]
-  (let [config (config/read-local)
-        vcs (vcs/make config)]
+  (let [system (system/new (config/read-local))]
     (swap! app-state merge
-      {:app-state/config config
-       :app-state/vcs vcs
-       :app-state/current-stacks (delay (stack/get-current-stacks vcs config))
-       :app-state/all-stacks (delay (stack/get-all-stacks vcs config))})))
+      {:app-state/system system
+       :app-state/current-stacks (delay (stack/get-current-stacks system))
+       :app-state/all-stacks (delay (stack/get-all-stacks system))})))
 
 (defmethod dispatch! :event/fetch-pr
   [[_ head-branch base-branch]]

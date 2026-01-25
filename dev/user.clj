@@ -22,26 +22,25 @@
   (repl/refresh)
   (start-portal!))
 
-(comment
-  (vcs/read-current-stack-nodes vcs-)
-  (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-))
-
 ;; Testing out reading vcs graph
 (comment
-  (do
-    (def config- (assoc (config/read-local) :vcs :jujutsu))
-    (def vcs- (vcs/make config-)))
+  (def sys- (system/new
+              (assoc (config/read-local) :vcs :jujutsu)))
 
-  (stack/get-current-stacks vcs- config-)
-  (stack/get-all-stacks vcs- config-)
+  (stack/get-current-stacks sys-)
+  (stack/get-all-stacks sys-)
 
   ;; Deeper
   (do
-    (def vcs-graph- (vcs/read-current-stack-graph vcs- config-))
+    (def vcs-graph- (vcs/read-current-stack-graph sys-))
     (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
-    (def current-id- (vcs/current-change-id vcs-))
+    (def current-id- (vcs/current-change-id sys-))
     (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
-  (vcs/read-all-nodes vcs-)
+
+  (vcs/read-current-stack-nodes (:system/vcs sys-))
+  (vcs/read-all-nodes (:system/vcs sys-))
+  (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-)
+
   (stack/path->stack (first paths-) vcs-graph-)
   (map #(stack/path->stack % vcs-graph-) paths-)
   (map #(vcs.graph/get-node vcs-graph- %) (first paths-)))

@@ -5,12 +5,7 @@
   must implement, and provides a unified interface for working with different
   VCS systems (Git, Jujutsu, etc.)."
   (:require
-    [bb-tty.ansi :as ansi]
-    [clojure.string :as str]
-    [prstack.utils :as u]
-    [prstack.vcs.git :as git]
-    [prstack.vcs.graph :as graph]
-    [prstack.vcs.jujutsu :as jj]))
+    [prstack.vcs.graph :as graph]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Protocol Definition
@@ -116,33 +111,7 @@
   (:vcs-config/trunk-branch (vcs-config vcs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; VCS Protocol Implementation
-
-(defrecord JujutsuVCS []
-  VCS
-  (read-vcs-config [_this]
-    (jj/config))
-
-  (push-branch [_this branch-name]
-    (jj/push-branch branch-name))
-
-  (trunk-moved? [this]
-    (jj/trunk-moved? (vcs-config this)))
-
-  (remote-branchname [_this change]
-    (jj/remote-branchname change))
-
-  (read-all-nodes [this]
-    (jj/read-all-nodes (vcs-config this)))
-
-  (read-current-stack-nodes [this]
-    (jj/read-current-stack-nodes (vcs-config this)))
-
-  (current-change-id [_this]
-    (jj/current-change-id))
-
-  (find-fork-point [_this ref]
-    (jj/find-fork-point ref)))
+;; Reading Graph
 
 (defn- parse-change
   [change {:keys [ignored-branches feature-base-branches]}]
@@ -161,71 +130,7 @@
         nodes (map #(parse-change % config) nodes)]
     (graph/build-graph nodes trunk-change-id)))
 
-(defn read-current-stack-graph [vcs config]
+(defn read-current-stack-graph [{:system/keys [user-config vcs]}]
   (let [{:keys [nodes trunk-change-id]} (read-current-stack-nodes vcs)
-        nodes (map #(parse-change % config) nodes)]
+        nodes (map #(parse-change % user-config) nodes)]
     (graph/build-graph nodes trunk-change-id)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Git Implementation
-
-(defrecord GitVCS []
-  VCS
-  (read-vcs-config [_this]
-    {:vcs-config/trunk-branch (git/detect-trunk-branch!)})
-
-  (push-branch [_this branch-name]
-    (u/run-cmd ["git" "push" "-u" "origin" branch-name "--force-with-lease"]
-      {:echo? true}))
-
-  (trunk-moved? [this]
-    (let [trunk-branch (:vcs-config/trunk-branch (vcs-config this))
-          fork-point (git/merge-base "HEAD" trunk-branch)
-          remote-trunk (git/commit-sha (str "origin/" trunk-branch))]
-      (println (ansi/colorize :yellow "\nChecking if trunk moved"))
-      (println (ansi/colorize :cyan "Fork point") fork-point)
-      (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk)
-      (not= fork-point remote-trunk)))
-
-  (remote-branchname [_this change]
-    (u/find-first
-      #(str/starts-with? % "origin/")
-      (:change/remote-branchnames change)))
-
-  (read-all-nodes [this]
-    (let [trunk-branch* (trunk-branch this)
-          trunk-sha (git/commit-sha trunk-branch*)
-          commit-shas (git/get-all-commits-in-range trunk-branch*)
-          all-commits (conj commit-shas trunk-sha)
-          nodes (git/parse-graph-commits all-commits trunk-sha)]
-      {:nodes nodes
-       :trunk-change-id trunk-sha}))
-
-  (read-current-stack-nodes [this]
-    (let [trunk-branch (:vcs-config/trunk-branch (vcs-config this))
-          trunk-sha (git/commit-sha trunk-branch)
-          head-sha (git/commit-sha "HEAD")
-          commit-shas (git/get-commits-between trunk-branch "HEAD")
-          all-commits (-> commit-shas
-                        (conj trunk-sha)
-                        (conj head-sha)
-                        distinct
-                        vec)]
-      {:nodes (git/parse-graph-commits all-commits trunk-sha)
-       :trunk-change-id trunk-sha}))
-
-  (current-change-id [_this]
-    (git/commit-sha "HEAD"))
-
-  (find-fork-point [this ref]
-    (let [trunk-branch (:vcs-config/trunk-branch (vcs-config this))]
-      (git/merge-base ref trunk-branch))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Public API
-
-(defn make [config]
-  (let [vcs (if (= (:vcs config) :git)
-              (->GitVCS)
-              (->JujutsuVCS))]
-    (assoc vcs :vcs/config (read-vcs-config vcs))))

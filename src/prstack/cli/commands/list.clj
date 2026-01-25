@@ -3,7 +3,7 @@
     [prstack.cli.ui :as ui]
     [prstack.config :as config]
     [prstack.stack :as stack]
-    [prstack.vcs :as vcs]))
+    [prstack.system :as system]))
 
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))
@@ -17,20 +17,19 @@
    :exec
    (fn list [args]
      (let [opts (parse-opts args)
-           config (config/read-local)
-           vcs (vcs/make config)
+           system (system/new (config/read-local))
            stacks
            (if (:all? opts)
-             (stack/get-all-stacks vcs config)
-             (stack/get-current-stacks vcs config))
+             (stack/get-all-stacks system)
+             (stack/get-current-stacks system))
            split-stacks
            (stack/split-feature-base-stacks stacks)]
        (ui/print-stacks split-stacks opts)))})
 
 (comment
-  (do
-    (def config- (assoc (prstack.config/read-local) :vcs :jujutsu))
-    (def vcs- (prstack.vcs/make config-)))
+  (def sys-
+    (system/new
+      (assoc (prstack.config/read-local) :vcs :jujutsu)))
 
-  (stack/get-current-stacks vcs- config-)
-  (stack/get-all-stacks vcs- config-))
+  (stack/get-current-stacks sys-)
+  (stack/get-all-stacks sys-))

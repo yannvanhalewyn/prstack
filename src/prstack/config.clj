@@ -6,6 +6,12 @@
   (:import
     (java.io PushbackReader)))
 
+(def Config
+  [:map
+   [:vcs :keyword]
+   [:ignored-branches :set :string]
+   [:feature-base-branches :set :string]])
+
 (defn read-local []
   (let [config (let [file (io/file ".prstack/config.edn")]
                  (when (.exists file)

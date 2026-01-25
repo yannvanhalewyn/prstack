@@ -7,7 +7,8 @@
   (:require
     [bb-tty.ansi :as ansi]
     [clojure.string :as str]
-    [prstack.utils :as u]))
+    [prstack.utils :as u]
+    [prstack.vcs :as vcs]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -166,3 +167,33 @@
      (u/run-cmd
        ["jj" "log" "--no-graph" "-r" trunk-branch
         "-T" "change_id.short()"]))})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; VCS implementation
+
+(defrecord JujutsuVCS []
+  vcs/VCS
+  (read-vcs-config [_this]
+    (config))
+
+  (push-branch [_this branch-name]
+    (push-branch branch-name))
+
+  (trunk-moved? [this]
+    (trunk-moved? (vcs/vcs-config this)))
+
+  (remote-branchname [_this change]
+    (remote-branchname change))
+
+  (read-all-nodes [this]
+    (read-all-nodes (vcs/vcs-config this)))
+
+  (read-current-stack-nodes [this]
+    (read-current-stack-nodes (vcs/vcs-config this)))
+
+  (current-change-id [_this]
+    (current-change-id))
+
+  (find-fork-point [_this ref]
+    (find-fork-point ref)))
+

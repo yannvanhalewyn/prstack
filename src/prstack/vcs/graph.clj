@@ -51,8 +51,7 @@
                     (map (fn [node]
                            [(:change/change-id node)
                             (assoc node
-                              :change/children-ids (parent->children (:change/change-id node))
-                              :change/trunk-node? (= (:change/change-id node) trunk-id))]))
+                              :change/children-ids (parent->children (:change/change-id node)))]))
                     nodes)]
     {:graph/nodes nodes-map
      :graph/trunk-id trunk-id}))
