@@ -2,6 +2,8 @@
 
 # PrStack
 
+[Website](https://prstack.dev) | [Documentation](https://prstack.dev/docs) | [GitHub](https://github.com/yannvanhalewyn/prstack) | [Issues](https://github.com/yannvanhalewyn/prstack/issues)
+
 A CLI and TUI app for effortless PR stack management that embraces the chaos of day-to-day development.
 
 ## What is PrStack?
@@ -27,8 +29,7 @@ PRStack infers a Directed Acyclic Graph (DAG) from your commit history, then tra
 
 ![prstack-sync](https://github.com/user-attachments/assets/bd4a589d-a35e-4fc6-9c85-6d72431e0208)
 
-
-Learn more about CLI commands in the [Commands Reference](https://prstack.dev/docs/reference/commands).
+Learn more about CLI commands in the [Commands Reference](https://prstack.dev/docs/reference/overview).
 
 ## Key Features
 
