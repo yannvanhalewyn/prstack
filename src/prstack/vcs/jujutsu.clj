@@ -179,12 +179,12 @@
    (fork-info vcs "@"))
   ([vcs ref]
    (let [trunk-branch (vcs/trunk-branch vcs)]
-     {:fork-info/fork-point-change-id (find-fork-point ref)
-      :fork-info/local-trunk-change-id
+     {:forkpoint-info/fork-point-change-id (find-fork-point ref)
+      :forkpoint-info/local-trunk-commit-sha
       (u/run-cmd ["jj" "log" "--no-graph"
                   "-r" "fork_point(trunk() | @)"
                   "-T" "commit_id"])
-      :fork-info/remote-trunk-change-id
+      :forkpoint-info/remote-trunk-commit-sha
       (u/run-cmd ["jj" "log" "--no-graph"
                   "-r" (str trunk-branch "@origin")
                   "-T" "commit_id"])})))

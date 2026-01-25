@@ -19,11 +19,11 @@
 (defn- trunk-moved? [vcs]
   (let [fork-info (vcs/fork-info vcs)
         trunk-branch (vcs/trunk-branch vcs)
-        local-trunk-ref (:fork-info/local-trunk-change-id fork-info)
-        remote-trunk-ref (:fork-info/remote-trunk-change-id fork-info)]
+        local-trunk-ref (:forkpoint-info/local-trunk-commit-sha fork-info)
+        remote-trunk-ref (:forkpoint-info/remote-trunk-commit-sha fork-info)]
     (println (ansi/colorize :yellow "\nChecking if trunk moved"))
     (println (ansi/colorize :cyan "Fork point")
-      (:fork-point-info/fork-point-change-id fork-info))
+      (:forkpoint-info/fork-point-change-id fork-info))
     (println (ansi/colorize :cyan (str "local " trunk-branch)) local-trunk-ref)
     (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk-ref)
     (not= local-trunk-ref remote-trunk-ref)))

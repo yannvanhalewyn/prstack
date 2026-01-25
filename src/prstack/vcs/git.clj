@@ -182,9 +182,9 @@
 
 (defn- fork-info [vcs]
   (let [trunk-branch (vcs/trunk-branch vcs)]
-    {:fork-info/fork-point-change-id (find-fork-point vcs "HEAD")
-     :fork-info/local-trunk-change-id (commit-sha trunk-branch)
-     :fork-info/remote-trunk-change-id (commit-sha (str "origin/" trunk-branch))}))
+    {:forkpoint-info/fork-point-change-id (find-fork-point vcs "HEAD")
+     :forkpoint-info/local-trunk-commit-sha (commit-sha trunk-branch)
+     :forkpoint-info/remote-trunk-commit-sha (commit-sha (str "origin/" trunk-branch))}))
 
 (defrecord GitVCS []
   vcs/VCS
