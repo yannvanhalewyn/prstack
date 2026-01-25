@@ -1,4 +1,4 @@
-# PrStack
+# PRStack
 
 [Website](https://prstack.dev) | [Documentation](https://prstack.dev/docs) | [GitHub](https://github.com/yannvanhalewyn/prstack) | [Issues](https://github.com/yannvanhalewyn/prstack/issues)
 
@@ -6,13 +6,13 @@ A CLI and TUI app for effortless PR stack management that embraces the chaos of 
 
 <img width="1091" height="560" alt="prstack-tui" src="https://github.com/user-attachments/assets/cf25d384-5a36-4f17-9d8a-09a4fdda98cb" />
 
-## What is PrStack?
+## What is PRStack?
 
-PrStack dynamically discovers your PR stacks by tracing from your current branch back to trunk. No manual configuration, no rigid structures - just work naturally and let PrStack handle the rest.
+PRStack dynamically discovers your PR stacks by tracing from your current branch back to trunk. No manual configuration, no rigid structures - just work naturally and let PRStack handle the rest.
 
-## Why PrStack?
+## Why PRStack?
 
-Traditional PR stack tools require upfront planning and rigid adherence to predefined structures. PrStack recognizes that development is organic. You use it by using your VCS however you want, make branches and pivot freely, and let the tool adapt to you. It attempts to minimize most common actions of creating and merging PRs to a few keystrokes.
+Traditional PR stack tools require upfront planning and rigid adherence to predefined structures. PRStack recognizes that development is organic. You use it by using your VCS however you want, make branches and pivot freely, and let the tool adapt to you. It attempts to minimize most common actions of creating and merging PRs to a few keystrokes.
 
 It's designed to work with any Version Control System (VCS) and remote repos via Clojure protocols. It currently works with [Jujutsu](https://github.com/martinvonz/jj) and [Git](https://git-scm.com/), and [Github](https://www.github.com) as host. It is designed primarily for Jujutsu and I recommend using that one. In the future I may add a plugin system for adding more VCS but for now if you want to use it with something else than Git / Github create an [issue](https://www.github.com/yannvanhalewyn/prstack/issues/new).
 
@@ -33,10 +33,10 @@ Learn more about CLI commands in the [Commands Reference](https://prstack.dev/do
 
 ## Key Features
 
-- **Dynamic Stack Discovery**: No pre-configuration needed - PrStack figures out your stack on the fly
+- **Dynamic Stack Discovery**: No pre-configuration needed - PRStack figures out your stack on the fly
 - **TUI & CLI**: Interactive terminal UI or scriptable commands
 - **VCS Agnostic**: Works with Jujutsu (Git support coming soon)
-- **Adaptive**: Switch branches and PrStack adapts to your new context
+- **Adaptive**: Switch branches and PRStack adapts to your new context
 
 ## Installation
 
@@ -54,8 +54,8 @@ ln -s $(pwd)/bin/prstack /usr/local/bin/prstack
 Full documentation is available at: **[your-docs-url-here]**
 
 - [Getting Started](your-docs-url/docs/getting-started/quickstart)
-- [Philosophy](your-docs-url/docs/philosophy) - How PrStack differs from Git Machete and Graphite
+- [Philosophy](your-docs-url/docs/philosophy) - How PRStack differs from Git Machete and Graphite
 - [Commands Reference](your-docs-url/docs/commands/sync)
 - [Configuration](your-docs-url/docs/configuration)
 
-**Work the way you think. Let PrStack handle the rest.**
+**Work the way you think. Let PRStack handle the rest.**
