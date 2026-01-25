@@ -36,23 +36,11 @@
   {:vcs-config/trunk-branch (detect-trunk-branch!)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Basic operations
+;; Branch Operations
 
 (defn push-branch [branch-name]
   (u/run-cmd ["jj" "git" "push" "-b" branch-name "--allow-new"]
     {:echo? true}))
-
-(defn trunk-moved? [{:vcs-config/keys [trunk-branch]}]
-  (let [local-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
-                                    "-r" "fork_point(trunk() | @)"
-                                    "-T" "commit_id"])
-        remote-trunk-ref (u/run-cmd ["jj" "log" "--no-graph"
-                                     "-r" (str trunk-branch "@origin")
-                                     "-T" "commit_id"])]
-    (println (ansi/colorize :yellow "\nChecking if trunk moved"))
-    (println (ansi/colorize :cyan (str "local " trunk-branch)) local-trunk-ref)
-    (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk-ref)
-    (not= local-trunk-ref remote-trunk-ref)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Change data structure
@@ -171,6 +159,21 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS implementation
 
+(defn- fork-info
+  ([vcs]
+   (fork-info vcs "@"))
+  ([vcs ref]
+   (let [trunk-branch (vcs/trunk-branch vcs)]
+     {:fork-info/fork-point-change-id (find-fork-point ref)
+      :fork-info/local-trunk-change-id
+      (u/run-cmd ["jj" "log" "--no-graph"
+                  "-r" "fork_point(trunk() | @)"
+                  "-T" "commit_id"])
+      :fork-info/remote-trunk-change-id
+      (u/run-cmd ["jj" "log" "--no-graph"
+                  "-r" (str trunk-branch "@origin")
+                  "-T" "commit_id"])})))
+
 (defrecord JujutsuVCS []
   vcs/VCS
   (read-vcs-config [_this]
@@ -178,9 +181,6 @@
 
   (push-branch [_this branch-name]
     (push-branch branch-name))
-
-  (trunk-moved? [this]
-    (trunk-moved? (vcs/vcs-config this)))
 
   (remote-branchname [_this change]
     (remote-branchname change))
@@ -195,5 +195,7 @@
     (current-change-id))
 
   (find-fork-point [_this ref]
-    (find-fork-point ref)))
+    (find-fork-point ref))
 
+  (fork-info [this]
+    (fork-info this)))

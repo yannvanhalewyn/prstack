@@ -42,18 +42,6 @@
     Throws:
       ExceptionInfo if push fails")
 
-  (trunk-moved? [this]
-    "Checks if the trunk branch has moved on the remote.
-
-    Compares the local fork point with the remote trunk to determine if
-    a rebase is needed.
-
-    Returns:
-      Boolean, true if remote trunk has moved ahead of local fork point
-
-    Schema:
-      :boolean")
-
   (remote-branchname [this change]
     "Extracts the remote branch name from a change.
 
@@ -102,7 +90,12 @@
       String, the change-id/commit-sha of the fork point
 
     Schema:
-      :string"))
+      :string")
+
+  (fork-info [this]
+    "{:fork-info/fork-point-id \"fork-point-change-id\"
+      :fork-info/local-trunk-id \"local-trunk-change-id\"
+      :fork-info/remote-trunk-id \"remote-trunk-change-id\"}"))
 
 (defn vcs-config [vcs]
   (:vcs/config vcs))

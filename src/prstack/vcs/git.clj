@@ -153,6 +153,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS Implementation
 
+(defn- find-fork-point [vcs ref]
+  (merge-base ref (vcs/trunk-branch vcs)))
+
+(defn- fork-info [vcs]
+  (let [trunk-branch (vcs/trunk-branch vcs)]
+    {:fork-info/fork-point-change-id (find-fork-point vcs "HEAD")
+     :fork-info/local-trunk-change-id (commit-sha trunk-branch)
+     :fork-info/remote-trunk-change-id (commit-sha (str "origin/" trunk-branch))}))
+
 (defrecord GitVCS []
   vcs/VCS
   (read-vcs-config [_this]
@@ -161,15 +170,6 @@
   (push-branch [_this branch-name]
     (u/run-cmd ["git" "push" "-u" "origin" branch-name "--force-with-lease"]
       {:echo? true}))
-
-  (trunk-moved? [this]
-    (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config this))
-          fork-point (merge-base "HEAD" trunk-branch)
-          remote-trunk (commit-sha (str "origin/" trunk-branch))]
-      (println (ansi/colorize :yellow "\nChecking if trunk moved"))
-      (println (ansi/colorize :cyan "Fork point") fork-point)
-      (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk)
-      (not= fork-point remote-trunk)))
 
   (remote-branchname [_this change]
     (u/find-first
@@ -202,6 +202,9 @@
     (commit-sha "HEAD"))
 
   (find-fork-point [this ref]
-    (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config this))]
-      (merge-base ref trunk-branch))))
+    (find-fork-point this ref))
 
+  (fork-info [this]
+    (fork-info this))
+
+  )
