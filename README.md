@@ -1,10 +1,10 @@
-![PrStack TUI](.github/prstack_tui.png)
-
 # PrStack
 
 [Website](https://prstack.dev) | [Documentation](https://prstack.dev/docs) | [GitHub](https://github.com/yannvanhalewyn/prstack) | [Issues](https://github.com/yannvanhalewyn/prstack/issues)
 
 A CLI and TUI app for effortless PR stack management that embraces the chaos of day-to-day development.
+
+<img width="1091" height="560" alt="prstack-tui" src="https://github.com/user-attachments/assets/cf25d384-5a36-4f17-9d8a-09a4fdda98cb" />
 
 ## What is PrStack?
 
