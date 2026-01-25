@@ -25,7 +25,8 @@ PRStack infers a Directed Acyclic Graph (DAG) from your commit history, then tra
 - Create PRs with correct head and base branches
 - Keep everything in sync
 
-<img width="955" height="967" alt="prstack_sync" src="https://github.com/user-attachments/assets/8f0368c2-334d-42fb-90c8-faa0d88471fa" />
+![prstack-sync](https://github.com/user-attachments/assets/bd4a589d-a35e-4fc6-9c85-6d72431e0208)
+
 
 Learn more about CLI commands in the [Commands Reference](https://prstack.dev/docs/reference/commands).
 
