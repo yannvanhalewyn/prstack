@@ -6,7 +6,7 @@
 - [x] Add a 'ref' option to run command from other leaf
 - [x] ~Add ignored branches to local config
 - [x] Indicate review status
-- [ ] Work from MEGAMERGE, be aware of multiple branch paths
+- [x] Work with megamerges, be compatible with multiple branch paths
 - [ ] Make PRs scrollable
 - [ ] Handle too narrow screen.
         Now ANSI RESET codes are not used
@@ -31,8 +31,13 @@ Idea: merge stack or partial stack. Start a routine that merges and awaits merge
 {:github {:default-reviewers ["@team/reviewers"]
           :draft-prs? false}
  :jujutsu {:log-template "commit_id.short() ++ \" \" ++ description.first_line()"}
- :notifications {:enabled true
-                 :success-sound true}}
+ :ignored-branches #{"deploy" "tmp-*" "archive-*"}
+ :feature-base-branches #{"feature-base-*"}
+ :diffcommand "git diff $left..$right"
+ :hooks {:pre-push ""
+         :post-push ""
+         :pre-merge ""
+         :post-merge "notify 'PR Merged! *$title*"}}
 ```
 
 Checkout https://www.textualize.io/blog/7-things-ive-learned-building-a-modern-tui-framework/
