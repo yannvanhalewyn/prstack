@@ -161,17 +161,17 @@
        :app-state/all-stacks (delay (stack/get-all-stacks system))})))
 
 (defmethod dispatch! :event/fetch-prs
-  []
-  (swap! app-state assoc-in :app-state/prs
+  [_evt]
+  (swap! app-state assoc :app-state/prs
     {:http/status :status/pending})
   (future
-    (let [[prs err] (github/list-prs)]
+    (let [[result err] (github/list-prs)]
       (swap! app-state assoc :app-state/prs
         (if err
           {:http/status :status/failed
            :http/error err}
           {:http/status :status/success
-           :http/result prs})))))
+           :http/result result})))))
 
 (defmethod dispatch! :event/refresh
   [_evt]

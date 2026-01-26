@@ -178,7 +178,7 @@
 
 (defn run-app! []
   (loop []
-    (db/dispatch! [:event/read-local-repo])
+    (db/dispatch! [:event/refresh])
     (tui/run-ui!
       (tui/mount! db/app-state
         (tui/component

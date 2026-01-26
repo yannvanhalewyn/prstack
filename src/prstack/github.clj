@@ -62,13 +62,6 @@
   (map parse-pr (json/read-str output)))
 
 (defn list-prs []
-  (println
-    (decode-gh-keys
-     (first
-      (json/read-str
-       (u/run-cmd
-         ["gh" "pr" "list" "--json"
-          (str/join "," (map name (tools.schema/keys GHJsonPR)))])))))
   (try
     [(map parse-pr
        (json/read-str
