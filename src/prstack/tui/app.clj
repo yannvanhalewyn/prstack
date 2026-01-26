@@ -5,6 +5,7 @@
     [bb-tty.tty :as tty]
     [bb-tty.tui :as tui]
     [clojure.string :as str]
+    [prstack.init :as init]
     [prstack.tui.db :as db]
     [prstack.ui :as ui]
     [prstack.utils :as u]))
@@ -203,6 +204,7 @@
       (recur))))
 
 (defn run! []
+  (init/ensure-initialized!)
   (try
     (run-app!)
     (catch Exception e

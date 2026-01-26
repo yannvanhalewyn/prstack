@@ -7,6 +7,7 @@
     [prstack.cli.commands.list :as commands.list]
     [prstack.cli.commands.status :as commands.status]
     [prstack.cli.commands.sync :as commands.sync]
+    [prstack.init :as init]
     [prstack.tui.app :as tui.app]
     [prstack.utils :as u]))
 
@@ -55,21 +56,24 @@
       (print-help))
 
     :else
-    (if-let [command (u/find-first #(= (:name %) (first args)) commands)]
-      (if-let [subcommands (:subcommands command)]
-        ;; Command has subcommands, check for subcommand
-        (let [subcommand-name (second args)]
-          (if (nil? subcommand-name)
-            (print-help command)
-            (if-let [subcmd (u/find-first #(= (:name %) subcommand-name) subcommands)]
-              ((:exec subcmd) (drop 2 args))
-              (do
-                (println (ansi/colorize :red "Error") "Unknown subcommand:" subcommand-name "\n")
-                (print-help command)
-                (System/exit 1)))))
-        ;; Command has no subcommands, execute directly
-        ((:exec command) (rest args)))
-      (do
-        (println (ansi/colorize :red "Error") "Unknown command:" (first args) "\n")
-        (print-help)
-        (System/exit 1)))))
+    (do
+      ;; Ensure initialization for all CLI commands
+      (init/ensure-initialized!)
+      (if-let [command (u/find-first #(= (:name %) (first args)) commands)]
+        (if-let [subcommands (:subcommands command)]
+          ;; Command has subcommands, check for subcommand
+          (let [subcommand-name (second args)]
+            (if (nil? subcommand-name)
+              (print-help command)
+              (if-let [subcmd (u/find-first #(= (:name %) subcommand-name) subcommands)]
+                ((:exec subcmd) (drop 2 args))
+                (do
+                  (println (ansi/colorize :red "Error") "Unknown subcommand:" subcommand-name "\n")
+                  (print-help command)
+                  (System/exit 1)))))
+          ;; Command has no subcommands, execute directly
+          ((:exec command) (rest args)))
+        (do
+          (println (ansi/colorize :red "Error") "Unknown command:" (first args) "\n")
+          (print-help)
+          (System/exit 1))))))

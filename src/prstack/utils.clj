@@ -26,6 +26,24 @@
     (dissoc coll (first path))
     (update-in coll (butlast path) dissoc (last path))))
 
+(defn indexed [x]
+  (map-indexed vector x))
+
+(defn consecutive-pairs [coll]
+  (map vector coll (rest coll)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Shell
+
+(defn binary-exists? [binary-name]
+  (try
+    (let [result (-> (ProcessBuilder. ["which" binary-name])
+                   (.start)
+                   (.waitFor))]
+      (zero? result))
+    (catch Exception _
+      false)))
+
 (defn run-cmd [cmd & [{:keys [echo? dir]}]]
   (when echo?
     (println (ansi/colorize :gray (str "$ " (str/join " " cmd)))))
@@ -70,9 +88,3 @@
     ;; Fallback for non-terminal environments
     (-> (p/shell cmd {:inherit :true})
       p/check)))
-
-(defn consecutive-pairs [coll]
-  (map vector coll (rest coll)))
-
-(defn indexed [x]
-  (map-indexed vector x))
