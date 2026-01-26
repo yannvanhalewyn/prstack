@@ -12,6 +12,14 @@
     [prstack.system :as system]
     [prstack.utils :as u]))
 
+(defn- http-request-schema [result-schema]
+  [:map
+   [:htt/status [:enum :status/pending :status/failed :status/success]]
+   [:http/result result-schema]
+   [:http/error
+    [:map [:error/type :keyword
+           [:error/message :string]]]]])
+
 (def AppState
   [:map
    ;; System
@@ -20,7 +28,7 @@
    ;; Stacks
    [:app-state/current-stacks [:fn #(instance? clojure.lang.Delay %)]]
    [:app-state/all-stacks [:fn #(instance? clojure.lang.Delay %)]]
-   [:app-state/prs :map-of :string :map]
+   [:app-state/prs (http-request-schema [:sequential github/PR])]
 
    ;; UI
    [:app-state/selected-tab :int]
@@ -29,7 +37,6 @@
 
 (defonce app-state
   (atom {:app-state/selected-item-idx 0
-         :app-state/prs {}
          :app-state/selected-tab 0}))
 
 (defn vcs [state]
@@ -131,21 +138,16 @@
       {:selected-change selected-change
        :prev-change prev-change})))
 
-(defn pr-path [head-branch base-branch]
-  [:app-state/prs head-branch base-branch])
-
 (defn find-pr [state head-branch base-branch]
-  (pr/find-pr
-    (get-in state [:app-state/prs])
+  (pr/find-pr (get-in state [:app-state/prs :http/result])
     head-branch base-branch))
 
 (defn current-pr [state]
   (when-let [{:keys [selected-change prev-change]}
              (selected-and-prev-change state)]
-    (:http/result
-      (find-pr state
-        (:change/selected-branchname selected-change)
-        (:change/selected-branchname prev-change)))))
+    (find-pr state
+      (:change/selected-branchname selected-change)
+      (:change/selected-branchname prev-change))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
@@ -264,7 +266,8 @@
 ;; Subscriptions
 
 (defn sub-pr [head-branch base-branch]
-  (find-pr @app-state head-branch base-branch))
+  [(find-pr @app-state head-branch base-branch)
+   (:app-state/prs @app-state)])
 
 (comment
   (displayed-stacks @app-state))

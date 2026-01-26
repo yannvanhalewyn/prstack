@@ -28,9 +28,9 @@
                   :ui/uncolored uncolored
                   :ui/colored colored
                   :ui/is-selected? is-selected?))))]
-      (let [pr-info-result (db/sub-pr
-                             (:change/selected-branchname cur-change)
-                             (:change/selected-branchname prev-change))
+      (let [[pr http-request] (db/sub-pr
+                                (:change/selected-branchname cur-change)
+                                (:change/selected-branchname prev-change))
             ;; Pad the uncolored version to get consistent visual width
             padded-uncolored (format (str "%-" max-width "s")
                                (:ui/uncolored cur-change))
@@ -46,10 +46,9 @@
                                    padding (apply str (repeat padding-needed " "))]
                                (str colored padding)))]
         (str display-branch " "
-             (ui/format-pr-info
-               (:http/result pr-info-result)
-               {:error (:http/error pr-info-result)
-                :pending? (= :status/pending (:http/status pr-info-result))}))))
+             (ui/format-pr-info pr
+               {:error (get-in http-request [:http/error :error/message])
+                :pending? (= (:http/status http-request) :status/pending)}))))
     ;; Render the base branch at the bottom
     [(ui/format-change (last stack))]))
 
