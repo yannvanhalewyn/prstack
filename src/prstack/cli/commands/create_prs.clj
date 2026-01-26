@@ -27,7 +27,7 @@
     (github/create-pr! head-branch base-branch)
     (println (ansi/colorize :green "\n✅ Created PR ... \n"))))
 
-(defn create-prs! [vcs {:keys [stacks]}]
+(defn create-prs! [vcs {:keys [prs stacks]}]
   (if (seq stacks)
     (do
       (println (ansi/colorize :cyan "Let's create the PRs!\n"))
@@ -35,7 +35,7 @@
         (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
           (let [head-branch (:change/selected-branchname next-change)
                 base-branch (:change/selected-branchname cur-change)
-                [pr err] (github/find-pr head-branch base-branch)]
+                [pr err] (github/find-pr prs head-branch base-branch)]
             (if err
               (println (ansi/colorize :red (str "Error: " err)))
               (if pr
@@ -65,6 +65,7 @@
              (stack/get-stacks system ref)
              (stack/get-current-stacks system))
            split-stacks
-           (stack/split-feature-base-stacks stacks)]
-       (ui/print-stacks split-stacks {:include-prs? true})
-       (create-prs! vcs {:stacks stacks})))})
+           (stack/split-feature-base-stacks stacks)
+           prs (github/list-prs)]
+       (ui/print-stacks split-stacks prs)
+       (create-prs! vcs {:prs prs :stacks stacks})))})

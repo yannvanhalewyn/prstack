@@ -2,13 +2,18 @@
   (:require
     [babashka.json :as json]
     [clojure.string :as str]
+    [prstack.tools.schema :as tools.schema]
     [prstack.utils :as u]))
 
-(def ^:lsp/allow-unused PR
+(def PR
   [:map
-   [:pr/title :string]
-   [:pr/number :int]
-   [:pr/url :string]
+   [:pr/title       {:gh/json-key :title}       :string]
+   [:pr/number      {:gh/json-key :number}      :int]
+   [:pr/url         {:gh/json-key :url}         :string]
+   [:pr/author      {:gh/json-key :author}      :string]
+   [:pr/head-branch {:gh/json-key :headRefName} :string]
+   [:pr/base-branch {:gh/json-key :baseRefName} :string]
+   [:pr/state       {:gh/json-key :state}       :string]
    [:pr/status
     [:enum
      :pr.status/approved
@@ -17,39 +22,59 @@
      :pr.status/unknown
      :pr.status/other]]])
 
+(def GHJsonPR
+  (into
+    [:map
+     [:latestReviews :map]]
+    (for [k (keep (comp :gh/json-key tools.schema/properties)
+              (tools.schema/entries PR))]
+      [k :any])))
+
+(defn- decode-gh-keys [json-output]
+  (reduce
+    (fn [pr schema-map-entry]
+      (let [json-key (:gh/json-key schema-map-entry)]
+        (assoc (dissoc pr json-key)
+          (tools.schema/key schema-map-entry)
+          (get json-output json-key))))
+    json-output
+    (tools.schema/entries GHJsonPR)))
+
 (defn- parse-pr [json-output]
   (when json-output
-    {:pr/title (:title json-output)
-     :pr/number (:number json-output)
-     :pr/url (:url json-output)
-     :pr/status
-     (let [state (:state (first (:latestReviews json-output)))]
-       (case (:state (first (:latestReviews json-output)))
-         "APPROVED" :pr.status/approved
-         "CHANGES_REQUESTED" :pr.status/changes-requested
-         "REVIEW_REQUIRED" :pr.status/review-required
-         (if (str/blank? state)
-           :pr.status/unknown
-           :pr.status/other)))}))
+    (assoc (decode-gh-keys json-output)
+      :pr/status
+      (let [state (:state (first (:latestReviews json-output)))]
+        (case (:state (first (:latestReviews json-output)))
+          "APPROVED" :pr.status/approved
+          "CHANGES_REQUESTED" :pr.status/changes-requested
+          "REVIEW_REQUIRED" :pr.status/review-required
+          (if (str/blank? state)
+            :pr.status/unknown
+            :pr.status/other))))))
+
+(defn list-prs []
+  (try
+    [(map parse-pr
+       (json/read-str
+         (u/run-cmd
+           ["gh" "pr" "list" "--json"
+            (str/join "," (map name (tools.schema/keys GHJsonPR)))])))]
+    (catch Exception e
+      (if (= (ex-message e) "no git remotes found")
+        [nil {:error/type :github/no-remotes
+              :error/message (ex-message e)}]
+        (throw e)))))
+
+(comment
+  (list-prs))
 
 (defn find-pr
-  "Find a PR using the GitHub CLI"
-  [head-branch base-branch]
-  (let [[result err]
-        (try
-          [(u/run-cmd ["gh" "pr" "list"
-                       "--head" head-branch
-                       "--base" base-branch
-                       "--limit" "1"
-                       "--json" "title,number,url,latestReviews" "--jq" ".[0]"])]
-          (catch Exception e
-            (if (= (ex-message e) "no git remotes found")
-              [nil {:error/type :github/no-remotes
-                    :error/message "No remotes found."}]
-              (throw e))))]
-    (if result
-      [(parse-pr (json/read-str (not-empty result)))]
-      [nil err])))
+  [prs head-branch base-branch]
+  (u/find-first
+    #(= (:pr/head-branch %) head-branch
+        (:pr/base-branch %) base-branch)
+    prs))
 
 (defn create-pr!
   "Create a PR using the GitHub CLI"

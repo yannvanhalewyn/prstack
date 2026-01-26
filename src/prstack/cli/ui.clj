@@ -7,17 +7,18 @@
 
 (defn- print-stack-section
   "Prints a single stack with optional PR information."
-  [stack {:keys [include-prs? max-width header]}]
+  [stack prs {:keys [max-width header]}]
   (when header
     (println (ansi/colorize :cyan header)))
   ;; Print each branch in the stack (except the last one which is the base)
   (doseq [[cur-change prev-change]
           (partition 2 1 stack)]
-    (let [cur-branch (:change/selected-branchname cur-change)]
-      (if include-prs?
+    (let [[prs prs-err] prs
+          cur-branch (:change/selected-branchname cur-change)]
+      (if prs
         (let [head-branch cur-branch
               base-branch (:change/selected-branchname prev-change)
-              [pr-info err] (github/find-pr head-branch base-branch)
+              pr (github/find-pr prs head-branch base-branch)
               formatted-branch (ui/format-change cur-change)
               ;; Use uncolored text for width calculation
               uncolored-branch (ui/format-change cur-change {:no-color? true})
@@ -25,8 +26,8 @@
               padding-needed (- max-width visual-len)
               padding (apply str (repeat padding-needed " "))]
           (println (str formatted-branch padding " "
-                        (ui/format-pr-info pr-info
-                          {:error (:error/message err)}))))
+                        (ui/format-pr-info pr
+                          {:error (:error/message prs-err)}))))
         (println (ui/format-change cur-change)))))
   ;; Print the base branch at the bottom
   (println (ui/format-change (last stack)))
@@ -36,7 +37,7 @@
   "Prints regular stacks and optionally feature base stacks.
 
   stacks must be a map with :regular-stacks and :feature-base-stacks"
-  [split-stacks opts]
+  [split-stacks prs]
   (let [{:keys [regular-stacks feature-base-stacks]} split-stacks
         all-stacks (concat regular-stacks feature-base-stacks)
         max-width
@@ -57,17 +58,16 @@
     ;; Print regular stacks
     (let [reversed-stacks (stack/reverse-stacks regular-stacks)]
       (doseq [[i stack] (map-indexed vector reversed-stacks)]
-        (print-stack-section stack
-          (assoc opts
-            :max-width name-column-width
-            :header (str "\uf51e "
-                         (if (zero? i) "Current Stack" "Other Stack")
-                         " (" (dec (count stack)) ")")))))
+        (print-stack-section stack prs
+          {:max-width name-column-width
+           :header (str "\uf51e "
+                        (if (zero? i) "Current Stack" "Other Stack")
+                        " (" (dec (count stack)) ")")})))
 
     ;; Print feature base stacks
     (when (seq feature-base-stacks)
       (println (ansi/colorize :cyan "\uf126 Feature Base Branches"))
       (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
         (doseq [stack reversed-stacks]
-          (print-stack-section stack
-            (assoc opts :max-width name-column-width :header nil)))))))
+          (print-stack-section stack prs
+            {:max-width name-column-width}))))))

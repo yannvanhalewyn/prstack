@@ -3,6 +3,7 @@
     [clojure.tools.namespace.repl :as repl]
     [portal.api :as p]
     [prstack.config :as config]
+    [prstack.github :as github]
     [prstack.stack :as stack]
     [prstack.vcs :as vcs]
     [prstack.vcs.graph :as vcs.graph]))
@@ -21,6 +22,11 @@
 (comment
   (repl/refresh)
   (start-portal!))
+
+;; Test out Github 'gh' integration
+
+(comment
+  (github/list-prs))
 
 ;; Testing out reading vcs graph
 (comment

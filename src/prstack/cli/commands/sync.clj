@@ -7,7 +7,8 @@
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.system :as system]
-    [prstack.vcs :as vcs]))
+    [prstack.vcs :as vcs]
+    [prstack.github :as github]))
 
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))})
@@ -61,13 +62,14 @@
                (stack/get-all-stacks system)
                (stack/get-current-stacks system))
              split-stacks
-             (stack/split-feature-base-stacks stacks)]
-         (ui/print-stacks split-stacks (assoc opts :include-prs? true))
+             (stack/split-feature-base-stacks stacks)
+             prs (github/list-prs)]
+         (ui/print-stacks split-stacks prs)
          (doseq [stack stacks]
            (println "Syncing stack:" (ansi/colorize :blue (first (:change/local-branchnames (last stack)))))
            (if (> (count stack) 1)
              (when (tty/prompt-confirm
                      {:prompt "Would you like to create missing PRs?"})
-               (commands.create-prs/create-prs! vcs {:stack stack}))
+               (commands.create-prs/create-prs! vcs {:prs prs :stack stack}))
              (println "No missing PRs to create."))
            (println)))))})

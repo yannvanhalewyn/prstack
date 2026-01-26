@@ -88,7 +88,7 @@
           ;; Show "No stacks detected" when there are no regular stacks
           ;; or when all stacks only contain trunk (no feature branches)
           (when (or (not (seq regular-stacks))
-                    (every? #(<= (count %) 1) regular-stacks))
+                    (every? #(pos-int? (count %)) regular-stacks))
             [(ansi/colorize :cyan "No stacks detetected")])
 
           ;; Render regular stacks (only if they have actual feature branches)

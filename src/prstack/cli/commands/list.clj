@@ -2,12 +2,16 @@
   (:require
     [prstack.cli.ui :as ui]
     [prstack.config :as config]
+    [prstack.github :as github]
     [prstack.stack :as stack]
     [prstack.system :as system]))
 
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))
    :include-prs? (boolean (some #{"--include-prs"} args))})
+
+(defn get-prs []
+  ())
 
 (def command
   {:name "list"
@@ -23,8 +27,10 @@
              (stack/get-all-stacks system)
              (stack/get-current-stacks system))
            split-stacks
-           (stack/split-feature-base-stacks stacks)]
-       (ui/print-stacks split-stacks opts)))})
+           (stack/split-feature-base-stacks stacks)
+           [prs error] (when (:include-prs? opts) (github/list-prs))]
+       (clojure.pprint/pprint prs)
+       (ui/print-stacks split-stacks [prs error])))})
 
 (comment
   (def sys-

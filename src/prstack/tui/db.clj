@@ -155,7 +155,21 @@
     (swap! app-state merge
       {:app-state/system system
        :app-state/current-stacks (delay (stack/get-current-stacks system))
-       :app-state/all-stacks (delay (stack/get-all-stacks system))})))
+       :app-state/all-stacks (delay (stack/get-all-stacks system))})
+    (dispatch! :event/fetch-prs)))
+
+(defmethod dispatch! :event/fetch-prs
+  []
+  (swap! app-state assoc-in :app-state/prs
+    {:http/status :status/pending})
+  (future
+    (let [[prs err] (github/list-prs)]
+      (swap! app-state assoc :app-state/prs
+        (if err
+          {:http/status :status/failed
+           :http/error err}
+          {:http/status :status/success
+           :http/result prs})))))
 
 (defmethod dispatch! :event/fetch-pr
   [[_ head-branch base-branch]]
@@ -163,7 +177,9 @@
     (swap! app-state assoc-in (pr-path head-branch base-branch)
       {:http/status :status/pending})
     (future
-      (let [[pr-info err] (github/find-pr head-branch base-branch)]
+      (let [prs (:app-state/prs @app-state)
+            [pr-info err] (github/find-pr prs
+                            head-branch base-branch)]
         (swap! app-state update-in (pr-path head-branch base-branch)
           merge
           (if err
