@@ -3,12 +3,12 @@
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
     [prstack.cli.commands.create-prs :as commands.create-prs]
-    [prstack.cli.ui :as ui]
+    [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
     [prstack.stack :as stack]
     [prstack.system :as system]
-    [prstack.vcs :as vcs]
-    [prstack.github :as github]))
+    [prstack.ui :as ui]
+    [prstack.vcs :as vcs]))
 
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))})
@@ -63,9 +63,8 @@
                (stack/get-current-stacks system))
              split-stacks
              (stack/split-feature-base-stacks stacks)
-             prs (tty/with-spinner (github/list-prs-cmd)
-                   {:title "Fetching PRs..."})]
-         (ui/print-stacks split-stacks prs)
+             prs (ui/fetch-prs-with-spinner)]
+         (cli.ui/print-stacks split-stacks prs)
          (doseq [stack stacks]
            (println "Syncing stack:" (ansi/colorize :blue (first (:change/local-branchnames (last stack)))))
            (if (> (count stack) 1)
