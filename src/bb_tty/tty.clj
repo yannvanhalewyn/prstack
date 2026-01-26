@@ -63,9 +63,7 @@
       (gum-args {:limit limit} opts))))
 
 (defn prompt-filter
-  {:arglists '([{:keys [prompt options render-option limit]}])}
-  [{:keys [options render-option limit]
-    :as opts}]
+  [{:keys [prompt options render-option limit]}]
   (:result
-   (apply b/gum :filter (map (or render-option identity) options)
-     (gum-args {:limit limit} opts))))
+    (apply b/gum :filter (map (or render-option identity) options)
+      (gum-args (when limit {:limit limit}) {:prompt prompt}))))

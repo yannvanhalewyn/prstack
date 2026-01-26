@@ -41,7 +41,9 @@
       (println (ansi/colorize :red "Error") "No branch selected")
       (System/exit 1))
     (when (contains? existing-feature-bases branch-name)
-      (println (ansi/colorize :yellow "Warning") "Branch" (ansi/colorize :cyan branch-name) "is already a feature base branch")
+      (println (ansi/colorize :yellow "Warning")
+        "Branch" (ansi/colorize :cyan branch-name)
+        "is already a feature base branch")
       (System/exit 0))
     ;; Add the branch to feature-base-branches
     (let [updated-config (update config :feature-base-branches conj branch-name)]

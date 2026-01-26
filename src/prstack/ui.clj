@@ -77,11 +77,9 @@
    (let [result (tty/prompt-filter
                   {:prompt prompt
                    :options options})]
-     (if (= (:status result) 0)
-       (if (= limit 1)
-         (first (:result result))
-         (:result result))
-       nil))))
+     (if (= limit 1)
+       (first result)
+       result))))
 
 (defn fetch-prs-with-spinner []
   (let [res (tty/with-spinner (github/list-prs-cmd)
