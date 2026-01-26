@@ -33,12 +33,13 @@
 (defn- decode-gh-keys [json-output]
   (reduce
     (fn [pr schema-map-entry]
-      (let [json-key (:gh/json-key schema-map-entry)]
+      (if-let [json-key (:gh/json-key (tools.schema/properties schema-map-entry))]
         (assoc (dissoc pr json-key)
           (tools.schema/key schema-map-entry)
-          (get json-output json-key))))
+          (get json-output json-key))
+        pr))
     json-output
-    (tools.schema/entries GHJsonPR)))
+    (tools.schema/entries PR)))
 
 (defn- parse-pr [json-output]
   (when json-output
@@ -53,7 +54,21 @@
             :pr.status/unknown
             :pr.status/other))))))
 
+(defn list-prs-cmd []
+  ["gh" "pr" "list" "--json"
+   (str/join "," (map name (tools.schema/keys GHJsonPR)))])
+
+(defn parse-prs-cmd-output [output]
+  (map parse-pr (json/read-str output)))
+
 (defn list-prs []
+  (println
+    (decode-gh-keys
+     (first
+      (json/read-str
+       (u/run-cmd
+         ["gh" "pr" "list" "--json"
+          (str/join "," (map name (tools.schema/keys GHJsonPR)))])))))
   (try
     [(map parse-pr
        (json/read-str
@@ -68,13 +83,6 @@
 
 (comment
   (list-prs))
-
-(defn find-pr
-  [prs head-branch base-branch]
-  (u/find-first
-    #(= (:pr/head-branch %) head-branch
-        (:pr/base-branch %) base-branch)
-    prs))
 
 (defn create-pr!
   "Create a PR using the GitHub CLI"

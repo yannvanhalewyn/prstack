@@ -1,7 +1,7 @@
 (ns prstack.cli.ui
   (:require
     [bb-tty.ansi :as ansi]
-    [prstack.github :as github]
+    [prstack.pr :as pr]
     [prstack.stack :as stack]
     [prstack.ui :as ui]))
 
@@ -18,7 +18,7 @@
       (if prs
         (let [head-branch cur-branch
               base-branch (:change/selected-branchname prev-change)
-              pr (github/find-pr prs head-branch base-branch)
+              pr (pr/find-pr prs head-branch base-branch)
               formatted-branch (ui/format-change cur-change)
               ;; Use uncolored text for width calculation
               uncolored-branch (ui/format-change cur-change {:no-color? true})

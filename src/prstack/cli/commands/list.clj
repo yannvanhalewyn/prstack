@@ -1,17 +1,14 @@
 (ns prstack.cli.commands.list
   (:require
-    [prstack.cli.ui :as ui]
+    [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
-    [prstack.github :as github]
     [prstack.stack :as stack]
-    [prstack.system :as system]))
+    [prstack.system :as system]
+    [prstack.ui :as ui]))
 
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))
    :include-prs? (boolean (some #{"--include-prs"} args))})
-
-(defn get-prs []
-  ())
 
 (def command
   {:name "list"
@@ -26,11 +23,10 @@
            (if (:all? opts)
              (stack/get-all-stacks system)
              (stack/get-current-stacks system))
-           split-stacks
-           (stack/split-feature-base-stacks stacks)
-           [prs error] (when (:include-prs? opts) (github/list-prs))]
-       (clojure.pprint/pprint prs)
-       (ui/print-stacks split-stacks [prs error])))})
+           split-stacks (stack/split-feature-base-stacks stacks)]
+       (cli.ui/print-stacks split-stacks
+         (when (:include-prs? opts)
+           (ui/fetch-prs-with-spinner)))))})
 
 (comment
   (def sys-

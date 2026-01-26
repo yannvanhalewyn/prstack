@@ -7,6 +7,7 @@
     [prstack.cli.commands.sync :as commands.sync]
     [prstack.config :as config]
     [prstack.github :as github]
+    [prstack.pr :as pr]
     [prstack.stack :as stack]
     [prstack.system :as system]
     [prstack.utils :as u]))
@@ -134,7 +135,9 @@
   [:app-state/prs head-branch base-branch])
 
 (defn find-pr [state head-branch base-branch]
-  (get-in state (pr-path head-branch base-branch)))
+  (pr/find-pr
+    (get-in state [:app-state/prs])
+    head-branch base-branch))
 
 (defn current-pr [state]
   (when-let [{:keys [selected-change prev-change]}
@@ -155,8 +158,7 @@
     (swap! app-state merge
       {:app-state/system system
        :app-state/current-stacks (delay (stack/get-current-stacks system))
-       :app-state/all-stacks (delay (stack/get-all-stacks system))})
-    (dispatch! :event/fetch-prs)))
+       :app-state/all-stacks (delay (stack/get-all-stacks system))})))
 
 (defmethod dispatch! :event/fetch-prs
   []
@@ -171,32 +173,10 @@
           {:http/status :status/success
            :http/result prs})))))
 
-(defmethod dispatch! :event/fetch-pr
-  [[_ head-branch base-branch]]
-  (when base-branch
-    (swap! app-state assoc-in (pr-path head-branch base-branch)
-      {:http/status :status/pending})
-    (future
-      (let [prs (:app-state/prs @app-state)
-            [pr-info err] (github/find-pr prs
-                            head-branch base-branch)]
-        (swap! app-state update-in (pr-path head-branch base-branch)
-          merge
-          (if err
-            {:http/status :status/failed
-             :http/error err}
-            {:http/status :status/success
-             :http/result pr-info}))))))
-
 (defmethod dispatch! :event/refresh
   [_evt]
   (dispatch! [:event/read-local-repo])
-  (doseq [stack (all-displayed-stacks @app-state)]
-    (doseq [[cur-change prev-change] (u/consecutive-pairs stack)]
-      (when prev-change
-        (dispatch! [:event/fetch-pr
-                    (:change/selected-branchname cur-change)
-                    (:change/selected-branchname prev-change)])))))
+  (dispatch! [:event/fetch-prs]))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
@@ -284,12 +264,7 @@
 ;; Subscriptions
 
 (defn sub-pr [head-branch base-branch]
-  (when base-branch
-    (let [pr-info (get-in @app-state (pr-path head-branch base-branch))]
-      (when-not pr-info
-        (dispatch! [:event/fetch-pr head-branch base-branch]))
-      pr-info)
-    (get-in @app-state (pr-path head-branch base-branch))))
+  (find-pr @app-state head-branch base-branch))
 
 (comment
   (displayed-stacks @app-state))

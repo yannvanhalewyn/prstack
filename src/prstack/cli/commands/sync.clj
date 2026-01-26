@@ -63,7 +63,8 @@
                (stack/get-current-stacks system))
              split-stacks
              (stack/split-feature-base-stacks stacks)
-             prs (github/list-prs)]
+             prs (tty/with-spinner (github/list-prs-cmd)
+                   {:title "Fetching PRs..."})]
          (ui/print-stacks split-stacks prs)
          (doseq [stack stacks]
            (println "Syncing stack:" (ansi/colorize :blue (first (:change/local-branchnames (last stack)))))

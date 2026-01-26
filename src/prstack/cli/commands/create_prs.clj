@@ -2,11 +2,13 @@
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
-    [prstack.cli.ui :as ui]
+    [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
     [prstack.github :as github]
+    [prstack.pr :as pr]
     [prstack.stack :as stack]
     [prstack.system :as system]
+    [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
@@ -35,7 +37,8 @@
         (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
           (let [head-branch (:change/selected-branchname next-change)
                 base-branch (:change/selected-branchname cur-change)
-                [pr err] (github/find-pr prs head-branch base-branch)]
+                [prs err] prs
+                pr (pr/find-pr prs head-branch base-branch)]
             (if err
               (println (ansi/colorize :red (str "Error: " err)))
               (if pr
@@ -66,6 +69,6 @@
              (stack/get-current-stacks system))
            split-stacks
            (stack/split-feature-base-stacks stacks)
-           prs (github/list-prs)]
-       (ui/print-stacks split-stacks prs)
+           prs (ui/fetch-prs-with-spinner)]
+       (cli.ui/print-stacks split-stacks prs)
        (create-prs! vcs {:prs prs :stacks stacks})))})

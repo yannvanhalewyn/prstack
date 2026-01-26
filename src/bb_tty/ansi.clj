@@ -9,8 +9,8 @@
 (def SHOW_CURSOR "\u001b[?25h")
 (def ALT_SCREEN "\u001b[?1049h")
 (def NORMAL_SCREEN "\u001b[?1049l")
-(def CURSOR_UP "\u001b[1A")
-(def CLEAR_LINE "\u001b[2K")
+(def ^:lsp/allow-unused CURSOR_UP "\u001b[1A")
+(def ^:lsp/allow-unused CLEAR_LINE "\u001b[2K")
 
 (def colors
   {:reset "\033[0m"

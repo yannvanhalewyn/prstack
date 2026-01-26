@@ -1,8 +1,9 @@
 (ns prstack.ui
   "Shared UI formatting utilities for CLI and TUI."
   (:require
-    [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]))
+   [bb-tty.ansi :as ansi]
+   [bb-tty.tty :as tty]
+   [prstack.github :as github]))
 
 (defn format-change
   "Formats a branch name with appropriate icon and color based on bookmark type.
@@ -81,3 +82,11 @@
          (first (:result result))
          (:result result))
        nil))))
+
+(defn fetch-prs-with-spinner []
+  (let [res (tty/with-spinner (github/list-prs-cmd)
+              {:title "Fetching PRs..."})]
+   (if (= (:status res) 0)
+         [(github/parse-prs-cmd-output (first (:result res)))]
+         [nil {:error/type :remoterepo/error-fetching-prs
+               :error/message "Error fetching PRs..."}])))

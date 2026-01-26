@@ -40,6 +40,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Prompts
 
+(defn with-spinner [cmd {:keys [title]}]
+  (b/gum :spin cmd :title title))
+
 (defn- gum-args
   ([opts]
    (gum-args {} opts))
@@ -50,7 +53,7 @@
 (defn prompt-confirm [{:keys [prompt]}]
   (:result (b/gum :confirm [prompt] :as :bool)))
 
-(defn prompt-pick
+(defn ^:lsp/allow-unused prompt-pick
   {:arglists '([{:keys [prompt options render-option limit]}])}
   [{:keys [options render-option limit]
     :or {limit 1}
