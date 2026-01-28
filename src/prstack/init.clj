@@ -33,7 +33,8 @@
 
 (defn- initial-setup! []
   (welcome-message)
-  (println "Let's get you set up. First, choose your version control system:")
+  (println "Let's get you set up. This will create a " (ansi/colorize :bold ".prstack/config.edn") ".")
+  (println "First, choose your version control system:")
   (println)
 
   (let [choice (read-user-choice
@@ -69,13 +70,7 @@
   (let [config-exists? (config-file-exists?)
         config (when config-exists? (config/read-local))
         vcs (or (:vcs config)
-                (when-not config-exists?
-                  (initial-setup!)))]
-
-    ;; If no VCS was selected (shouldn't happen, but defensive)
-    (when-not vcs
-      (println (ansi/colorize :red "Error: No VCS configured."))
-      (System/exit 1))
+                (initial-setup!))]
 
     ;; Check if selected VCS binary exists
     (let [final-vcs
@@ -94,8 +89,9 @@
             vcs)]
 
       ;; Write config if it doesn't exist or VCS changed
-      (when (or (not config-exists?)
-                (not= final-vcs (:vcs config)))
+      ;; This can happen either when config file doesn't exist, or when it
+      ;; didn't have a value for the `:vcs` key
+      (when (not= final-vcs (:vcs config))
         (config/write-local
           (merge
             {:vcs final-vcs
