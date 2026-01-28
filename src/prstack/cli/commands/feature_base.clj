@@ -1,9 +1,9 @@
 (ns prstack.cli.commands.feature-base
   (:require
     [bb-tty.ansi :as ansi]
+    [bb-tty.tty :as tty]
     [clojure.string :as str]
     [prstack.config :as config]
-    [prstack.ui :as ui]
     [prstack.utils :as u]))
 
 (defn- get-all-branches
@@ -25,7 +25,10 @@
       (when-not (seq branches)
         (println (ansi/colorize :red "Error") "No branches found")
         (System/exit 1))
-      (ui/prompt-selection branches {:prompt prompt}))))
+      (tty/prompt-filter
+        {:prompt prompt
+         :options branches
+         :limit 1}))))
 
 (defn- list-feature-base-branches [_args]
   (doseq [branch (:feature-base-branches (config/read-local))]

@@ -63,27 +63,6 @@
     error    (str (ansi/colorize :red "X") " " error)
     :else    (ansi/colorize :gray "No PR found")))
 
-(defn prompt-selection
-  "Prompts the user to select from a list of options using gum.
-
-  Args:
-    options - A seq of strings to choose from
-    opts - Optional map with keys:
-      :prompt - prompt to display above the selection
-      :limit - Maximum number of selections (default 1)
-
-  Returns:
-    Selected option(s) as a string (single selection) or seq of strings (multiple)"
-  ([options]
-   (prompt-selection options {}))
-  ([options {:keys [prompt limit] :or {limit 1}}]
-   (let [result (tty/prompt-filter
-                  {:prompt prompt
-                   :options options})]
-     (if (= limit 1)
-       (first result)
-       result))))
-
 (defn fetch-prs-with-spinner []
   (let [res (tty/with-spinner (github/list-prs-cmd)
               {:title "Fetching PRs..."})]
