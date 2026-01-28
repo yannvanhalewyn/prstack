@@ -33,15 +33,18 @@
 (defn format-pr-info
   "Formats PR information for display.
 
-  Takes a pr-info-result tuple `[pr-info error]` and returns a formatted string
-  with status indicator, PR number, and title.
+  Takes a PR map and returns a formatted string with review status indicator, PR
+  number, and title.
 
   `pr-info` map which may contain:
-    :http/status :status/pending - PR is being fetched
     :pr/url - PR URL (indicates PR exists)
     :pr/number - PR number
     :pr/title - PR title
     :pr/status - One of :pr.status/approved, :pr.status/changes-requested, :pr.status/review-required
+
+  Options:
+    :error - Error message to display
+    :pending? - If true, displays a message indicating the PR is being fetched
 
   Returns a formatted string with status indicator, PR number, and title."
   [pr-info {:keys [error pending?]}]

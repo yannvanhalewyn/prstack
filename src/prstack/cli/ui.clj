@@ -15,20 +15,20 @@
           (partition 2 1 stack)]
     (let [[prs prs-err] prs
           cur-branch (:change/selected-branchname cur-change)]
-      (if prs
-        (let [head-branch cur-branch
-              base-branch (:change/selected-branchname prev-change)
-              pr (pr/find-pr prs head-branch base-branch)
-              formatted-branch (ui/format-change cur-change)
-              ;; Use uncolored text for width calculation
-              uncolored-branch (ui/format-change cur-change {:no-color? true})
-              visual-len (count uncolored-branch)
-              padding-needed (- max-width visual-len)
-              padding (apply str (repeat padding-needed " "))]
-          (println (str formatted-branch padding " "
-                        (ui/format-pr-info pr
-                          {:error (:error/message prs-err)}))))
-        (println (ui/format-change cur-change)))))
+      (let [head-branch cur-branch
+            base-branch (:change/selected-branchname prev-change)
+            pr (when-not prs-err
+                 (pr/find-pr prs head-branch base-branch))
+            formatted-branch (ui/format-change cur-change)
+            ;; Use uncolored text for width calculation. TODO be able to
+            ;; extract width from colorized text
+            uncolored-branch (ui/format-change cur-change {:no-color? true})
+            visual-len (count uncolored-branch)
+            padding-needed (- max-width visual-len)
+            padding (apply str (repeat padding-needed " "))]
+        (println (str formatted-branch padding " "
+                      (ui/format-pr-info pr
+                        {:error (:error/message prs-err)}))))))
   ;; Print the base branch at the bottom
   (println (ui/format-change (last stack)))
   (println))
