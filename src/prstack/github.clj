@@ -69,10 +69,11 @@
            ["gh" "pr" "list" "--json"
             (str/join "," (map name (tools.schema/keys GHJsonPR)))])))]
     (catch Exception e
-      (if (= (ex-message e) "no git remotes found")
-        [nil {:error/type :github/no-remotes
-              :error/message (ex-message e)}]
-        (throw e)))))
+      (if (= (str/trim (ex-message e)) "no git remotes found")
+        [nil {:error/type :github/no-remote-found
+              :error/message "No remote found"}]
+        [nil {:error/type :github/error-fetching-prs
+              :error/message (str/trim (ex-message e))}]))))
 
 (comment
   (list-prs))
