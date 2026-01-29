@@ -1,6 +1,8 @@
 (ns bb-tty.ansi
   (:require
-    [clojure.string :as str]))
+    [clojure.string :as str])
+  (:import
+    [org.jline.utils AttributedString]))
 
 ;; Terminal control constants
 (def CLEAR_SCREEN "\u001b[2J")
@@ -38,12 +40,12 @@
         (str color-codes text (colors :reset))))))
 
 (defn strip-ansi
-  "Removes all ANSI escape codes from a string to get the visual length."
-  [s]
-  (str/replace s #"\u001b\[[0-9;]*[a-zA-Z]" ""))
+   "Removes all ANSI escape codes from a string to get the visual length."
+   [s]
+   (.toString (AttributedString/fromAnsi s)))
 
 (defn visual-length
   "Returns the visual column width of a string, stripping ANSI codes and
    accounting for wide characters (e.g., CJK characters, emoji)."
   [s]
-  (count (strip-ansi s)))
+  (.columnLength (AttributedString/fromAnsi s)))

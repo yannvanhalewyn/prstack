@@ -1,4 +1,4 @@
-#!/usr/bin/env bb
+#!./bb
 
 (def script-dir (-> *file*
                   java.io.File.
