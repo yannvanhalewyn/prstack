@@ -16,9 +16,9 @@
    :flags [["--all" "-a" "Looks for any stacks, not just current"]
            ["--exclude-prs" "-E" "Don't fetch PRs (faster, useful for scripting)"]]
    :exec
-   (fn list [args]
+   (fn list [args global-opts]
      (let [opts (parse-opts args)
-           system (system/new (config/read-global) (config/read-local))
+           system (system/new (config/read-global) (config/read-local) global-opts)
            stacks
            (if (:all? opts)
              (stack/get-all-stacks system)

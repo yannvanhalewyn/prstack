@@ -22,9 +22,9 @@
    :flags [["--all" "-a" "Looks all your stacks, not just the current one"]]
    :description "Syncs the current stack with the remote"
    :exec
-   (fn sync [args]
+   (fn sync [args global-opts]
      (let [opts (parse-opts args)
-           system (system/new (config/read-global) (config/read-local))
+           system (system/new (config/read-global) (config/read-local) global-opts)
            vcs (:system/vcs system)
            trunk-branch (vcs/trunk-branch vcs)
            fork-info (vcs/fork-info vcs)

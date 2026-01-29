@@ -6,5 +6,5 @@
   {:name "status"
    :description "Displays the status of all the PR stacks"
    :exec
-   (fn sync [args]
-     ((:exec commands.list/command) (concat args ["--all"])))})
+   (fn sync [args global-opts]
+     ((:exec commands.list/command) (concat args ["--all"]) global-opts))})

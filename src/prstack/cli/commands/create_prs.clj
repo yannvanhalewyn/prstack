@@ -80,9 +80,9 @@
   {:name "create-prs"
    :description "Creates missing PRs in the current stack"
    :exec
-   (fn create-prs-cmd [args]
+   (fn create-prs-cmd [args global-opts]
      (let [ref (first args)
-           system (system/new (config/read-global) (config/read-local))
+           system (system/new (config/read-global) (config/read-local) global-opts)
            vcs (:system/vcs system)
            stacks
            (if ref

@@ -30,11 +30,11 @@
          :options branches
          :limit 1}))))
 
-(defn- list-feature-base-branches [_args]
+(defn- list-feature-base-branches [_args _global-opts]
   (doseq [branch (:feature-base-branches (config/read-local))]
     (println branch)))
 
-(defn- add-feature-base-branch [args]
+(defn- add-feature-base-branch [args _global-opts]
   (let [branch-name (targetted-branch args
                       {:prompt "Select feature base branch"
                        :get-candidates-fn get-all-branches})
@@ -53,7 +53,7 @@
       (config/write-local updated-config)
       (println (ansi/colorize :green "✔") "Added" (ansi/colorize :cyan branch-name) "as a feature base branch"))))
 
-(defn- remove-feature-base-branch [args]
+(defn- remove-feature-base-branch [args _global-opts]
   (let [config (config/read-local)
         existing-feature-bases (:feature-base-branches config)
         feature-bases-vec (vec existing-feature-bases)]
