@@ -126,11 +126,11 @@
                                        ;; Last command in pipeline - inherit stdin/stdout/stderr
                                        (and inherit-last is-last?)
                                        {:in (:out prev-proc) :inherit true}
-                                       
+
                                        ;; Middle command - read from previous, write to pipe
                                        prev-proc
                                        {:in (:out prev-proc)}
-                                       
+
                                        ;; First command - just write to pipe
                                        :else
                                        {})]

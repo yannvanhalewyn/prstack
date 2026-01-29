@@ -138,16 +138,15 @@
       {:selected-change selected-change
        :prev-change prev-change})))
 
-(defn find-pr [state head-branch base-branch]
+(defn find-pr [state head-branch]
   (pr/find-pr (get-in state [:app-state/prs :http/result])
-    head-branch base-branch))
+    head-branch))
 
 (defn current-pr [state]
-  (when-let [{:keys [selected-change prev-change]}
+  (when-let [{:keys [selected-change]}
              (selected-and-prev-change state)]
     (find-pr state
-      (:change/selected-branchname selected-change)
-      (:change/selected-branchname prev-change))))
+      (:change/selected-branchname selected-change))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
@@ -156,7 +155,7 @@
 
 (defmethod dispatch! :event/read-local-repo
   [_evt]
-  (let [system (system/new (config/read-local))]
+  (let [system (system/new (config/read-global) (config/read-local))]
     (swap! app-state merge
       {:app-state/system system
        :app-state/current-stacks (delay (stack/get-current-stacks system))
@@ -269,8 +268,15 @@
 ;; Subscriptions
 
 (defn sub-pr [head-branch base-branch]
-  [(find-pr @app-state head-branch base-branch)
-   (:app-state/prs @app-state)])
+  (let [prs (get-in @app-state [:app-state/prs :http/result])
+        ;; Find any PR for this head branch
+        pr (when prs (pr/find-pr prs head-branch))
+        ;; Check if the PR has the wrong base branch
+        wrong-base-branch (when (and pr (not= (:pr/base-branch pr) base-branch))
+                            base-branch)]
+    [pr
+     (:app-state/prs @app-state)
+     wrong-base-branch]))
 
 (comment
   (displayed-stacks @app-state))

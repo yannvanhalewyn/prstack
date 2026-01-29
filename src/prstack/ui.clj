@@ -45,9 +45,10 @@
   Options:
     :error - Error message to display
     :pending? - If true, displays a message indicating the PR is being fetched
+    :wrong-base-branch - If set, indicates the PR has the wrong base branch (expected value)
 
   Returns a formatted string with status indicator, PR number, and title."
-  [pr-info {:keys [error pending?]}]
+  [pr-info {:keys [error pending? wrong-base-branch]}]
   (cond
     (:pr/url pr-info)
     (str (case (:pr/status pr-info)
@@ -55,6 +56,10 @@
            :pr.status/changes-requested (ansi/colorize :red "✗")
            :pr.status/review-required (ansi/colorize :yellow "●")
            (ansi/colorize :gray "?"))
+         " "
+         (when wrong-base-branch
+           (str " " (ansi/colorize :yellow
+                                   (str "⚠ Wrong base: " (:pr/base-branch pr-info)))))
          " "
          (ansi/colorize :blue (str "#" (:pr/number pr-info)))
          " " (:pr/title pr-info))

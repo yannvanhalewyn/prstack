@@ -14,11 +14,15 @@
   (doseq [[cur-change prev-change]
           (partition 2 1 stack)]
     (let [[prs prs-err] prs
-          cur-branch (:change/selected-branchname cur-change)]
-      (let [head-branch cur-branch
+          cur-branch (:change/selected-branchname cur-change)
+          head-branch cur-branch
             base-branch (:change/selected-branchname prev-change)
-            pr (when-not prs-err
-                 (pr/find-pr prs head-branch base-branch))
+            ;; Find any PR for this head branch
+            pr (when (and prs (not prs-err))
+                 (pr/find-pr prs head-branch))
+            ;; Check if the PR has the wrong base branch
+            wrong-base-branch (when (and pr (not= (:pr/base-branch pr) base-branch))
+                                base-branch)
             formatted-branch (ui/format-change cur-change)
             ;; Use uncolored text for width calculation. TODO be able to
             ;; extract width from colorized text
@@ -26,9 +30,11 @@
             visual-len (count uncolored-branch)
             padding-needed (- max-width visual-len)
             padding (apply str (repeat padding-needed " "))]
-        (println (str formatted-branch padding " "
+      (println (str formatted-branch padding " "
+                    (when prs ;; Nil without option `--include-prs`
                       (ui/format-pr-info pr
-                        {:error (:error/message prs-err)}))))))
+                        {:error (:error/message prs-err)
+                         :wrong-base-branch wrong-base-branch}))))))
   ;; Print the base branch at the bottom
   (println (ui/format-change (last stack)))
   (println))

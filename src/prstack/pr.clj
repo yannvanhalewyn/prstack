@@ -3,8 +3,10 @@
     [prstack.utils :as u]))
 
 (defn find-pr
-  [prs head-branch base-branch]
+  "Find a PR by head branch.
+  
+  Returns the first PR found for the given head branch, regardless of base branch."
+  [prs head-branch]
   (u/find-first
-    #(and (= (:pr/head-branch %) head-branch)
-          (= (:pr/base-branch %) base-branch))
+    #(= (:pr/head-branch %) head-branch)
     prs))
