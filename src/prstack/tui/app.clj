@@ -85,17 +85,11 @@
                                  stack))
                              all-stacks))]
                 (apply max counts)))]
-        ;; Show "No stacks detected" when:
-        ;; there are no regular stacks
-        ;; OR when the regular stacks contain no branches (only trunk)
-        ;;    AND there are no feature base branches.
-        (if (and (empty? regular-stacks)
-                 (not (every? #(pos-int? (count %)) regular-stacks))
-                 (empty? feature-base-stacks))
-          [(ansi/colorize :cyan "No stacks detetected")]
-
-          ;; Render regular stacks (only if they have actual feature branches)
-          (concat
+        (cond->
+          ;; When every stack has only the trunk node, that means no stacks
+          (if (not (every? #(>= (count %) 1) regular-stacks))
+            [(ansi/colorize :cyan "No stacks detetected")
+             "Create some branches to see some stacks appear."]
             (when (and (seq regular-stacks)
                        (not (every? #(<= (count %) 1) regular-stacks)))
               (mapcat
@@ -111,18 +105,19 @@
                     (when-not (and (= i (dec (count regular-stacks)))
                                    (empty? feature-base-stacks))
                       [""])))
-                (u/indexed regular-stacks)))
-
-            ;; Render feature base stacks
-            (when (seq feature-base-stacks)
-              (concat
-                [(ansi/colorize :cyan "\uf126 Feature Base Branches")]
-                (mapcat
-                  (fn [stack]
-                    (concat
-                      (render-stack-section state stack max-width)
-                      [""]))
-                  feature-base-stacks)))))))))
+                (u/indexed regular-stacks))))
+          (seq feature-base-stacks)
+          ;; Render feature base stacks
+          (concat
+            [(ansi/colorize :cyan "\uf126 Feature Base Branches")]
+            (mapcat
+              (fn [stack]
+                (concat
+                  (render-stack-section state stack max-width)
+                  [""]))
+              feature-base-stacks))
+          #_
+          [(ansi/colorize :cyan "No feature base branches found")])))))
 
 (defn- render-tabs
   [{:app-state/keys [selected-tab]}]

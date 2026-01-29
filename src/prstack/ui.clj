@@ -58,8 +58,9 @@
            (ansi/colorize :gray "?"))
          " "
          (when wrong-base-branch
-           (str " " (ansi/colorize :yellow
-                                   (str "⚠ Wrong base: " (:pr/base-branch pr-info)))))
+           (str " "
+                (ansi/colorize :yellow "⚠ Wrong base") ": "
+                (ansi/colorize :bold (:pr/base-branch pr-info))))
          " "
          (ansi/colorize :blue (str "#" (:pr/number pr-info)))
          " " (:pr/title pr-info))
