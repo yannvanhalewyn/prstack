@@ -36,7 +36,7 @@
    :exec
    (fn sync [args]
      (let [opts (parse-opts args)
-           system (system/new (config/read-local))
+           system (system/new (config/read-global) (config/read-local))
            vcs (:system/vcs system)
            {:vcs-config/keys [trunk-branch]} (vcs/vcs-config vcs) ]
        (println (ansi/colorize :yellow "\nFetching branches from remote..."))

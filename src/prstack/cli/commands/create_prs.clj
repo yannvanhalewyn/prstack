@@ -75,7 +75,7 @@
    :exec
    (fn create-prs-cmd [args]
      (let [ref (first args)
-           system (system/new (config/read-local))
+           system (system/new (config/read-global) (config/read-local))
            vcs (:system/vcs system)
            stacks
            (if ref

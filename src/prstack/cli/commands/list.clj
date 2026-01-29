@@ -18,7 +18,7 @@
    :exec
    (fn list [args]
      (let [opts (parse-opts args)
-           system (system/new (config/read-local))
+           system (system/new (config/read-global) (config/read-local))
            stacks
            (if (:all? opts)
              (stack/get-all-stacks system)
@@ -31,6 +31,7 @@
 (comment
   (def sys-
     (system/new
+      (config/read-global)
       (assoc (prstack.config/read-local) :vcs :jujutsu)))
 
   (stack/get-current-stacks sys-)
