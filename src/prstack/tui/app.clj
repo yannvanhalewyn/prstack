@@ -47,23 +47,36 @@
     ;; Render the base branch at the bottom
     [(ui/format-change (last stack))]))
 
+(defn- handle-custom-command
+  "Checks if a key has a custom command binding and runs it.
+   Returns true if a custom command was found and executed."
+  [key]
+  (let [global-config (get-in @db/app-state [:app-state/system :system/global-config])
+        keybinding (str (char key))]
+    (when (get-in global-config [:commands keybinding])
+      (db/dispatch! [:event/run-custom-command keybinding])
+      true)))
+
 (defn- render-stacks
   [_vcs]
   (tui/component
     {:on-key-press
      (fn [key]
-       (condp = key
-         ;; Arrow keys are actually the following sequence
-         ;; 27 91 68 (map char [27 91 68])
-         ;; So need to keep a stack of recent keys to check for up/down
-         (int \j) (db/dispatch! [:event/move-down])
-         (int \k) (db/dispatch! [:event/move-up])
-         (int \d) (db/dispatch! [:event/run-diff])
-         (int \o) (db/dispatch! [:event/open-pr])
-         (int \c) (db/dispatch! [:event/create-pr])
-         (int \m) (db/dispatch! [:event/merge-pr])
-         (int \s) (db/dispatch! [:event/sync])
-         nil))}
+       ;; First check for custom command bindings (allows overriding defaults)
+       (when-not (handle-custom-command key)
+         ;; Fall back to built-in commands
+         (condp = key
+           ;; Arrow keys are actually the following sequence
+           ;; 27 91 68 (map char [27 91 68])
+           ;; So need to keep a stack of recent keys to check for up/down
+           (int \j) (db/dispatch! [:event/move-down])
+           (int \k) (db/dispatch! [:event/move-up])
+           (int \d) (db/dispatch! [:event/run-diff])
+           (int \o) (db/dispatch! [:event/open-pr])
+           (int \c) (db/dispatch! [:event/create-pr])
+           (int \m) (db/dispatch! [:event/merge-pr])
+           (int \s) (db/dispatch! [:event/sync])
+           nil)))}
     (fn [state]
       (let [{:keys [regular-stacks feature-base-stacks]} (db/displayed-stacks state)
             all-stacks (concat regular-stacks feature-base-stacks)

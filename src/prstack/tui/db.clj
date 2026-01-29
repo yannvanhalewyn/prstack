@@ -168,7 +168,7 @@
   (swap! app-state assoc :app-state/prs
     {:http/status :status/pending})
   (future
-    (let [[result err] (github/list-prs)]
+    (let [[result err] (github/list-prs (vcs @app-state))]
       (swap! app-state assoc :app-state/prs
         (if err
           {:http/status :status/failed
@@ -182,21 +182,44 @@
   (dispatch! [:event/read-local-repo])
   (dispatch! [:event/fetch-prs]))
 
+(defn build-command-context
+  "Builds the context map for command placeholder substitution.
+   Includes SHAs, branches, and PR info for the selected change."
+  [state]
+  (when-let [{:keys [selected-change prev-change]}
+             (selected-and-prev-change state)]
+    (let [pr (find-pr state (:change/selected-branchname selected-change))]
+      {:from-sha (or (:change/commit-sha prev-change)
+                     (:change/selected-branchname prev-change))
+       :to-sha (:change/commit-sha selected-change)
+       :from-branch (:change/selected-branchname prev-change)
+       :to-branch (:change/selected-branchname selected-change)
+       :pr-number (:pr/number pr)
+       :pr-url (:pr/url pr)})))
+
+(defn run-command!
+  "Executes a prepared command (with :strategy and :value).
+   Sets up the app state to run in foreground and closes the TUI."
+  [{:keys [strategy value]}]
+  (swap! app-state assoc :app-state/run-in-fg
+    (case strategy
+      :pipe #(u/pipeline value {:inherit-last true})
+      :shell #(u/shell-out value)))
+  (tui/close!))
+
 (defmethod dispatch! :event/run-diff
   [_evt]
-  (when-let [{:keys [selected-change prev-change]}
-             (selected-and-prev-change @app-state)]
+  (when-let [context (build-command-context @app-state)]
     (let [global-config (get-in @app-state [:app-state/system :system/global-config])
-          from-sha (or (:change/commit-sha prev-change)
-                       (:change/selected-branchname prev-change))
-          to-sha (:change/commit-sha selected-change)
-          {:keys [strategy value]} (config/get-diffview-cmd global-config
-                                     from-sha to-sha)]
-      (swap! app-state assoc :app-state/run-in-fg
-        (case strategy
-          :pipe #(u/pipeline value {:inherit-last true})
-          :shell #(u/shell-out value)))
-      (tui/close!))))
+          cmd (config/get-diffview-cmd global-config context)]
+      (run-command! cmd))))
+
+(defmethod dispatch! :event/run-custom-command
+  [[_evt keybinding]]
+  (when-let [context (build-command-context @app-state)]
+    (let [global-config (get-in @app-state [:app-state/system :system/global-config])]
+      (when-let [cmd (config/get-custom-command global-config keybinding context)]
+        (run-command! cmd)))))
 
 (defmethod dispatch! :event/open-pr
   [_evt]

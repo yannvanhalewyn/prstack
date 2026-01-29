@@ -3,8 +3,8 @@
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
     [clojure.java.io :as io]
-    [prstack.vcs.jujutsu :as vcs.jj]
-    [prstack.config :as config]))
+    [prstack.config :as config]
+    [prstack.vcs.jujutsu :as vcs.jj]))
 
 (defn- read-user-choice [prompt options]
   (let [selected (first
@@ -69,19 +69,19 @@
         vcs (or (:vcs config)
                 (initial-setup!))
         final-vcs
-          (cond
+        (cond
             ;; Jujutsu selected but not installed -> prompt to install or use Git
-            (and (= vcs :jujutsu) (not (vcs.jj/installed?)))
-            (let [choice (prompt-install-jj-or-use-git)]
-              (if (= choice :exit)
-                (do
-                  (println)
-                  (println "Please install Jujutsu and run prstack again.")
-                  (System/exit 0))
-                choice))
+          (and (= vcs :jujutsu) (not (vcs.jj/installed?)))
+          (let [choice (prompt-install-jj-or-use-git)]
+            (if (= choice :exit)
+              (do
+                (println)
+                (println "Please install Jujutsu and run prstack again.")
+                (System/exit 0))
+              choice))
             ;; Everything is fine
-            :else
-            vcs)]
+          :else
+          vcs)]
 
     ;; Write config if it doesn't exist or VCS changed
     ;; This can happen either when config file doesn't exist, or when it

@@ -1,8 +1,9 @@
-.cpcache/
 .clj-kondo/.cache
 .clj-kondo/imports
+.cpcache/
 .lsp/.cache
-.prstack/
 .nrepl-port
+.opencode/
+.prstack/
 target/
 tmp/

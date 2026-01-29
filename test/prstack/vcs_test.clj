@@ -5,6 +5,7 @@
   work correctly with the project-dir option."
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
+    [prstack.system :as system]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]
     [prstack.vcs.graph :as graph]
@@ -81,10 +82,11 @@
 
 (deftest jujutsu-read-all-nodes-test
   (testing "reads all nodes from a jujutsu repository using project-dir"
-    (let [vcs (-> (vcs.jj/->JujutsuVCS)
-                (assoc
-                  :vcs/config (vcs.jj/config {:dir *test-repo-dir*})
-                  :vcs/project-dir *test-repo-dir*))
+    (let [vcs (system/new-vcs
+                ;; user config
+                {:vcs :jujutsu}
+                ;; global opts (--project-dir)
+                {:project-dir *test-repo-dir*})
           {:keys [nodes trunk-change-id]} (vcs/read-all-nodes vcs)]
 
       (is (some? trunk-change-id) "Should have a trunk change id")
@@ -100,8 +102,9 @@
 
 (deftest jujutsu-build-graph-test
   (testing "builds a graph from jujutsu nodes"
-    (let [vcs (-> (vcs.jj/->JujutsuVCS *test-repo-dir*)
-                (assoc :vcs/config (vcs.jj/config {:dir *test-repo-dir*})))
+    (let [vcs (system/new-vcs
+                {:vcs :jujutsu}
+                {:project-dir *test-repo-dir*})
           {:keys [nodes trunk-change-id]} (vcs/read-all-nodes vcs)
           g (graph/build-graph nodes trunk-change-id)]
 
@@ -115,8 +118,9 @@
 
 (deftest jujutsu-graph-traversal-test
   (testing "can traverse from leaf to trunk"
-    (let [vcs (-> (vcs.jj/->JujutsuVCS *test-repo-dir*)
-                (assoc :vcs/config (vcs.jj/config {:dir *test-repo-dir*})))
+    (let [vcs (system/new-vcs
+                {:vcs :jujutsu}
+                {:project-dir *test-repo-dir*})
           {:keys [nodes trunk-change-id]} (vcs/read-all-nodes vcs)
           g (graph/build-graph nodes trunk-change-id)
 
@@ -135,8 +139,9 @@
 
 (deftest jujutsu-current-change-id-test
   (testing "gets current change id using project-dir"
-    (let [vcs (-> (vcs.jj/->JujutsuVCS *test-repo-dir*)
-                (assoc :vcs/config (vcs.jj/config {:dir *test-repo-dir*})))
+    (let [vcs (system/new-vcs
+                {:vcs :jujutsu}
+                {:project-dir *test-repo-dir*})
           change-id (vcs/current-change-id vcs)]
       (is (string? change-id) "Should return a string")
       (is (not-empty change-id) "Should not be empty"))))

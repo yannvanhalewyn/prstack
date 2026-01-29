@@ -26,7 +26,7 @@
     (dissoc coll (first path))
     (update-in coll (butlast path) dissoc (last path))))
 
-(defn vectorize [x]
+(defn ^:lsp/allow-unused vectorize [x]
   (cond
     (nil? x) []
     (sequential? x) (vec x)
