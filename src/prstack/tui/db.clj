@@ -23,7 +23,7 @@
 (def ^:lsp/allow-unused AppState
   [:map
    ;; System
-   [:app-state/system system/System]
+   [:app-state/system system/SystemSchema]
 
    ;; Stacks
    [:app-state/current-stacks [:fn #(instance? clojure.lang.Delay %)]]
