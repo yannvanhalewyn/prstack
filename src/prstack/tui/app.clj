@@ -41,6 +41,8 @@
              (ui/format-pr-info pr
                {:error (get-in http-request [:http/error :error/message])
                 :pending? (= (:http/status http-request) :status/pending)
+                :head-change cur-change
+                :base-change prev-change
                 :wrong-base-branch wrong-base-branch}))))
     ;; Render the base branch at the bottom
     [(ui/format-change (last stack))]))

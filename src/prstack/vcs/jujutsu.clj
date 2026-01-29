@@ -142,7 +142,7 @@
                   "-T" (str "separate(';', "
                             "change_id, "
                             "commit_id, "
-                            "parents.map(|p| p.change_id().short()).join(' '), "
+                            "parents.map(|p| p.change_id()).join(' '), "
                             "local_bookmarks.join(' '), "
                             "remote_bookmarks.join(' ')) "
                             "++ \"\\n\"")])]

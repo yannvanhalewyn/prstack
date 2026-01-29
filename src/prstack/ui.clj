@@ -19,8 +19,7 @@
                        :feature-base ["◉" :bright-yellow]
                        :regular      ["\ue0a0" :default]
                        ["\ue0a0" :default])]
-    (str " " (ansi/colorize color icon) " "
-         (ansi/colorize color branch-name))))
+    (ansi/colorize color (str icon " " branch-name))))
 
 (defn format-pr-info
   "Formats PR information for display.
@@ -40,7 +39,7 @@
     :wrong-base-branch - If set, indicates the PR has the wrong base branch (expected value)
 
   Returns a formatted string with status indicator, PR number, and title."
-  [pr-info {:keys [error pending? wrong-base-branch]}]
+  [pr-info {:keys [error pending? _head-change base-change wrong-base-branch]}]
   (cond
     (:pr/url pr-info)
     (str (case (:pr/status pr-info)
@@ -51,11 +50,10 @@
          " "
          (ansi/colorize :blue (str "#" (:pr/number pr-info)))
          " " (:pr/title pr-info)
-         " "
          (when wrong-base-branch
-           (str " "
-                (ansi/colorize :yellow "⚠ Wrong base") ": "
-                (ansi/colorize :bold (:pr/base-branch pr-info)))))
+           (str "  "
+                (ansi/colorize :red "⚠ Wrong base: ")
+                (format-change base-change))))
 
     pending? (ansi/colorize :gray "  Fetching...")
     error    (str (ansi/colorize :red "X") " " error)
