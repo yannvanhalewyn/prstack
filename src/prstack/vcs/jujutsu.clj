@@ -130,7 +130,7 @@
         (str/trim
           (u/run-cmd
             ["jj" "log" "--no-graph" "-r" trunk-branch
-             "-T" "change_id.short()"]))
+             "-T" "change_id"]))
         ;; Get all changes from any trunk commit to all bookmark heads
         ;; This uses trunk()::bookmarks() to include stacks that forked from
         ;; old trunk commits (before trunk advanced), rather than restricting
@@ -140,7 +140,7 @@
                  ["jj" "log" "--no-graph"
                   "-r" revset
                   "-T" (str "separate(';', "
-                            "change_id.short(), "
+                            "change_id, "
                             "commit_id, "
                             "parents.map(|p| p.change_id().short()).join(' '), "
                             "local_bookmarks.join(' '), "
@@ -152,7 +152,7 @@
 (defn current-change-id
   "Returns the change-id of the current working copy (@)."
   []
-  (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id.short()"])))
+  (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id"])))
 
 (defn read-current-stack-nodes
   "TODO fix Reads a graph specifically for the current working copy stack.
@@ -170,7 +170,7 @@
         "-T" (str "separate('#PRSTACK#', "
                   "change_id, "
                   "commit_id, "
-                  "parents.map(|p| p.change_id().short()).join(' '), "
+                  "parents.map(|p| p.change_id()).join(' '), "
                   "local_bookmarks.join(' '), "
                   "remote_bookmarks.join(' ')) "
                   "++ \"\\n\"")]))
