@@ -4,12 +4,14 @@
     [bb-tty.tty :as tty]
     [bb-tty.tui :as tui]
     [clojure.java.browse :as browse]
+    [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.sync :as commands.sync]
     [prstack.config :as config]
     [prstack.github :as github]
     [prstack.pr :as pr]
     [prstack.stack :as stack]
     [prstack.system :as system]
+    [prstack.ui :as ui]
     [prstack.utils :as u]))
 
 (defn- http-request-schema [result-schema]
@@ -176,6 +178,7 @@
 
 (defmethod dispatch! :event/refresh
   [_evt]
+  (spit ",out.log" "Refresh" :append true)
   (dispatch! [:event/read-local-repo])
   (dispatch! [:event/fetch-prs]))
 
@@ -205,16 +208,13 @@
   (when-let [{:keys [selected-change prev-change]}
              (and (not (:pr/url (current-pr @app-state)))
                   (selected-and-prev-change @app-state))]
-    (let [head-branch (:change/selected-branchname selected-change)
-          base-branch (:change/selected-branchname prev-change)]
-      (swap! app-state assoc :app-state/run-in-fg
-        (fn []
-          (println "Creating PR for"
-            (ansi/colorize :blue head-branch)
-            " onto "
-            (ansi/colorize :blue base-branch))
-          (github/create-pr! head-branch base-branch)))
-      (tui/close!))))
+    (swap! app-state assoc :app-state/run-in-fg
+      (fn []
+        (commands.create-prs/create-pr!
+          {:vcs (vcs @app-state)
+           :prs (ui/fetch-prs-with-spinner)
+           :head-change selected-change
+           :base-change prev-change})))))
 
 (defmethod dispatch! :event/merge-pr
   [_evt]

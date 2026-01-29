@@ -49,17 +49,17 @@
            :pr.status/review-required (ansi/colorize :yellow "●")
            (ansi/colorize :gray "?"))
          " "
+         (ansi/colorize :blue (str "#" (:pr/number pr-info)))
+         " " (:pr/title pr-info)
+         " "
          (when wrong-base-branch
            (str " "
                 (ansi/colorize :yellow "⚠ Wrong base") ": "
-                (ansi/colorize :bold (:pr/base-branch pr-info))))
-         " "
-         (ansi/colorize :blue (str "#" (:pr/number pr-info)))
-         " " (:pr/title pr-info))
+                (ansi/colorize :bold (:pr/base-branch pr-info)))))
 
-    pending? (ansi/colorize :gray "Fetching...")
+    pending? (ansi/colorize :gray "  Fetching...")
     error    (str (ansi/colorize :red "X") " " error)
-    :else    (ansi/colorize :gray "No PR found")))
+    :else    (ansi/colorize :gray "  No PR found")))
 
 (defn fetch-prs-with-spinner []
   (let [res (tty/with-spinner (github/list-prs-cmd)

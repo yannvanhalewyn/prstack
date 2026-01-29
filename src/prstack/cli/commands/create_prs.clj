@@ -29,43 +29,50 @@
     (github/create-pr! head-branch base-branch)
     (println (ansi/colorize :green "\n✅ Created PR ... \n"))))
 
+(defn create-pr! [{:keys [vcs prs head-change base-change]}]
+  (let [head-branch (:change/selected-branchname head-change)
+        base-branch (:change/selected-branchname base-change)
+        [prs err] prs
+        ;; Find any PR for this head branch
+        pr (when prs (pr/find-pr prs head-branch))
+        ;; Check if the PR has the correct base branch
+        correct-base? (and pr (= (:pr/base-branch pr) base-branch))]
+    (if err
+      (println (ansi/colorize :red (str "Error: " err)))
+      (cond
+        correct-base?
+        (println
+          (format "PR already exists for %s onto %s, skipping. (%s)\n"
+            (ansi/colorize :blue head-branch)
+            (ansi/colorize :blue base-branch)
+            (ansi/colorize :gray (str "#" (:pr/number pr)))))
+
+        pr
+        (println
+          (format "%s PR exists for %s but has wrong base branch: %s (expected: %s). Skipping.\n"
+            (ansi/colorize :yellow "⚠")
+            (ansi/colorize :blue head-branch)
+            (ansi/colorize :yellow (:pr/base-branch pr))
+            (ansi/colorize :blue base-branch)))
+
+        :else
+        (do
+          (ansi/colorize :yellow "Checking remote branches")
+          (when (ensure-remote-branch! vcs base-change "Base branch not pushed to remote. ")
+            (when (ensure-remote-branch! vcs head-change "Head branch not pushed to remote. ")
+              (prompt-and-create-prs! head-branch base-branch))))))))
+
 (defn create-prs! [vcs {:keys [prs stacks]}]
   (if (seq stacks)
     (do
       (println (ansi/colorize :cyan "Let's create the PRs!\n"))
       (doseq [stack stacks]
-        (doseq [[cur-change next-change] (u/consecutive-pairs stack)]
-          (let [head-branch (:change/selected-branchname next-change)
-                base-branch (:change/selected-branchname cur-change)
-                [prs err] prs
-                ;; Find any PR for this head branch
-                pr (when prs (pr/find-pr prs head-branch))
-                ;; Check if the PR has the correct base branch
-                correct-base? (and pr (= (:pr/base-branch pr) base-branch))]
-            (if err
-              (println (ansi/colorize :red (str "Error: " err)))
-              (cond
-                correct-base?
-                (println
-                  (format "PR already exists for %s onto %s, skipping. (%s)\n"
-                    (ansi/colorize :blue head-branch)
-                    (ansi/colorize :blue base-branch)
-                    (ansi/colorize :gray (str "#" (:pr/number pr)))))
-
-                pr
-                (println
-                  (format "%s PR exists for %s but has wrong base branch: %s (expected: %s). Skipping.\n"
-                    (ansi/colorize :yellow "⚠")
-                    (ansi/colorize :blue head-branch)
-                    (ansi/colorize :yellow (:pr/base-branch pr))
-                    (ansi/colorize :blue base-branch)))
-
-                :else
-                (do
-                  (ansi/colorize :yellow "Checking remote branches")
-                  (when (ensure-remote-branch! vcs cur-change "Base branch not pushed to remote. ")
-                    (when (ensure-remote-branch! vcs next-change "Head branch not pushed to remote. ")
-                      (prompt-and-create-prs! head-branch base-branch))))))))))
+        (doseq [[base-change head-change] (u/consecutive-pairs stack)]
+          (create-pr!
+            {:vcs vcs
+             :prs prs
+             :head-change head-change
+             :base-change base-change}))))
     (println (ansi/colorize :cyan "No PRs to create"))))
 
 ;; TODO also check if branch is pushed before making PR
