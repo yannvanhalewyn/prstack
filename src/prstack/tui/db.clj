@@ -203,6 +203,8 @@
   [{:keys [strategy value]}]
   (swap! app-state assoc :app-state/run-in-fg
     (case strategy
+      :and #(doseq [command value]
+              (u/shell-out command {:echo? true}))
       :pipe #(u/pipeline value {:inherit-last true})
       :shell #(u/shell-out value)))
   (tui/close!))

@@ -19,6 +19,7 @@
 ;;   "git diff $from-sha..$to-sha"                    - Simple shell string
 ;;   ["git" "diff" "$from-sha..$to-sha"]              - Command vector
 ;;   [:shell "git diff $from-sha..$to-sha | less"]    - Explicit shell
+;;   [:and ["git" "diff" "$from-sha..$to-sha"] ["sleep" "2"]]  - Pipeline
 ;;   [:pipe ["git" "diff" "$from-sha..$to-sha"] ["less" "-R"]]  - Pipeline
 (def CommandSpec
   [:or
@@ -194,6 +195,8 @@
                  :value (mapv #(substitute-placeholders % placeholders) args)}
           :shell {:strategy :shell
                   :value (substitute-placeholders (first args) placeholders)}
+          :and {:strategy :and
+                :value (mapv #(substitute-placeholders % placeholders) args)}
           ;; Unknown strategy, treat as shell
           {:strategy :shell
            :value (substitute-placeholders (str/join " " raw-spec) placeholders)}))
