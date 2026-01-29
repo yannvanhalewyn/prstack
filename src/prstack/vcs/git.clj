@@ -21,6 +21,9 @@
   (u/run-cmd ["git" "branch" "-f" branch-name (str "origin/" branch-name)]
     {:echo? true}))
 
+;; TODO don't think this accurately rebases all PRs in the stack
+;; Likely I'll need to support a few rebasing strategies, like using machete,
+;; graphite, or a custom implementation
 (defn rebase-on-trunk! [trunk-branch]
   (u/run-cmd ["git" "rebase" trunk-branch]
     {:echo? true}))

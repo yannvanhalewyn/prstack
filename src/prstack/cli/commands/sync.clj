@@ -17,18 +17,6 @@
   (parse-opts ["--all"])
   (parse-opts []))
 
-(defn- trunk-moved? [vcs]
-  (let [fork-info (vcs/fork-info vcs)
-        trunk-branch (vcs/trunk-branch vcs)
-        local-trunk-ref (:forkpoint-info/local-trunk-commit-sha fork-info)
-        remote-trunk-ref (:forkpoint-info/remote-trunk-commit-sha fork-info)]
-    (println (ansi/colorize :yellow "\nChecking if trunk moved"))
-    (println (ansi/colorize :cyan "Fork point")
-      (:forkpoint-info/fork-point-change-id fork-info))
-    (println (ansi/colorize :cyan (str "local " trunk-branch)) local-trunk-ref)
-    (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk-ref)
-    (not= local-trunk-ref remote-trunk-ref)))
-
 (def command
   {:name "sync"
    :flags [["--all" "-a" "Looks all your stacks, not just the current one"]]
@@ -38,11 +26,21 @@
      (let [opts (parse-opts args)
            system (system/new (config/read-global) (config/read-local))
            vcs (:system/vcs system)
-           {:vcs-config/keys [trunk-branch]} (vcs/vcs-config vcs) ]
+           trunk-branch (vcs/trunk-branch vcs)
+           fork-info (vcs/fork-info vcs)
+           fork-point-ref (:forkpoint-info/fork-point-change-id fork-info)
+           local-trunk-ref (:forkpoint-info/local-trunk-commit-sha fork-info)
+           remote-trunk-ref (:forkpoint-info/remote-trunk-commit-sha fork-info)
+           trunk-moved? (not= local-trunk-ref remote-trunk-ref)
+           fork-point-outdated? (not= fork-point-ref local-trunk-ref)]
        (println (ansi/colorize :yellow "\nFetching branches from remote..."))
        (vcs/fetch! vcs)
 
-       (if (trunk-moved? vcs)
+       ;; Check if trunk moved
+       (println (ansi/colorize :yellow "\nChecking if trunk moved"))
+       (println (ansi/colorize :cyan (str "local " trunk-branch)) local-trunk-ref)
+       (println (ansi/colorize :cyan (str "remote " trunk-branch)) remote-trunk-ref)
+       (if trunk-moved?
          (do
            (println (ansi/colorize :yellow "\nRemote Trunk has changed."))
            (println (format "\nSetting local %s to remote..." (ansi/colorize :blue trunk-branch)))
@@ -50,13 +48,31 @@
            (when (tty/prompt-confirm
                    {:prompt (format "\nRebase on %s?" (ansi/colorize :blue trunk-branch))})
              (vcs/rebase-on-trunk! vcs)))
-         (println (format "Local %s is already up to date with remote. No need to rebase"
-                    trunk-branch)))
+         (println
+           (ansi/colorize :green
+             (format "✓ Local %s up to date with remote"
+               trunk-branch))))
 
+       ;; Check if fork point is outdated
+       (println (ansi/colorize :yellow "\nChecking if fork point is outdated"))
+       (println (ansi/colorize :cyan "Fork point") fork-point-ref)
+       (println (ansi/colorize :cyan (str "local " trunk-branch)) local-trunk-ref)
+
+       (if fork-point-outdated?
+         (when (tty/prompt-confirm
+                 {:prompt (format "\nBranch is forked on outdated commit. Rebase on latest latest %s?" (ansi/colorize :blue trunk-branch))})
+           (vcs/rebase-on-trunk! vcs))
+         (println
+           (ansi/colorize :green
+             (format "✓ Local %s up to date with remote"
+               trunk-branch))))
+
+       ;; Push tracked branches
        (println (ansi/colorize :yellow "\nPushing local tracked branches..."))
        (vcs/push-tracked! vcs)
        (println "\n")
 
+       ;; Read stacks and make missing PRs
        (let [stacks
              (if (:all? opts)
                (stack/get-all-stacks system)

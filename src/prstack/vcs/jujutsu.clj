@@ -78,7 +78,7 @@
     (u/run-cmd
       ["jj" "log" "--no-graph"
        "-r" (format "fork_point(trunk() | %s)" ref)
-       "-T" "change_id.short()"])))
+       "-T" "change_id"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations
@@ -93,6 +93,12 @@
     (map remove-asterisk-from-branch-name
       (str/split log-str #" "))))
 
+(def ^:private separator
+  "#PRSTACK#")
+
+(comment
+  (str/split "foo#PRSTACK#bar#PRSTACK#baz" #"#PRSTACK#"))
+
 (defn- parse-log
   "Parses jj log output into a collection of node maps."
   [output]
@@ -101,7 +107,7 @@
       (comp
         (map str/trim)
         (remove empty?)
-        (map #(str/split % #";"))
+        (map #(str/split % (re-pattern separator)))
         (map (fn [[change-id commit-sha parents-str local-branches-str remote-branches-str]]
                {:change/change-id change-id
                 :change/commit-sha commit-sha
@@ -161,8 +167,8 @@
        ["jj" "log" "--no-graph"
         ;; Gets all changes from fork point to current
         "-r" "fork_point(trunk() | @)::@"
-        "-T" (str "separate(';', "
-                  "change_id.short(), "
+        "-T" (str "separate('#PRSTACK#', "
+                  "change_id, "
                   "commit_id, "
                   "parents.map(|p| p.change_id().short()).join(' '), "
                   "local_bookmarks.join(' '), "
@@ -172,7 +178,7 @@
    (str/trim
      (u/run-cmd
        ["jj" "log" "--no-graph" "-r" trunk-branch
-        "-T" "change_id.short()"]))})
+        "-T" "change_id"]))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS implementation
@@ -186,11 +192,11 @@
       :forkpoint-info/local-trunk-commit-sha
       (u/run-cmd ["jj" "log" "--no-graph"
                   "-r" "fork_point(trunk() | @)"
-                  "-T" "commit_id"])
+                  "-T" "change_id"])
       :forkpoint-info/remote-trunk-commit-sha
       (u/run-cmd ["jj" "log" "--no-graph"
                   "-r" (str trunk-branch "@origin")
-                  "-T" "commit_id"])})))
+                  "-T" "change_id"])})))
 
 (defrecord JujutsuVCS []
   vcs/VCS
