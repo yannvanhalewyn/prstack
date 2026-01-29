@@ -20,7 +20,7 @@
     [:map [:error/type :keyword
            [:error/message :string]]]]])
 
-(def AppState
+(def ^:lsp/allow-unused AppState
   [:map
    ;; System
    [:app-state/system system/System]
@@ -184,14 +184,17 @@
   [_evt]
   (when-let [{:keys [selected-change prev-change]}
              (selected-and-prev-change @app-state)]
-    (swap! app-state assoc :app-state/run-in-fg
-      #(u/shell-out
-         [(System/getenv "EDITOR") "-c"
-          (format "Difft %s..%s"
-            (or (:change/commit-sha prev-change)
-                (:change/selected-branchname prev-change))
-            (:change/commit-sha selected-change))]))
-    (tui/close!)))
+    (let [global-config (get-in @app-state [:app-state/system :system/global-config])
+          from-sha (or (:change/commit-sha prev-change)
+                       (:change/selected-branchname prev-change))
+          to-sha (:change/commit-sha selected-change)
+          {:keys [strategy value]} (config/get-diffview-cmd global-config
+                                     from-sha to-sha)]
+      (swap! app-state assoc :app-state/run-in-fg
+        (case strategy
+          :pipe #(u/pipeline value {:inherit-last true})
+          :shell #(u/shell-out value)))
+      (tui/close!))))
 
 (defmethod dispatch! :event/open-pr
   [_evt]

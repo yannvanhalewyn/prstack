@@ -26,8 +26,12 @@
     (dissoc coll (first path))
     (update-in coll (butlast path) dissoc (last path))))
 
-(defn indexed [x]
-  (map-indexed vector x))
+(defn vectorize [x]
+  (cond
+    (nil? x) []
+    (sequential? x) (vec x)
+    :else
+    (vector x)))
 
 (defn consecutive-pairs [coll]
   (map vector coll (rest coll)))
@@ -88,3 +92,51 @@
     ;; Fallback for non-terminal environments
     (-> (p/shell cmd {:inherit :true})
       p/check)))
+
+(defn pipeline
+  "Executes a pipeline of commands, piping output from one to the next.
+
+  cmds can be either:
+  - A vector of command vectors: [[\"git\" \"diff\" \"a..b\"] [\"less\" \"-R\"]]
+  - A single command vector: [\"git\" \"diff\" \"a..b\"]
+
+  Options:
+  - :echo? - Print commands being executed
+  - :inherit-last - If true, last command inherits stdout (for interactive pagers)"
+  [cmds & [{:keys [echo? inherit-last] :or {inherit-last true}}]]
+  (when echo?
+    (println
+      (ansi/colorize :gray
+        (->> (if (vector? (first cmds)) cmds [cmds])
+          (map #(str/join " " %))
+          (str/join " | ")
+          (str "$ ")))))
+
+  (let [cmds (if (vector? (first cmds)) cmds [cmds])]
+    (if (= 1 (count cmds))
+      ;; Single command - just run it
+      (-> (p/process (first cmds) (if inherit-last {:inherit true} {}))
+        p/check)
+      ;; Multiple commands - pipe them together
+      (let [processes (reduce
+                        (fn [acc cmd]
+                          (let [prev-proc (last acc)
+                                is-last? (= cmd (last cmds))
+                                opts (cond
+                                       ;; Last command in pipeline - inherit stdin/stdout/stderr
+                                       (and inherit-last is-last?)
+                                       {:in (:out prev-proc) :inherit true}
+                                       
+                                       ;; Middle command - read from previous, write to pipe
+                                       prev-proc
+                                       {:in (:out prev-proc)}
+                                       
+                                       ;; First command - just write to pipe
+                                       :else
+                                       {})]
+                            (conj acc (p/process cmd opts))))
+                        []
+                        cmds)]
+        ;; Wait for all processes to complete
+        (doseq [proc processes]
+          (p/check proc))))))
