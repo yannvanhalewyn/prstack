@@ -50,9 +50,13 @@
                            nodes)
         nodes-map (into {}
                     (map (fn [node]
-                           [(:change/change-id node)
-                            (assoc node
-                              :change/children-ids (parent->children (:change/change-id node)))]))
+                           (let [change-id (:change/change-id node)
+                                 parent-ids (:change/parent-ids node)]
+                             [change-id
+                              (assoc node
+                                :change/children-ids (or (parent->children change-id) [])
+                                :change/trunk-node? (= change-id trunk-id)
+                                :change/merge-node? (> (count parent-ids) 1))])))
                     nodes)]
     {:graph/nodes nodes-map
      :graph/trunk-id trunk-id}))

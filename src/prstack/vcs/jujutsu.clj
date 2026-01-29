@@ -16,7 +16,7 @@
 
 (defn detect-trunk-branch
   "Detects wether the trunk branch is named 'master' or 'main'"
-  []
+  [vcs]
   (first
     (into []
       (comp
@@ -25,40 +25,41 @@
       (str/split-lines
         (u/run-cmd
           ["jj" "bookmark" "list"
-           "-T" "self ++ \"\n\""])))))
+           "-T" "self ++ \"\n\""]
+          {:dir (:vcs/project-dir vcs)})))))
 
-(defn detect-trunk-branch! []
-  (or (detect-trunk-branch)
+(defn detect-trunk-branch! [vcs]
+  (or (detect-trunk-branch vcs)
       (throw (ex-info "Could not detect trunk branch" {}))))
 
 (defn config
   "Reads the VCS configuration"
-  []
-  {:vcs-config/trunk-branch (detect-trunk-branch!)})
+  [vcs]
+  {:vcs-config/trunk-branch (detect-trunk-branch! vcs)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Branch Operations
 
-(defn push-branch [branch-name]
+(defn push-branch [vcs branch-name]
   (u/run-cmd ["jj" "git" "push" "-b" branch-name "--allow-new"]
-    {:echo? true}))
+    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
 
-(defn fetch! []
+(defn fetch! [vcs]
   (u/run-cmd ["jj" "git" "fetch"]
-    {:echo? true}))
+    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
 
-(defn set-bookmark-to-remote! [branch-name]
+(defn set-bookmark-to-remote! [vcs branch-name]
   (u/run-cmd ["jj" "bookmark" "set" branch-name
               "-r" (str branch-name "@origin")]
-    {:echo? true}))
+    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
 
-(defn rebase-on-trunk! [trunk-branch]
+(defn rebase-on-trunk! [vcs trunk-branch]
   (u/run-cmd ["jj" "rebase" "-d" trunk-branch]
-    {:echo? true}))
+    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
 
-(defn push-tracked! []
+(defn push-tracked! [vcs]
   (u/run-cmd ["jj" "git" "push" "--tracked"]
-    {:echo? true}))
+    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Change data structure
@@ -73,12 +74,13 @@
 
   Uses jj's fork_point() revset function to find where the ref diverged
   from the trunk line."
-  [ref]
+  [vcs ref]
   (str/trim
     (u/run-cmd
       ["jj" "log" "--no-graph"
        "-r" (format "fork_point(trunk() | %s)" ref)
-       "-T" "change_id"])))
+       "-T" "change_id"]
+      {:vcs/project-dir vcs})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations
@@ -125,12 +127,14 @@
   graph representation with parent/child relationships.
 
   Returns a Graph (see prstack.vcs.graph/Graph)"
-  [{:vcs-config/keys [trunk-branch]}]
-  (let [trunk-change-id
+  [vcs]
+  (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config vcs))
+        trunk-change-id
         (str/trim
           (u/run-cmd
             ["jj" "log" "--no-graph" "-r" trunk-branch
-             "-T" "change_id"]))
+             "-T" "change_id"]
+            {:dir (:vcs/project-dir vcs)}))
         ;; Get all changes from any trunk commit to all bookmark heads
         ;; This uses trunk()::bookmarks() to include stacks that forked from
         ;; old trunk commits (before trunk advanced), rather than restricting
@@ -139,20 +143,22 @@
         output (u/run-cmd
                  ["jj" "log" "--no-graph"
                   "-r" revset
-                  "-T" (str "separate(';', "
+                  "-T" (str "separate('#PRSTACK#', "
                             "change_id, "
                             "commit_id, "
                             "parents.map(|p| p.change_id()).join(' '), "
                             "local_bookmarks.join(' '), "
                             "remote_bookmarks.join(' ')) "
-                            "++ \"\\n\"")])]
+                            "++ \"\\n\"")]
+                 {:dir (:vcs/project-dir vcs)})]
     {:nodes (parse-log output)
      :trunk-change-id trunk-change-id}))
 
 (defn current-change-id
   "Returns the change-id of the current working copy (@)."
-  []
-  (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id"])))
+  [vcs]
+  (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id"]
+              {:dir (:vcs/project-dir vcs)})))
 
 (defn read-current-stack-nodes
   "TODO fix Reads a graph specifically for the current working copy stack.
@@ -160,25 +166,28 @@
   This includes all changes from trunk to @, even if @ is not bookmarked.
 
   Returns a Graph (see prstack.vcs.graph/Graph)"
-  [{:vcs-config/keys [trunk-branch]}]
-  {:nodes
-   (parse-log
-     (u/run-cmd
-       ["jj" "log" "--no-graph"
-        ;; Gets all changes from fork point to current
-        "-r" "fork_point(trunk() | @)::@"
-        "-T" (str "separate('#PRSTACK#', "
-                  "change_id, "
-                  "commit_id, "
-                  "parents.map(|p| p.change_id()).join(' '), "
-                  "local_bookmarks.join(' '), "
-                  "remote_bookmarks.join(' ')) "
-                  "++ \"\\n\"")]))
-   :trunk-change-id
-   (str/trim
-     (u/run-cmd
-       ["jj" "log" "--no-graph" "-r" trunk-branch
-        "-T" "change_id"]))})
+  [{:keys [vcs/project-dir] :as vcs}]
+  (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config vcs))]
+    {:nodes
+     (parse-log
+       (u/run-cmd
+         ["jj" "log" "--no-graph"
+         ;; Gets all changes from fork point to current
+          "-r" "fork_point(trunk() | @)::@"
+          "-T" (str "separate('#PRSTACK#', "
+                    "change_id, "
+                    "commit_id, "
+                    "parents.map(|p| p.change_id()).join(' '), "
+                    "local_bookmarks.join(' '), "
+                    "remote_bookmarks.join(' ')) "
+                    "++ \"\\n\"")]
+         {:dir project-dir}))
+     :trunk-change-id
+     (str/trim
+       (u/run-cmd
+         ["jj" "log" "--no-graph" "-r" trunk-branch
+          "-T" "change_id"]
+         {:dir project-dir}))}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS implementation
@@ -187,51 +196,54 @@
   ([vcs]
    (fork-info vcs "@"))
   ([vcs ref]
-   (let [trunk-branch (vcs/trunk-branch vcs)]
-     {:forkpoint-info/fork-point-change-id (find-fork-point ref)
+   (let [trunk-branch (vcs/trunk-branch vcs)
+         opts {:dir (:vcs/project-dir vcs)}]
+     {:forkpoint-info/fork-point-change-id (find-fork-point vcs ref)
       :forkpoint-info/local-trunk-commit-sha
       (u/run-cmd ["jj" "log" "--no-graph"
                   "-r" "fork_point(trunk() | @)"
-                  "-T" "change_id"])
+                  "-T" "change_id"]
+        opts)
       :forkpoint-info/remote-trunk-commit-sha
       (u/run-cmd ["jj" "log" "--no-graph"
                   "-r" (str trunk-branch "@origin")
-                  "-T" "change_id"])})))
+                  "-T" "change_id"]
+        opts)})))
 
 (defrecord JujutsuVCS []
   vcs/VCS
-  (read-vcs-config [_this]
-    (config))
+  (read-vcs-config [this]
+    (config this))
 
-  (push-branch [_this branch-name]
-    (push-branch branch-name))
+  (push-branch [this branch-name]
+    (push-branch this branch-name))
 
   (remote-branchname [_this change]
     (remote-branchname change))
 
   (read-all-nodes [this]
-    (read-all-nodes (vcs/vcs-config this)))
+    (read-all-nodes this))
 
   (read-current-stack-nodes [this]
-    (read-current-stack-nodes (vcs/vcs-config this)))
+    (read-current-stack-nodes this))
 
-  (current-change-id [_this]
-    (current-change-id))
+  (current-change-id [this]
+    (current-change-id this))
 
-  (find-fork-point [_this ref]
-    (find-fork-point ref))
+  (find-fork-point [this ref]
+    (find-fork-point this ref))
 
   (fork-info [this]
     (fork-info this))
 
-  (fetch! [_this]
-    (fetch!))
+  (fetch! [this]
+    (fetch! this))
 
-  (set-bookmark-to-remote! [_this branch-name]
-    (set-bookmark-to-remote! branch-name))
+  (set-bookmark-to-remote! [this branch-name]
+    (set-bookmark-to-remote! this branch-name))
 
   (rebase-on-trunk! [this]
-    (rebase-on-trunk! (vcs/trunk-branch this)))
+    (rebase-on-trunk! this (vcs/trunk-branch this)))
 
-  (push-tracked! [_this]
-    (push-tracked!)))
+  (push-tracked! [this]
+    (push-tracked! this)))

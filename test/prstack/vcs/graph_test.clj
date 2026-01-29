@@ -62,7 +62,7 @@
           paths (graph/find-all-paths-to-trunk g "feature-2")]
       (is (= [["feature-2" "feature-1" "trunk"]] paths))))
 
-  (testing "handles merge nodes by following first parent"
+  (testing "handles merge nodes by following all parents"
     (let [g (graph/build-graph
               [{:change/change-id "trunk"
                 :change/parent-ids []
@@ -82,7 +82,10 @@
                 :change/remote-branchnames []}]
               "trunk")
           paths (graph/find-all-paths-to-trunk g "merge")]
-      (is (= [["merge" "branch-a" "trunk"]] paths)))))
+      ;; find-all-paths-to-trunk returns ALL paths, not just first parent
+      (is (= 2 (count paths)))
+      (is (contains? (set paths) ["merge" "branch-a" "trunk"]))
+      (is (contains? (set paths) ["merge" "branch-b" "trunk"])))))
 
 (deftest test-find-all-paths-to-trunk
   (testing "finds all paths from merge node to trunk"

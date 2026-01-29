@@ -13,30 +13,30 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Branch Operations
 
-(defn fetch! []
+(defn fetch! [opts]
   (u/run-cmd ["git" "fetch" "origin"]
-    {:echo? true}))
+    (merge {:echo? true} opts)))
 
-(defn set-bookmark-to-remote! [branch-name]
+(defn set-bookmark-to-remote! [branch-name opts]
   (u/run-cmd ["git" "branch" "-f" branch-name (str "origin/" branch-name)]
-    {:echo? true}))
+    (merge {:echo? true} opts)))
 
 ;; TODO don't think this accurately rebases all PRs in the stack
 ;; Likely I'll need to support a few rebasing strategies, like using machete,
 ;; graphite, or a custom implementation
-(defn rebase-on-trunk! [trunk-branch]
+(defn rebase-on-trunk! [trunk-branch opts]
   (u/run-cmd ["git" "rebase" trunk-branch]
-    {:echo? true}))
+    (merge {:echo? true} opts)))
 
-(defn push-tracked! []
+(defn push-tracked! [opts]
   ;; Git doesn't have a built-in "push all tracked branches" command
   ;; We'll push the current branch with --force-with-lease
   ;; For a more complete implementation, we could iterate over all branches
   ;; that have upstream tracking configured
-  (let [current-branch (str/trim (u/run-cmd ["git" "branch" "--show-current"]))]
+  (let [current-branch (str/trim (u/run-cmd ["git" "branch" "--show-current"] opts))]
     (when-not (str/blank? current-branch)
       (u/run-cmd ["git" "push" "origin" current-branch "--force-with-lease"]
-        {:echo? true}))))
+        (merge {:echo? true} opts)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -45,9 +45,9 @@
   "Detects whether the trunk branch is named 'master' or 'main'.
 
   Looks at local branches to determine which is the trunk."
-  []
+  [opts]
   (let [branches (str/split-lines
-                   (u/run-cmd ["git" "branch" "--list" "master" "main"]))]
+                   (u/run-cmd ["git" "branch" "--list" "master" "main"] opts))]
     (first
       (into []
         (comp
@@ -56,8 +56,8 @@
           (filter #{"master" "main"}))
         branches))))
 
-(defn detect-trunk-branch! []
-  (or (detect-trunk-branch)
+(defn detect-trunk-branch! [opts]
+  (or (detect-trunk-branch opts)
       (throw (ex-info "Could not detect trunk branch" {}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -65,13 +65,13 @@
 
 (defn commit-sha
   "Returns the commit SHA for a given ref."
-  [ref]
-  (str/trim (u/run-cmd ["git" "rev-parse" ref])))
+  [ref opts]
+  (str/trim (u/run-cmd ["git" "rev-parse" ref] opts)))
 
 (defn merge-base
   "Finds the merge base (common ancestor) between two refs."
-  [ref1 ref2]
-  (str/trim (u/run-cmd ["git" "merge-base" ref1 ref2])))
+  [ref1 ref2 opts]
+  (str/trim (u/run-cmd ["git" "merge-base" ref1 ref2] opts)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parsing Branche Info
@@ -95,16 +95,17 @@
 
 (defn- get-parent-shas
   "Returns the parent commit SHAs for a given commit."
-  [commit-sha]
-  (let [output (u/run-cmd ["git" "rev-list" "--parents" "-n" "1" commit-sha])
+  [sha opts]
+  (let [output (u/run-cmd ["git" "rev-list" "--parents" "-n" "1" sha] opts)
         parts (str/split (str/trim output) #"\s+")]
     ;; First part is the commit itself, rest are parents
     (into [] (rest parts))))
 
-(defn- get-branches []
+(defn- get-branches [opts]
   (->>
     (u/run-cmd ["git" "branch" "-v" "--all"
-                "--format" "%(refname:lstrip=1)+++%(objectname)+++%(subject)"])
+                "--format" "%(refname:lstrip=1)+++%(objectname)+++%(subject)"]
+      opts)
     (str/split-lines)
     (into []
       (comp
@@ -116,15 +117,16 @@
 (comment
   (parse-branch-info
     "heads/docs/add-workflows-and-diagrams+++7534a572+++(feat): add code example component")
-  (map :branch/name (get-branches)))
+  (map :branch/name (get-branches {:dir "tmp/parallel-branches"})))
 
 (defn get-commits-between
   "Gets all commit SHAs between trunk and the given ref (inclusive).
 
   Returns commits in topological order (oldest to newest)."
-  [trunk-branch ref]
+  [trunk-branch ref opts]
   (let [output (u/run-cmd ["git" "rev-list" "--topo-order" "--reverse"
-                           (str trunk-branch ".." ref)])]
+                           (str trunk-branch ".." ref)]
+                 opts)]
     (into []
       (comp
         (map str/trim)
@@ -135,7 +137,7 @@
   "Gets all commits from trunk to all branch heads.
 
   Returns a set of unique commit SHAs."
-  [trunk-branch]
+  [trunk-branch opts]
   (let [;; Get all local branches except trunk
         branches (into []
                    (comp
@@ -145,9 +147,9 @@
                      (remove #(str/starts-with? % "("))
                      (remove empty?))
                    (str/split-lines
-                     (u/run-cmd ["git" "branch" "--list"])))
+                     (u/run-cmd ["git" "branch" "--list"] opts)))
         ;; Get commits from trunk to each branch
-        all-commits (mapcat #(get-commits-between trunk-branch %) branches)]
+        all-commits (mapcat #(get-commits-between trunk-branch % opts) branches)]
     (into #{} all-commits)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -155,48 +157,50 @@
 
 (defn- parse-change
   "Builds a node map from a commit SHA."
-  [commit-sha trunk-sha branch-idx]
+  [sha trunk-sha branch-idx opts]
   ;; This is the reason git implementation is slow
-  (let [parents (get-parent-shas commit-sha)]
-    {:change/change-id commit-sha
-     :change/commit-sha commit-sha
+  (let [parents (get-parent-shas sha opts)]
+    {:change/change-id sha
+     :change/commit-sha sha
      :change/parent-ids parents
-     :change/local-branchnames (->> (get branch-idx commit-sha)
+     :change/local-branchnames (->> (get branch-idx sha)
                                  (remove remote-branch?)
                                  (map :branch/name))
-     :change/remote-branchnames (->> (get branch-idx commit-sha)
+     :change/remote-branchnames (->> (get branch-idx sha)
                                   (filter remote-branch?)
                                   (map :branch/name))
-     :change/trunk-node? (= commit-sha trunk-sha)}))
+     :change/trunk-node? (= sha trunk-sha)}))
 
 (defn parse-graph-commits
   "Parses a collection of commit SHAs into Change maps."
-  [commit-shas trunk-sha]
-  (let [branch-idx (group-by :branch/commit-sha (get-branches))]
+  [commit-shas trunk-sha opts]
+  (let [branch-idx (group-by :branch/commit-sha (get-branches opts))]
     (into []
-      (map #(parse-change % trunk-sha branch-idx))
+      (map #(parse-change % trunk-sha branch-idx opts))
       commit-shas)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS Implementation
 
-(defn- find-fork-point [vcs ref]
-  (merge-base ref (vcs/trunk-branch vcs)))
+(defn- find-fork-point* [vcs ref]
+  (let [opts {:dir (:project-dir vcs)}]
+    (merge-base ref (vcs/trunk-branch vcs) opts)))
 
 (defn- fork-info [vcs]
-  (let [trunk-branch (vcs/trunk-branch vcs)]
-    {:forkpoint-info/fork-point-change-id (find-fork-point vcs "HEAD")
-     :forkpoint-info/local-trunk-commit-sha (commit-sha trunk-branch)
-     :forkpoint-info/remote-trunk-commit-sha (commit-sha (str "origin/" trunk-branch))}))
+  (let [trunk-branch (vcs/trunk-branch vcs)
+        opts {:dir (:project-dir vcs)}]
+    {:forkpoint-info/fork-point-change-id (find-fork-point* vcs "HEAD")
+     :forkpoint-info/local-trunk-commit-sha (commit-sha trunk-branch opts)
+     :forkpoint-info/remote-trunk-commit-sha (commit-sha (str "origin/" trunk-branch) opts)}))
 
 (defrecord GitVCS []
   vcs/VCS
-  (read-vcs-config [_this]
-    {:vcs-config/trunk-branch (detect-trunk-branch!)})
+  (read-vcs-config [this]
+    {:vcs-config/trunk-branch (detect-trunk-branch! {:dir (:project-dir this)})})
 
-  (push-branch [_this branch-name]
+  (push-branch [this branch-name]
     (u/run-cmd ["git" "push" "-u" "origin" branch-name "--force-with-lease"]
-      {:echo? true}))
+      {:echo? true :dir (:project-dir this)}))
 
   (remote-branchname [_this change]
     (u/find-first
@@ -204,44 +208,46 @@
       (:change/remote-branchnames change)))
 
   (read-all-nodes [this]
-    (let [trunk-branch* (vcs/trunk-branch this)
-          trunk-sha (commit-sha trunk-branch*)
-          commit-shas (get-all-commits-in-range trunk-branch*)
+    (let [opts {:dir (:project-dir this)}
+          trunk-branch* (vcs/trunk-branch this)
+          trunk-sha (commit-sha trunk-branch* opts)
+          commit-shas (get-all-commits-in-range trunk-branch* opts)
           all-commits (conj commit-shas trunk-sha)
-          nodes (parse-graph-commits all-commits trunk-sha)]
+          nodes (parse-graph-commits all-commits trunk-sha opts)]
       {:nodes nodes
        :trunk-change-id trunk-sha}))
 
   (read-current-stack-nodes [this]
-    (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config this))
-          trunk-sha (commit-sha trunk-branch)
-          head-sha (commit-sha "HEAD")
-          commit-shas (get-commits-between trunk-branch "HEAD")
+    (let [opts {:dir (:project-dir this)}
+          trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config this))
+          trunk-sha (commit-sha trunk-branch opts)
+          head-sha (commit-sha "HEAD" opts)
+          commit-shas (get-commits-between trunk-branch "HEAD" opts)
           all-commits (-> commit-shas
                         (conj trunk-sha)
                         (conj head-sha)
                         distinct
                         vec)]
-      {:nodes (parse-graph-commits all-commits trunk-sha)
+      {:nodes (parse-graph-commits all-commits trunk-sha opts)
        :trunk-change-id trunk-sha}))
 
-  (current-change-id [_this]
-    (commit-sha "HEAD"))
+  (current-change-id [this]
+    (commit-sha "HEAD" {:dir (:project-dir this)}))
 
   (find-fork-point [this ref]
-    (find-fork-point this ref))
+    (find-fork-point* this ref))
 
   (fork-info [this]
     (fork-info this))
 
-  (fetch! [_this]
-    (fetch!))
+  (fetch! [this]
+    (fetch! {:dir (:project-dir this)}))
 
-  (set-bookmark-to-remote! [_this branch-name]
-    (set-bookmark-to-remote! branch-name))
+  (set-bookmark-to-remote! [this branch-name]
+    (set-bookmark-to-remote! branch-name {:dir (:project-dir this)}))
 
   (rebase-on-trunk! [this]
-    (rebase-on-trunk! (vcs/trunk-branch this)))
+    (rebase-on-trunk! (vcs/trunk-branch this) {:dir (:project-dir this)}))
 
-  (push-tracked! [_this]
-    (push-tracked!)))
+  (push-tracked! [this]
+    (push-tracked! {:dir (:project-dir this)})))

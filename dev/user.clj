@@ -26,7 +26,6 @@
 ;; Test out Github 'gh' integration
 
 (comment
-  (github/list-prs))
 
 ;; Testing out reading vcs graph
 (comment
@@ -35,6 +34,7 @@
 
   (stack/get-current-stacks sys-)
   (stack/get-all-stacks sys-)
+  (github/list-prs (:system/vcs sys-)))
 
   ;; Deeper
   (do

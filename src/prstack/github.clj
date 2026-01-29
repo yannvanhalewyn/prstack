@@ -61,13 +61,14 @@
 (defn parse-prs-cmd-output [output]
   (map parse-pr (json/read-str output)))
 
-(defn list-prs []
+(defn list-prs [vcs]
   (try
     [(map parse-pr
        (json/read-str
          (u/run-cmd
            ["gh" "pr" "list" "--json"
-            (str/join "," (map name (tools.schema/keys GHJsonPR)))])))]
+            (str/join "," (map name (tools.schema/keys GHJsonPR)))]
+           {:dir (:vcs/project-dir vcs)})))]
     (catch Exception e
       (if (= (str/trim (ex-message e)) "no git remotes found")
         [nil {:error/type :github/no-remote-found
@@ -76,7 +77,7 @@
               :error/message (str/trim (ex-message e))}]))))
 
 (comment
-  (list-prs))
+  (list-prs {:vcs/project-dir "tmp/parallel-branches"}))
 
 (defn create-pr!
   "Create a PR using the GitHub CLI"

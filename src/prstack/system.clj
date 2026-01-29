@@ -15,10 +15,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public API
 
-(defn new [global-config user-config]
-  (let [vcs (if (= (:vcs user-config) :git)
-              (vcs.git/->GitVCS)
-              (vcs.jj/->JujutsuVCS))]
-    {:system/global-config global-config
-     :system/user-config user-config
-     :system/vcs (assoc vcs :vcs/config (vcs/read-vcs-config vcs))}))
+(defn make
+  "Creates a new system with the given configuration.
+
+  Options:
+    :project-dir - Directory of the project to operate on. Defaults to current directory."
+  ([global-config user-config]
+   (make global-config user-config {}))
+  ([global-config user-config {:keys [project-dir]}]
+   (let [vcs (if (= (:vcs user-config) :git)
+               (vcs.git/->GitVCS)
+               (vcs.jj/->JujutsuVCS))]
+     {:system/global-config global-config
+      :system/user-config user-config
+      :system/vcs (assoc vcs
+                    :vcs/config (vcs/read-vcs-config vcs)
+                    :vcs/project-dir project-dir)})))
+
+;; Keep the old name as an alias for backward compatibility
+(def new make)
