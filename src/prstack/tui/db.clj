@@ -232,7 +232,9 @@
                      (ansi/colorize :blue (:change/selected-branchname selected-change))
                      (ansi/colorize :blue (:change/selected-branchname prev-change)))})
             (github/merge-pr! (:pr/number current-pr))
-            ((:exec commands.sync/command) []))))
+            (when (tty/prompt-confirm
+                    {:prompt (str "Would you like to run " (ansi/colorize :yellow "prstack sync") "?")})
+              ((:exec commands.sync/command) [])))))
       (tui/close!))))
 
 (defmethod dispatch! :event/sync

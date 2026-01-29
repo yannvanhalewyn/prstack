@@ -33,6 +33,8 @@
            remote-trunk-ref (:forkpoint-info/remote-trunk-commit-sha fork-info)
            trunk-moved? (not= local-trunk-ref remote-trunk-ref)
            fork-point-outdated? (not= fork-point-ref local-trunk-ref)]
+
+       ;; Fetch from remote
        (println (ansi/colorize :yellow "\nFetching branches from remote..."))
        (vcs/fetch! vcs)
 
