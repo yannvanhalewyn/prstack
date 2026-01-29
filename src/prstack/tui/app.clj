@@ -20,31 +20,23 @@
           (u/consecutive-pairs
             (for [change stack]
               (let [is-selected? (= (:ui/idx change) (:app-state/selected-item-idx state))
-                    ;; Always calculate uncolored for padding purposes
-                    uncolored (ui/format-change change {:no-color? true})
-                    ;; Also get the colored version for non-selected items
-                    colored (ui/format-change change)]
+                    formatted-change (ui/format-change change)]
                 (assoc change
-                  :ui/uncolored uncolored
-                  :ui/colored colored
+                  :ui/formatted formatted-change
+                  :ui/visual-length (ansi/visual-length formatted-change)
                   :ui/is-selected? is-selected?))))]
       (let [[pr http-request wrong-base-branch] (db/sub-pr
-                                                          (:change/selected-branchname cur-change)
-                                                          (:change/selected-branchname prev-change))
-            ;; Pad the uncolored version to get consistent visual width
-            padded-uncolored (format (str "%-" max-width "s")
-                               (:ui/uncolored cur-change))
-            ;; Choose the display version based on selection
-            display-branch (if (:ui/is-selected? cur-change)
-                             ;; For selected: apply background to padded uncolored
-                             (ansi/colorize :bg-gray padded-uncolored)
-                             ;; For unselected: need to pad the colored version
-                             ;; Calculate how much extra padding we need
-                             (let [colored (:ui/colored cur-change)
-                                   visual-len (count (:ui/uncolored cur-change))
-                                   padding-needed (- max-width visual-len)
-                                   padding (apply str (repeat padding-needed " "))]
-                               (str colored padding)))]
+                                                  (:change/selected-branchname cur-change)
+                                                  (:change/selected-branchname prev-change))
+            visual-len (:ui/visual-length cur-change)
+            padding-needed (- max-width visual-len)
+            padding (apply str (repeat padding-needed " "))
+            padded-branchname (str (:ui/formatted cur-change) padding)
+            display-branch (if(:ui/is-selected? cur-change)
+                             (->> padded-branchname
+                                  (ansi/strip-ansi)
+                                  (ansi/colorize :bg-gray))
+                             padded-branchname)]
         (str display-branch " "
              (ui/format-pr-info pr
                {:error (get-in http-request [:http/error :error/message])
@@ -79,9 +71,9 @@
                          (seq
                            (mapcat
                              (fn [stack]
-                               ;; Calculate visual width using uncolored text
+                               ;; Calculate visual width using JLine
                                (map (fn [change]
-                                      (count (ui/format-change change {:no-color? true})))
+                                      (ansi/visual-length (ui/format-change change)))
                                  stack))
                              all-stacks))]
                 (apply max counts)))]
@@ -117,7 +109,7 @@
                   [""]))
               feature-base-stacks))
           #_
-          [(ansi/colorize :cyan "No feature base branches found")])))))
+            [(ansi/colorize :cyan "No feature base branches found")])))))
 
 (defn- render-tabs
   [{:app-state/keys [selected-tab]}]

@@ -41,3 +41,9 @@
   "Removes all ANSI escape codes from a string to get the visual length."
   [s]
   (str/replace s #"\u001b\[[0-9;]*[a-zA-Z]" ""))
+
+(defn visual-length
+  "Returns the visual column width of a string, stripping ANSI codes and
+   accounting for wide characters (e.g., CJK characters, emoji)."
+  [s]
+  (count (strip-ansi s)))

@@ -16,20 +16,18 @@
     (let [[prs prs-err] prs
           cur-branch (:change/selected-branchname cur-change)
           head-branch cur-branch
-            base-branch (:change/selected-branchname prev-change)
+          base-branch (:change/selected-branchname prev-change)
             ;; Find any PR for this head branch
-            pr (when (and prs (not prs-err))
-                 (pr/find-pr prs head-branch))
+          pr (when (and prs (not prs-err))
+               (pr/find-pr prs head-branch))
             ;; Check if the PR has the wrong base branch
-            wrong-base-branch (when (and pr (not= (:pr/base-branch pr) base-branch))
-                                base-branch)
-            formatted-branch (ui/format-change cur-change)
-            ;; Use uncolored text for width calculation. TODO be able to
-            ;; extract width from colorized text
-            uncolored-branch (ui/format-change cur-change {:no-color? true})
-            visual-len (count uncolored-branch)
-            padding-needed (- max-width visual-len)
-            padding (apply str (repeat padding-needed " "))]
+          wrong-base-branch (when (and pr (not= (:pr/base-branch pr) base-branch))
+                              base-branch)
+          formatted-branch (ui/format-change cur-change)
+            ;; Use JLine's visual-length to calculate width from colorized text
+          visual-len (ansi/visual-length formatted-branch)
+          padding-needed (- max-width visual-len)
+          padding (apply str (repeat padding-needed " "))]
       (println (str formatted-branch padding " "
                     (when prs ;; Nil without option `--include-prs`
                       (ui/format-pr-info pr
@@ -52,7 +50,7 @@
                      (mapcat
                        (fn [stack]
                          (map (fn [change]
-                                (count (ui/format-change change {:no-color? true})))
+                                (ansi/visual-length (ui/format-change change)))
                            stack))
                        (stack/reverse-stacks all-stacks)))]
           (apply max counts))

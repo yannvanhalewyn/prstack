@@ -126,5 +126,6 @@
   (read-local)
   (read-global)
   (get-diffview-cmd
-    {:diffview-cmd "git"}
-    #_(read-global) "abc123" "def456"))
+    ;;{:diffview-cmd "git"}
+    (read-global)
+    "abc123" "def456"))

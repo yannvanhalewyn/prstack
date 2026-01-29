@@ -11,24 +11,16 @@
   Type mappings:
     :trunk         -> blue diamond (◆)
     :feature-base  -> orange fisheye (◉)
-    :regular       -> default color git branch icon (\ue0a0)
-
-  Options:
-    :trunk? - Override to force trunk styling (for backwards compatibility)
-    :no-color? - If true, returns uncolored text (useful for applying background colors)"
-  ([change]
-   (format-change change {}))
-  ([change {:keys [no-color?]}]
-   (let [branch-name (:change/selected-branchname change)
-         [icon color] (case (:change/type change)
-                        :trunk        ["◆" :blue]
-                        :feature-base ["◉" :bright-yellow]
-                        :regular      ["\ue0a0" :default]
-                        ["\ue0a0" :default])]
-     (if no-color?
-       (str " " icon " " branch-name)
-       (str " " (ansi/colorize color icon) " "
-            (ansi/colorize color branch-name))))))
+    :regular       -> default color git branch icon (\ue0a0)"
+  [change]
+  (let [branch-name (:change/selected-branchname change)
+        [icon color] (case (:change/type change)
+                       :trunk        ["◆" :blue]
+                       :feature-base ["◉" :bright-yellow]
+                       :regular      ["\ue0a0" :default]
+                       ["\ue0a0" :default])]
+    (str " " (ansi/colorize color icon) " "
+         (ansi/colorize color branch-name))))
 
 (defn format-pr-info
   "Formats PR information for display.
