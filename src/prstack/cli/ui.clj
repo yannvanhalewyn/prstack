@@ -29,7 +29,7 @@
           padding-needed (- max-width visual-len)
           padding (apply str (repeat padding-needed " "))]
       (println (str formatted-branch padding " "
-                    (when prs ;; Nil without option `--include-prs`
+                    (when prs ;; Nil when `--exclude-prs` is passed
                       (ui/format-pr-info pr
                         {:error (:error/message prs-err)
                          :wrong-base-branch wrong-base-branch}))))))

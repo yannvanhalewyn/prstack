@@ -7,4 +7,4 @@
    :description "Displays the status of all the PR stacks"
    :exec
    (fn sync [args]
-     ((:exec commands.list/command) (concat args ["--all" "--include-prs"])))})
+     ((:exec commands.list/command) (concat args ["--all"])))})

@@ -8,13 +8,13 @@
 
 (defn parse-opts [args]
   {:all? (boolean (some #{"--all"} args))
-   :include-prs? (boolean (some #{"--include-prs"} args))})
+   :exclude-prs? (boolean (some #{"--exclude-prs"} args))})
 
 (def command
   {:name "list"
    :description "Lists the current PR stack"
    :flags [["--all" "-a" "Looks for any stacks, not just current"]
-           ["--include-prs" "-I" "Also fetch the matching PR for each branch"]]
+           ["--exclude-prs" "-E" "Don't fetch PRs (faster, useful for scripting)"]]
    :exec
    (fn list [args]
      (let [opts (parse-opts args)
@@ -25,7 +25,7 @@
              (stack/get-current-stacks system))
            split-stacks (stack/split-feature-base-stacks stacks)]
        (cli.ui/print-stacks split-stacks
-         (when (:include-prs? opts)
+         (when-not (:exclude-prs? opts)
            (ui/fetch-prs-with-spinner)))))})
 
 (comment
