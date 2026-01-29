@@ -3,11 +3,8 @@
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
     [clojure.java.io :as io]
-    [prstack.config :as config]
-    [prstack.utils :as u]))
-
-(defn- jj-installed? []
-  (u/binary-exists? "jj"))
+    [prstack.vcs.jujutsu :as vcs.jj]
+    [prstack.config :as config]))
 
 (defn- read-user-choice [prompt options]
   (let [selected (first
@@ -47,7 +44,7 @@
         (println (ansi/colorize :red "\nError: Invalid choice. Exiting."))
         (System/exit 1)))))
 
-(defn- prompt-jj-not-found []
+(defn- prompt-install-jj-or-use-git []
   (println)
   (println (ansi/colorize :yellow "Warning: Jujutsu (jj) binary not found!"))
   (println)
@@ -70,14 +67,12 @@
   (let [config-exists? (config-file-exists?)
         config (when config-exists? (config/read-local))
         vcs (or (:vcs config)
-                (initial-setup!))]
-
-    ;; Check if selected VCS binary exists
-    (let [final-vcs
+                (initial-setup!))
+        final-vcs
           (cond
-            ;; Jujutsu selected but not installed
-            (and (= vcs :jujutsu) (not (jj-installed?)))
-            (let [choice (prompt-jj-not-found)]
+            ;; Jujutsu selected but not installed -> prompt to install or use Git
+            (and (= vcs :jujutsu) (not (vcs.jj/installed?)))
+            (let [choice (prompt-install-jj-or-use-git)]
               (if (= choice :exit)
                 (do
                   (println)
@@ -88,16 +83,16 @@
             :else
             vcs)]
 
-      ;; Write config if it doesn't exist or VCS changed
-      ;; This can happen either when config file doesn't exist, or when it
-      ;; didn't have a value for the `:vcs` key
-      (when (not= final-vcs (:vcs config))
-        (config/write-local
-          (merge
-            {:vcs final-vcs
-             :ignored-branches #{}
-             :feature-base-branches #{}}
-            config)))
+    ;; Write config if it doesn't exist or VCS changed
+    ;; This can happen either when config file doesn't exist, or when it
+    ;; didn't have a value for the `:vcs` key
+    (when (not= final-vcs (:vcs config))
+      (config/write-local
+        (merge
+          {:vcs final-vcs
+           :ignored-branches #{}
+           :feature-base-branches #{}}
+          config)))
 
-      ;; Return the final VCS choice
-      final-vcs)))
+    ;; Return the final VCS choice
+    final-vcs))

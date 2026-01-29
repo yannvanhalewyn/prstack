@@ -8,6 +8,9 @@
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
+(defn installed? []
+  (u/binary-exists? "jj"))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
 
