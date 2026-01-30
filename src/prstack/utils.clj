@@ -112,33 +112,28 @@
           (str/join " | ")
           (str "$ ")))))
 
-  (let [cmds (if (vector? (first cmds)) cmds [cmds])]
-    (if (= 1 (count cmds))
-      ;; Single command - just run it
-      (-> (p/process (first cmds) (if inherit-last {:inherit true} {}))
-        p/check)
-      ;; Multiple commands - pipe them together
-      (let [processes
-            (reduce
-              (fn [acc cmd]
-                (let [prev-proc (last acc)
-                      is-last? (= cmd (last cmds))
-                      opts
-                      (cond
-                        ;; Last command in pipeline - inherit stdin/stdout/stderr
-                        (and inherit-last is-last?)
-                        {:in (:out prev-proc) :inherit true}
+  (let [cmds (if (vector? (first cmds)) cmds [cmds])
+        processes
+        (reduce
+          (fn [acc cmd]
+            (let [prev-proc (last acc)
+                  is-last? (= cmd (last cmds))
+                  opts
+                  (cond
+                    ;; Last command in pipeline - inherit stdin/stdout/stderr
+                    (and inherit-last is-last?)
+                    {:in (:out prev-proc) :inherit true}
 
-                        ;; Middle command - read from previous, write to pipe
-                        prev-proc
-                        {:in (:out prev-proc)}
+                    ;; Middle command - read from previous, write to pipe
+                    prev-proc
+                    {:in (:out prev-proc)}
 
-                        ;; First command - just write to pipe
-                        :else
-                        {})]
-                  (conj acc (p/process cmd opts))))
-              []
-              cmds)]
-        ;; Wait for all processes to complete
-        (doseq [proc processes]
-          (p/check proc))))))
+                    ;; First command - just write to pipe
+                    :else
+                    {})]
+              (conj acc (p/process cmd opts))))
+          []
+          cmds)]
+    ;; Wait for all processes to complete
+      (doseq [proc processes]
+        (p/check proc))))

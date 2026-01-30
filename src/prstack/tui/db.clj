@@ -12,7 +12,8 @@
     [prstack.stack :as stack]
     [prstack.system :as system]
     [prstack.ui :as ui]
-    [prstack.utils :as u]))
+    [prstack.utils :as u]
+    [prstack.custom-command :as custom-command]))
 
 (defn- http-request-schema [result-schema]
   [:map
@@ -43,6 +44,9 @@
 
 (defn vcs [state]
   (get-in state [:app-state/system :system/vcs]))
+
+(defn global-config [state]
+  (get-in state [:app-state/system :system/global-config]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Displaying Stacks
@@ -178,7 +182,6 @@
 
 (defmethod dispatch! :event/refresh
   [_evt]
-  (spit ",out.log" "Refresh" :append true)
   (dispatch! [:event/read-local-repo])
   (dispatch! [:event/fetch-prs]))
 
@@ -200,27 +203,23 @@
 (defn run-command!
   "Executes a prepared command (with :strategy and :value).
    Sets up the app state to run in foreground and closes the TUI."
-  [{:keys [strategy value]}]
+  [cmd]
   (swap! app-state assoc :app-state/run-in-fg
-    (case strategy
-      :and #(doseq [command value]
-              (u/shell-out command {:echo? true}))
-      :pipe #(u/pipeline value {:inherit-last true})
-      :shell #(u/shell-out value)))
+    #(custom-command/run-command! cmd))
   (tui/close!))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
   (when-let [context (build-command-context @app-state)]
-    (let [global-config (get-in @app-state [:app-state/system :system/global-config])
-          cmd (config/get-diffview-cmd global-config context)]
-      (run-command! cmd))))
+    (let [global-config (global-config @app-state)]
+      (run-command!
+        (config/diffview-command global-config context)))))
 
 (defmethod dispatch! :event/run-custom-command
-  [[_evt keybinding]]
+  [[_evt key-str]]
   (when-let [context (build-command-context @app-state)]
-    (let [global-config (get-in @app-state [:app-state/system :system/global-config])]
-      (when-let [cmd (config/get-custom-command global-config keybinding context)]
+    (let [global-config (global-config @app-state)]
+      (when-let [cmd (config/custom-command global-config key-str context)]
         (run-command! cmd)))))
 
 (defmethod dispatch! :event/open-pr
