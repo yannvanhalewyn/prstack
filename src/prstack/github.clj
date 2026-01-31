@@ -61,20 +61,28 @@
 (defn parse-prs-cmd-output [output]
   (map parse-pr (json/read-str output)))
 
-(defn list-prs [vcs]
-  (try
-    [(map parse-pr
-       (json/read-str
-         (u/run-cmd
-           ["gh" "pr" "list" "--json"
-            (str/join "," (map name (tools.schema/keys GHJsonPR)))]
-           {:dir (:vcs/project-dir vcs)})))]
-    (catch Exception e
-      (if (= (str/trim (ex-message e)) "no git remotes found")
-        [nil {:error/type :github/no-remote-found
-              :error/message "No remote found"}]
-        [nil {:error/type :github/error-fetching-prs
-              :error/message (str/trim (ex-message e))}]))))
+(defn list-prs
+  "Lists open PRs by default. Use :state option to filter:
+   - :open (default)
+   - :merged
+   - :closed
+   - :all"
+  ([vcs] (list-prs vcs {}))
+  ([vcs {:keys [state] :or {state :open}}]
+   (try
+     [(map parse-pr
+        (json/read-str
+          (u/run-cmd
+            ["gh" "pr" "list"
+             "--state" (name state)
+             "--json" (str/join "," (map name (tools.schema/keys GHJsonPR)))]
+            {:dir (:vcs/project-dir vcs)})))]
+     (catch Exception e
+       (if (= (str/trim (ex-message e)) "no git remotes found")
+         [nil {:error/type :github/no-remote-found
+               :error/message "No remote found"}]
+         [nil {:error/type :github/error-fetching-prs
+               :error/message (str/trim (ex-message e))}])))))
 
 (comment
   (list-prs {:vcs/project-dir "tmp/parallel-branches"}))
@@ -93,4 +101,11 @@
   ;; maybe choose not to delete local branch?
   (u/shell-out
     ["gh" "pr" "merge" pr-number]
+    {:echo? true}))
+
+(defn update-pr-base!
+  "Updates the base branch of a PR"
+  [pr-number new-base]
+  (u/shell-out
+    ["gh" "pr" "edit" (str pr-number) "--base" new-base]
     {:echo? true}))

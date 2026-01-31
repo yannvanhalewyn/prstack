@@ -147,6 +147,18 @@
        (subvec (vec stack) feature-base-idx)]
       [nil stack])))
 
+(defn- stack-branch-signature
+  "Returns a unique signature for a stack based on its branch names.
+  Used for deduplication."
+  [stack]
+  (mapv :change/selected-branchname stack))
+
+(defn- feature-base-branch-name
+  "Returns the feature-base branch name from a feature-base stack.
+  The feature-base is the last element (top of stack before reversal)."
+  [stack]
+  (:change/selected-branchname (last stack)))
+
 (defn split-feature-base-stacks
   "Takes a list of stacks and truncates them starting at the feature base
   branches instead of the trunk. Returns a seperate list of feature base
@@ -157,9 +169,24 @@
     :regular-stacks - stacks truncated at feature base branches
     :feature-base-stacks - stacks from trunk to each feature base branch"
   [stacks]
-  (let [partitioned-stacks (map partition-at-feature-base stacks)]
-    {:regular-stacks (map second partitioned-stacks)
-     :feature-base-stacks (distinct (keep first partitioned-stacks))}))
+  (let [partitioned-stacks (map partition-at-feature-base stacks)
+        feature-base-stacks (keep first partitioned-stacks)
+        regular-stacks (map second partitioned-stacks)
+        ;; Deduplicate feature-base stacks by the feature-base branch name,
+        ;; keeping the shortest path (fewest intermediate branches).
+        ;; This handles cases where merge commits create multiple paths.
+        unique-feature-base-stacks
+        (->> feature-base-stacks
+          (group-by feature-base-branch-name)
+          vals
+          (map #(apply min-key count %)))
+        ;; Deduplicate regular stacks by branch signature.
+        ;; After partitioning, different paths through the graph may result
+        ;; in the same regular stack (same branches from feature-base to leaf).
+        unique-regular-stacks
+        (vals (into {} (map (juxt stack-branch-signature identity) regular-stacks)))]
+    {:regular-stacks unique-regular-stacks
+     :feature-base-stacks unique-feature-base-stacks}))
 
 (comment
   (def stacks

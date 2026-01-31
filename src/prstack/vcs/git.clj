@@ -15,18 +15,18 @@
 
 (defn fetch! [vcs]
   (u/run-cmd ["git" "fetch" "origin"]
-    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
+    {:echo? true :dir (:vcs/project-dir vcs)}))
 
 (defn set-bookmark-to-remote! [vcs branch-name]
   (u/run-cmd ["git" "branch" "-f" branch-name (str "origin/" branch-name)]
-    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
+    {:echo? true :dir (:vcs/project-dir vcs)}))
 
 ;; TODO don't think this accurately rebases all PRs in the stack
 ;; Likely I'll need to support a few rebasing strategies, like using machete,
 ;; graphite, or a custom implementation
 (defn rebase-on-trunk! [vcs]
   (u/run-cmd ["git" "rebase" (vcs/trunk-branch vcs)]
-    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
+    {:echo? true :dir (:vcs/project-dir vcs)}))
 
 (defn push-tracked! [vcs]
   ;; Git doesn't have a built-in "push all tracked branches" command
@@ -38,6 +38,27 @@
     (when-not (str/blank? current-branch)
       (u/run-cmd ["git" "push" "origin" current-branch "--force-with-lease"]
         (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))))
+
+(defn delete-bookmark! [vcs branch-name]
+  (u/run-cmd ["git" "branch" "-D" branch-name]
+    {:dir (:vcs/project-dir vcs) :echo? true}))
+
+(defn list-local-bookmarks [vcs]
+  (let [output (u/run-cmd ["git" "branch" "--list" "--format" "%(refname:short)"]
+                 {:dir (:vcs/project-dir vcs)})]
+    (into []
+      (comp
+        (map str/trim)
+        (remove empty?))
+      (str/split-lines output))))
+
+(defn get-change-id [vcs ref]
+  (str/trim (u/run-cmd ["git" "rev-parse" ref]
+              {:dir (:vcs/project-dir vcs)})))
+
+(defn rebase-on! [vcs target-ref]
+  (u/run-cmd ["git" "rebase" target-ref]
+    {:dir (:vcs/project-dir vcs) :echo? true}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -252,4 +273,16 @@
     (rebase-on-trunk! this))
 
   (push-tracked! [this]
-    (push-tracked! this)))
+    (push-tracked! this))
+
+  (delete-bookmark! [this bookmark-name]
+    (delete-bookmark! this bookmark-name))
+
+  (list-local-bookmarks [this]
+    (list-local-bookmarks this))
+
+  (get-change-id [this ref]
+    (get-change-id this ref))
+
+  (rebase-on! [this target-ref]
+    (rebase-on! this target-ref)))

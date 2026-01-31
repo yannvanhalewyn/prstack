@@ -25,14 +25,24 @@
    [:commands {:optional true}
     [:map-of :string custom-command/Command]]])
 
+(defn- read-edn [file]
+  (when (.exists file)
+    (with-open [rdr (io/reader file)]
+      (try
+        (edn/read {:readers {'env System/getenv}}
+          (PushbackReader. rdr))
+        (catch Exception e
+          (println (ansi/colorize :yellow "Warning:" )
+            (str "Error reading EDN config file at " file) (ex-message e))
+          nil)))))
+
 (defn read-local []
-  (let [config (let [file (io/file ".prstack/config.edn")]
-                 (when (.exists file)
-                   (with-open [rdr (io/reader file)]
-                     (edn/read (PushbackReader. rdr)))))]
-    (-> (or config {})
-      (update :ignored-branches #(set (or % [])))
-      (update :feature-base-branches #(set (or % []))))))
+  (read-edn (io/file ".prstack/config.edn")))
+
+(defn read-global []
+  (read-edn
+    (io/file (System/getProperty "user.home")
+      ".config" "prstack" "config.edn")))
 
 (defn write-local [config]
   (let [file (io/file ".prstack/config.edn")
@@ -47,29 +57,15 @@
       (with-open [wtr (io/writer file)]
         (pp/pprint config-to-write wtr)))))
 
-(defn read-global []
-  (let [config-dir (io/file (System/getProperty "user.home") ".config" "prstack")
-        config-file (io/file config-dir "config.edn")]
-    (when (.exists config-file)
-      (with-open [rdr (io/reader config-file)]
-        (try
-          (edn/read (PushbackReader. rdr))
-          (catch Exception e
-            (println (ansi/colorize :yellow "Warning:" )
-              "Error reading EDN config file at ~/.config/prstack/config.edn:" (ex-message e))
-            nil))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Useful accessors
+;; Accessors
 
 (defn diffview-command
   "Returns a prepared diffview command strategy according to context."
   [global-config context]
   (custom-command/prepare-command
     (or (:diffview-cmd global-config)
-        [:pipe
-         ["git" "diff" "$from-sha..$to-sha" "--no-pager" "--color=always" ]
-         [(or (System/getenv "PAGER") "less") "-R"]])
+        ["git" "diff" "$from-sha..$to-sha"])
     context))
 
 (defn custom-command

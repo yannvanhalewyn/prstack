@@ -5,6 +5,7 @@
   must implement, and provides a unified interface for working with different
   VCS systems (Git, Jujutsu, etc.)."
   (:require
+    [clojure.string :as str]
     [prstack.vcs.graph :as graph]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -171,7 +172,49 @@
        String, output from the push command
 
      Throws:
-       ExceptionInfo if push fails"))
+       ExceptionInfo if push fails")
+
+  (delete-bookmark! [this bookmark-name]
+    "Deletes a local bookmark/branch.
+
+     Args:
+       bookmark-name - String, the name of the bookmark/branch to delete
+
+     Side effects:
+       Removes the local bookmark/branch
+
+     Returns:
+       String, output from the command")
+
+  (list-local-bookmarks [this]
+    "Returns a list of all local bookmark/branch names.
+
+     Returns:
+       Vector of strings, each being a bookmark/branch name")
+
+  (get-change-id [this ref]
+    "Returns the change-id/commit-sha for a given ref.
+
+     Args:
+       ref - String, a ref like branch name, 'HEAD', '@', etc.
+
+     Returns:
+       String, the change-id or commit-sha for the ref")
+
+  (rebase-on! [this target-ref]
+    "Rebases the current change/commit onto the given target ref.
+
+     Args:
+       target-ref - String, the ref to rebase onto (branch name, commit, etc.)
+
+     Side effects:
+       Rebases current working copy onto target
+
+     Returns:
+       String, output from the rebase command
+
+     Throws:
+       ExceptionInfo if rebase fails"))
 
 (defn vcs-config [vcs]
   (:vcs/config vcs))
@@ -184,7 +227,12 @@
 
 (defn- parse-change
   [change {:keys [ignored-branches feature-base-branches]}]
-  (let [selected-branch (first (remove ignored-branches (:change/local-branchnames change)))
+  (let [;; Filter out ignored branches and remote refs (containing @)
+        ;; Remote refs like "branch@origin" should not be selected as local branches
+        local-only-branches (remove #(or (ignored-branches %)
+                                         (str/includes? % "@"))
+                              (:change/local-branchnames change))
+        selected-branch (first local-only-branches)
         feature-base? (and selected-branch (contains? feature-base-branches selected-branch))
         type
         (cond

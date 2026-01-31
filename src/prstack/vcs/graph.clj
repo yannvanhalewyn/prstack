@@ -3,9 +3,9 @@
   It uses a DAG with bidirectional edges (parent/child) and metadata about
   branches, trunk, and merge status."
   (:require
-   [prstack.change :as change]
-   [prstack.tools.schema :as tools.schema]
-   [prstack.utils :as u]))
+    [prstack.change :as change]
+    [prstack.tools.schema :as tools.schema]
+    [prstack.utils :as u]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
@@ -159,6 +159,35 @@
                    (mapcat #(dfs % (conj path current-id))
                      parents)))))]
      (dfs node-id []))))
+
+(defn is-ancestor?
+  "Checks if ancestor-id is an ancestor of descendant-id in the graph.
+  Traverses parent edges from descendant looking for ancestor.
+
+  Args:
+    vcs-graph - the graph to search
+    ancestor-id - change-id of the potential ancestor
+    descendant-id - change-id of the potential descendant
+
+  Returns:
+    Boolean, true if ancestor-id is reachable by following parent edges from descendant-id"
+  [vcs-graph ancestor-id descendant-id]
+  (if (= ancestor-id descendant-id)
+    true
+    (loop [to-visit #{descendant-id}
+           visited #{}]
+      (if (empty? to-visit)
+        false
+        (let [current-id (first to-visit)
+              rest-to-visit (disj to-visit current-id)]
+          (cond
+            (= current-id ancestor-id) true
+            (visited current-id) (recur rest-to-visit visited)
+            :else
+            (let [node (get-node vcs-graph current-id)
+                  parents (set (:change/parent-ids node))]
+              (recur (into rest-to-visit (remove visited parents))
+                (conj visited current-id)))))))))
 
 (comment
   (def test-graph
