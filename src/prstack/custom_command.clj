@@ -86,6 +86,7 @@
   "
   (:require
     [clojure.string :as str]
+    [clojure.walk :as walk]
     [prstack.utils :as u]))
 
 ;; Command specification schema - supports multiple execution strategies
@@ -112,25 +113,26 @@
 (def Command
   [:or
    :string
-   [:sequential [:string]]
-   [:fn (fn [x]
-          (and (sequential? x)
-               (#{:shell :pipe :and} (first x))))]])
+   [:and
+    :list
+    [:fn #(#{'do 'pipe} (first %))]]])
 
 (defn- substitute-placeholders
-  "Replaces placeholders in a command or string with actual values.
-  Supports both $placeholder and :placeholder syntax."
-  [cmd placeholders]
-  (letfn [(replace-placeholders [s]
-            (reduce (fn [s [placeholder value]]
-                      (if value
-                        (str/replace s placeholder value)
-                        s))
-              s placeholders))]
-    (cond
-      (vector? cmd) (mapv replace-placeholders cmd)
-      (string? cmd) (replace-placeholders cmd)
-      :else cmd)))
+  "Walks the entire data structure and replaces placeholder strings with actual values.
+  Handles nested structures (lists, vectors, maps) and only transforms strings."
+  [data placeholders]
+  (let [replace-in-string (fn [s]
+                            (reduce (fn [s [placeholder value]]
+                                      (if value
+                                        (str/replace s placeholder value)
+                                        s))
+                              s placeholders))]
+    (walk/postwalk
+      (fn [x]
+        (if (string? x)
+          (replace-in-string x)
+          x))
+      data)))
 
 (defn build-placeholders
   "Builds placeholder map from context.
@@ -153,58 +155,85 @@
 
 (comment
   (substitute-placeholders ["git" "diff" "$from-sha..$to-sha"]
+    (build-placeholders {:from-sha "abc123" :to-sha "def456"}))
+  (substitute-placeholders '(pipe
+                              ["git" "diff" "$from-sha..$to-sha"]
+                              ["delta"])
     (build-placeholders {:from-sha "abc123" :to-sha "def456"})))
 
 (defn prepare-command
-  "Prepares a command for execution by resolving placeholders and determining strategy.
+  "Prepares a command for execution by resolving placeholders.
 
-  Returns a map with ::strategy and ::value keys:
-    {::strategy :pipe|:shell, ::value <prepared-command>}
+  Walks the entire command structure and substitutes placeholders, returning
+  a command ready for eval-command.
 
   Command spec can be:
-    - String: \"git diff $from-sha..$to-sha\" -> {::strategy :shell ::value \"...\"}
-    - Vector: [\"git\" \"diff\" ...] -> {::strategy :pipe ::value [[\"git\" \"diff\" ...]]}
-    - [:shell \"...\"] -> {::strategy :shell ::value \"...\"}
-    - [:pipe [...] [...]] -> {::strategy :pipe ::value [[...] [...]]}
-    - Map with :cmd key -> extracts :cmd and processes
+    - String: \"git diff $from-sha..$to-sha\"
+    - Vector: [\"git\" \"diff\" \"$from-sha..$to-sha\"]
+    - List with symbol: (pipe [\"git\" \"diff\" \"$from-sha..$to-sha\"] [\"less\"])
+                        (and [\"cmd1\"] [\"cmd2\"])
+                        (shell \"ls | grep foo\")
 
   Context is a map that can include:
-    :from-sha, :to-sha     - Commit SHAs
+    :from-sha, :to-sha       - Commit SHAs
     :from-branch, :to-branch - Branch names
-    :pr-number, :pr-url    - PR information"
+    :pr-number, :pr-url      - PR information
+
+  Returns the command with placeholders substituted, ready for eval-command."
   [cmd-spec context]
   (let [placeholders (build-placeholders context)]
-    (cond
-      ;; Keyword-based dispatch [::shell ...] or [:pipe ...]
-      (and (sequential? cmd-spec) (keyword? (first cmd-spec)))
-      (let [[strategy & args] cmd-spec]
-        (case strategy
-          :pipe {::strategy ::pipe
-                 ::value (mapv #(substitute-placeholders % placeholders) args)}
-          :shell {::strategy ::shell
-                  ::value (substitute-placeholders (first args) placeholders)}
-          :and {::strategy ::and
-                ::value (mapv #(substitute-placeholders % placeholders) args)}
-          ;; Unknown strategy, treat as shell
-          {::strategy ::shell
-           ::value (substitute-placeholders cmd-spec placeholders)}))
+    (substitute-placeholders cmd-spec placeholders)))
 
-      ;; String or vec - run as shell command
-      (or (string? cmd-spec) (sequential? cmd-spec))
-      {::strategy ::shell
-       ::value (substitute-placeholders cmd-spec placeholders)}
+(declare eval-command)
 
-      :else nil)))
+(def ^:private command-strategies
+  "Map of symbol -> handler function for list-based commands.
+  Each handler receives the arguments (rest of the list) and executes them."
+  {'pipe (fn [args]
+           (u/pipeline (vec args) {:inherit-last true}))
+   'do  (fn [args]
+           (doseq [cmd args]
+             (eval-command cmd)))
+   'or   (fn [args]
+           (loop [[cmd & rest] args]
+             (when cmd
+               (let [result (eval-command cmd)]
+                 (when-not (zero? (:exit result 0))
+                   (recur rest))))))})
 
-(defn run-command!
-  "Executes a prepared command (with ::strategy and ::value).
-  Sets up the app state to run in foreground and closes the TUI."
-  [{::keys [value strategy] :as cmd}]
-  (case strategy
-    ::and (doseq [command value]
-            (u/shell-out command {:echo? true}))
-    ::pipe (u/pipeline value {:inherit-last true})
-    ::shell (u/shell-out value)))
+(defn eval-command
+  "Evaluates a command form. Supports:
+  - String: executed as shell command
+  - Vector of strings: executed as command with args
+  - List starting with symbol: looks up strategy and applies args
+
+  Examples:
+    \"ls -la\"                    -> shell command
+    [\"git\" \"status\"]            -> command with args
+    (pipe [\"ls\"] [\"grep\" \"x\"])  -> pipes ls into grep
+    (and [\"cmd1\"] [\"cmd2\"])     -> runs cmd1 then cmd2
+    (shell \"ls | grep foo\")     -> explicit shell (for pipes/redirects)"
+  [cmd]
+  (cond
+    ;; String - run as shell command
+    (string? cmd)
+    (u/shell-out cmd)
+
+    ;; Vector of strings - run as command with args
+    (vector? cmd)
+    (u/shell-out cmd)
+
+    ;; List with symbol - dispatch to strategy
+    (and (list? cmd) (symbol? (first cmd)))
+    (let [[op & args] cmd
+          handler (get command-strategies op)]
+      (if handler
+        (handler args)
+        (throw (ex-info (str "Unknown command strategy: " op)
+                 {:op op :available (keys command-strategies)}))))
+
+    :else
+    (throw (ex-info "Invalid command form" {:cmd cmd}))))
 
 (comment
   (def user-config- (prstack.config/read-local))
@@ -215,10 +244,6 @@
 
   (prepare-command [:pipe ["git" "diff" "$from-sha..$to-sha"] ["less" "-R"]]
     {:from-sha "abc123" :to-sha "def456"})
-
-  (run-command!
-    {::strategy ::shell
-     ::value "ls" })
 
   (prepare-command "gh pr edit $pr-number --body \"$(git diff $from-sha..$to-sha | opencode describe)\""
     {:from-sha "abc" :to-sha "def" :pr-number 42}))

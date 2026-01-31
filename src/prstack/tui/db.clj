@@ -205,7 +205,7 @@
    Sets up the app state to run in foreground and closes the TUI."
   [cmd]
   (swap! app-state assoc :app-state/run-in-fg
-    #(custom-command/run-command! cmd))
+    #(custom-command/eval-command cmd))
   (tui/close!))
 
 (defmethod dispatch! :event/run-diff
