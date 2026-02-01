@@ -211,7 +211,12 @@
         local-only-branches (remove #(or (ignored-branches %)
                                          (str/includes? % "@"))
                               (:change/local-branchnames change))
-        selected-branch (first local-only-branches)
+        ;; Also filter remote branches by ignored-branches
+        remote-branches (remove ignored-branches
+                          (:change/remote-branchnames change))
+        ;; Prefer local branch, fall back to remote branch
+        selected-branch (or (first local-only-branches)
+                            (first remote-branches))
         feature-base? (and selected-branch (contains? feature-base-branches selected-branch))
         type
         (cond

@@ -68,12 +68,19 @@
   (let [vcs-graph (vcs/read-graph vcs user-config)
         bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
         leaves (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)]
+    ;; DEBUG: Print leaves to understand the issue
+    (println "DEBUG: leaves count:" (count leaves))
+    (doseq [leaf leaves]
+      (println "DEBUG: leaf change-id:" (pr-str (:change/change-id leaf))
+               "selected-branch:" (pr-str (:change/selected-branchname leaf))))
     (mapcat
       (fn [leaf]
         ;; Find the fork point for this leaf to handle cases where trunk has
         ;; advanced
-        (node->stacks leaf vcs-graph
-          (vcs/find-fork-point vcs (:change/change-id leaf))))
+        (let [change-id (:change/change-id leaf)]
+          (when (seq change-id)  ;; Guard against empty change-id
+            (node->stacks leaf vcs-graph
+              (vcs/find-fork-point vcs change-id)))))
       leaves)))
 
 (defn get-current-stacks

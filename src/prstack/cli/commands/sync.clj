@@ -14,6 +14,11 @@
    [prstack.vcs.branch :as vcs.branch]
    [prstack.vcs.graph :as vcs.graph]))
 
+(defn- read-vcs-graph [system opts]
+  (if (:all? opts)
+    (vcs/read-graph (:system/vcs system) (:system/user-config system))
+    (vcs/read-current-stack-graph system)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI Helpers (TODO move to some UI namespace)
 
@@ -44,10 +49,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 2: Cleanup merged branches
 
-(defn- cleanup-merged-branches! [system]
+(defn- cleanup-merged-branches! [system opts]
   (ui-header "Checking for merged PRs")
   (let [vcs (:system/vcs system)
-        vcs-graph (vcs/read-current-stack-graph system)
+        vcs-graph (read-vcs-graph system opts)
         [merged-prs err] (github/list-prs vcs {:state :merged})
         local-bookmarks (set (vcs.graph/all-selected-branchnames vcs-graph))
         to-delete (filter #(contains? local-bookmarks (:pr/head-branch %)) merged-prs)]
@@ -76,10 +81,10 @@
 (defn- sync-branches!
   "Syncs branches by either pushing or pulling them, according to their status.
   Returns the set of branches that were pulled."
-  [system]
+  [system opts]
   (ui-header "Syncing branches")
   (let [vcs (:system/vcs system)
-        vcs-graph (vcs/read-current-stack-graph system)
+        vcs-graph (read-vcs-graph system opts)
         selected-branches (vcs.branch/selected-branches-info vcs-graph)]
 
     ;; Show status for all branches
@@ -161,7 +166,7 @@
                  (stack/get-all-stacks system)
                  (stack/get-current-stacks system))
         split-stacks (stack/split-feature-base-stacks stacks)
-        [prs] (ui/fetch-prs-with-spinner)]
+        [prs _err :as pr-result] (ui/fetch-prs-with-spinner)]
 
     (cli.ui/print-stacks split-stacks [prs])
 
@@ -179,7 +184,7 @@
         (when has-missing-prs?
           (ui-info "Stack " (ui-branch leaf-branch) " has branches without PRs")
           (when (tty/prompt-confirm {:prompt "Create missing PRs?"})
-            (commands.create-prs/create-prs! vcs {:prs prs :stack stack})))))))
+            (commands.create-prs/create-prs! vcs {:prs pr-result :stacks [stack]})))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main command
@@ -202,10 +207,10 @@
        (fetch! vcs)
 
        ;; Step 2: Cleanup merged branches
-       (cleanup-merged-branches! system)
+       (cleanup-merged-branches! system opts)
 
        ;; Step 3: Sync base branches
-       (let [pulled-branches (sync-branches! system)
+       (let [pulled-branches (sync-branches! system opts)
              current-stacks (stack/get-current-stacks system)]
          ;; Step 4: Offer rebase if base was pulled
          (offer-rebase! vcs pulled-branches current-stacks))

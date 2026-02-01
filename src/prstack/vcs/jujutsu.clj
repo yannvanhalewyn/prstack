@@ -183,8 +183,10 @@
   ;; This uses trunk()::bookmarks() to include stacks that forked from
   ;; old trunk commits (before trunk advanced), rather than restricting
   ;; to descendants of the current trunk bookmark position
-  (read-nodes vcs "trunk()::bookmarks()"))
+  (read-nodes vcs "trunk()::(bookmarks() | remote_bookmarks())"))
 
+;; Probably ditch this in favor of a single 'read-relevant-nodes' functions
+;; In sync, will need to select the bookmarks according to --all
 (defn read-current-stack-nodes
   "Reads a graph specifically for the current working copy stack.
 

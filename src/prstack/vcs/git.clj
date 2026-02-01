@@ -52,19 +52,20 @@
   "Detects whether the trunk branch is named 'master' or 'main'.
 
   Looks at local branches to determine which is the trunk."
-  [opts]
+  [vcs]
   (let [branches (str/split-lines
-                   (u/run-cmd ["git" "branch" "--list" "master" "main"] opts))]
+                   (u/run-cmd ["git" "branch" "--list" "master" "main"]
+                     {:dir (:vcs/project-dir vcs)}))]
     (first
       (into []
         (comp
           (map str/trim)
-          (map #(str/replace % #"^\*\s+" ""))
+          (map #(str/replace % #"^[*+]\s+" ""))
           (filter #{"master" "main"}))
         branches))))
 
-(defn detect-trunk-branch! [opts]
-  (or (detect-trunk-branch opts)
+(defn detect-trunk-branch! [vcs]
+  (or (detect-trunk-branch vcs)
       (throw (ex-info "Could not detect trunk branch" {}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -142,25 +143,39 @@
         (remove empty?))
       (str/split-lines output))))
 
-(defn get-all-commits-in-range
-  "Gets all commits from trunk to all branch heads.
+(defn- parse-log-line
+  "Parses a single line from git log output.
+  Format: SHA+++PARENTS
+  Returns nil for invalid lines."
+  [line]
+  (when-not (str/blank? line)
+    (let [[sha parents] (str/split line #"\+\+\+" 2)]
+      (when (and sha (not (str/blank? sha)))
+        {:sha sha
+         :parent-shas (if (or (nil? parents) (str/blank? parents))
+                        []
+                        (str/split parents #" "))}))))
 
-  Returns a set of unique commit SHAs."
-  [vcs trunk-branch]
-  (let [;; Get all local branches except trunk
-        branches (into []
-                   (comp
-                     (map str/trim)
-                     (map #(str/replace % #"^\*\s+" ""))
-                     (remove #{trunk-branch})
-                     (remove #(str/starts-with? % "("))
-                     (remove empty?))
-                   (str/split-lines
-                     (u/run-cmd ["git" "branch" "--list"]
-                       {:dir (:vcs/project-dir vcs)})))
-        ;; Get commits from trunk to each branch
-        all-commits (mapcat #(get-commits-between vcs trunk-branch %) branches)]
-    (into #{} all-commits)))
+(defn get-all-commits-from-log
+  "Gets all commits reachable from any branch but not from trunk.
+  Uses git log with --branches --remotes to include remote branches that may be
+  ahead of local branches. Returns a map of commit SHA to parsed commit info."
+  [vcs]
+  (let [trunk-branch (vcs/trunk-branch vcs)
+        output (u/run-cmd ["git" "log" "--branches" "--remotes"
+                           "--not" trunk-branch
+                           "--format=%H+++%P"
+                           "--topo-order"]
+                 {:dir (:vcs/project-dir vcs)})]
+    (->> output
+      str/split-lines
+      (keep parse-log-line)
+      (reduce
+        (fn [acc {:keys [sha parent-shas]}]
+          (if (contains? acc sha)
+            acc  ;; Already seen this commit, skip
+            (assoc acc sha {:sha sha :parent-shas parent-shas})))
+        {}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations
@@ -168,7 +183,6 @@
 (defn- parse-change
   "Builds a node map from a commit SHA."
   [sha vcs trunk-sha branch-idx]
-  ;; This is the reason git implementation is slow
   (let [parents (get-parent-shas vcs sha)]
     {:change/change-id sha
      :change/commit-sha sha
@@ -181,6 +195,45 @@
                                   (map :branch/name))
      :change/trunk-node? (= sha trunk-sha)}))
 
+(defn- build-change-from-log-entry
+  "Builds a change map from a parsed log entry and branch index.
+  Returns nil for entries with blank sha."
+  [log-entry branch-idx trunk-sha]
+  (when-let [sha (not-empty (:sha log-entry))]
+    (let [branches-at-sha (get branch-idx sha [])
+          local-branches (->> branches-at-sha
+                           (remove remote-branch?)
+                           (map :branch/name)
+                           vec)
+          remote-branches (->> branches-at-sha
+                            (filter remote-branch?)
+                            (map :branch/name)
+                            vec)]
+      {:change/change-id sha
+       :change/commit-sha sha
+       :change/parent-ids (:parent-shas log-entry)
+       :change/local-branchnames local-branches
+       :change/remote-branchnames remote-branches
+       :change/trunk-node? (= sha trunk-sha)})))
+
+(defn- build-trunk-change
+  "Builds the trunk change node."
+  [trunk-sha vcs branch-idx]
+  (let [parents (get-parent-shas vcs trunk-sha)
+        branches-at-sha (get branch-idx trunk-sha [])]
+    {:change/change-id trunk-sha
+     :change/commit-sha trunk-sha
+     :change/parent-ids parents
+     :change/local-branchnames (->> branches-at-sha
+                                 (remove remote-branch?)
+                                 (map :branch/name)
+                                 vec)
+     :change/remote-branchnames (->> branches-at-sha
+                                  (filter remote-branch?)
+                                  (map :branch/name)
+                                  vec)
+     :change/trunk-node? true}))
+
 (defn parse-graph-commits
   "Parses a collection of commit SHAs into Change maps."
   [vcs commit-shas trunk-sha]
@@ -188,6 +241,21 @@
     (into []
       (map #(parse-change % vcs trunk-sha branch-idx))
       commit-shas)))
+
+(defn build-changes-from-log
+  "Builds change maps from git log output and branch index.
+
+  Combines commit info from git log with branch pointer info from get-branches.
+  Filters out any changes with blank change-id to prevent downstream errors."
+  [vcs log-entries trunk-sha]
+  (let [branch-idx (group-by :branch/commit-sha (get-branches vcs))
+        trunk-change (build-trunk-change trunk-sha vcs branch-idx)
+        other-changes (into []
+                        (keep #(build-change-from-log-entry % branch-idx trunk-sha))
+                        (vals log-entries))]
+    (->> (conj other-changes trunk-change)
+      (remove #(str/blank? (:change/change-id %)))
+      vec)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS Implementation
@@ -206,23 +274,19 @@
 (defrecord GitVCS []
   vcs/VCS
   (read-vcs-config [this]
-    {:vcs-config/trunk-branch (detect-trunk-branch! {:dir (:vcs/project-dir this)})})
+    {:vcs-config/trunk-branch (detect-trunk-branch! this)})
 
   (push-branch! [this branch-name]
     (u/run-cmd ["git" "push" "-u" "origin" branch-name "--force-with-lease"]
       {:echo? true :dir (:vcs/project-dir this)}))
 
   (remote-branchname [_this change]
-    (u/find-first
-      #(str/starts-with? % "origin/")
-      (:change/remote-branchnames change)))
+    (first (:change/remote-branchnames change)))
 
   (read-all-nodes [this]
-    (let [trunk-branch* (vcs/trunk-branch this)
-          trunk-sha (commit-sha this trunk-branch*)
-          commit-shas (get-all-commits-in-range this trunk-branch*)
-          all-commits (conj commit-shas trunk-sha)
-          nodes (parse-graph-commits this all-commits trunk-sha)]
+    (let [trunk-sha (commit-sha this (vcs/trunk-branch this))
+          log-entries (get-all-commits-from-log this)
+          nodes (build-changes-from-log this log-entries trunk-sha)]
       {:nodes nodes
        :trunk-change-id trunk-sha}))
 

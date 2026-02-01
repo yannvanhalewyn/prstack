@@ -28,7 +28,7 @@
   (def sys-
     (system/new
       (config/read-global)
-      (assoc (config/read-local) :vcs :jujutsu)
+      (assoc (config/read-local) :vcs :git)
       {:project-dir "./tmp/parallel-branches"}))
 
   (stack/get-current-stacks sys-)
