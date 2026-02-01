@@ -68,10 +68,6 @@
   (u/run-cmd ["jj" "rebase" "-d" trunk-branch]
     {:echo? true :dir (:vcs/project-dir vcs)}))
 
-(defn push-tracked! [vcs]
-  (u/run-cmd ["jj" "git" "push" "--tracked"]
-    {:echo? true :dir (:vcs/project-dir vcs)}))
-
 (defn delete-bookmark! [vcs bookmark-name]
   (u/run-cmd ["jj" "bookmark" "delete" bookmark-name]
     {:dir (:vcs/project-dir vcs) :echo? true}))
@@ -266,9 +262,6 @@
 
   (rebase-on-trunk! [this]
     (rebase-on-trunk! this (vcs/trunk-branch this)))
-
-  (push-tracked! [this]
-    (push-tracked! this))
 
   (delete-bookmark! [this bookmark-name]
     (delete-bookmark! this bookmark-name))

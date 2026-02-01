@@ -162,18 +162,6 @@
      Throws:
        ExceptionInfo if rebase fails")
 
-  (push-tracked! [this]
-    "Pushes all tracked branches to the remote repository.
-
-     Side effects:
-       Pushes all locally tracked branches to remote
-
-     Returns:
-       String, output from the push command
-
-     Throws:
-       ExceptionInfo if push fails")
-
   (delete-bookmark! [this bookmark-name]
     "Deletes a local bookmark/branch.
 

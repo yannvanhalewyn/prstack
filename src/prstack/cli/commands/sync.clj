@@ -140,16 +140,7 @@
             (ui-success "Rebased")))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Step 5: Push working branches
-
-(defn- push-branches! [vcs]
-  (ui-header "Push working branches")
-  (when (tty/prompt-confirm {:prompt "  Push tracked branches?"})
-    (vcs/push-tracked! vcs)
-    (ui-success "Pushed")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Step 6: Show status & create PRs
+;; Step 5: Show status & create PRs
 
 (defn- show-status-and-create-prs! [vcs system opts]
   (ui-header "Stack status")
@@ -207,10 +198,7 @@
          ;; Step 4: Offer rebase if base was pulled
          (offer-rebase! vcs pulled-branches current-stacks))
 
-       ;; Step 5: Push working branches
-       (push-branches! vcs)
-
-       ;; Step 6: Show status & create PRs
+       ;; Step 5: Show status & create PRs
        (show-status-and-create-prs! vcs system opts)
 
        (println)

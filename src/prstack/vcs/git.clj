@@ -28,17 +28,6 @@
   (u/run-cmd ["git" "rebase" (vcs/trunk-branch vcs)]
     {:echo? true :dir (:vcs/project-dir vcs)}))
 
-(defn push-tracked! [vcs]
-  ;; Git doesn't have a built-in "push all tracked branches" command
-  ;; We'll push the current branch with --force-with-lease
-  ;; For a more complete implementation, we could iterate over all branches
-  ;; that have upstream tracking configured
-  (let [current-branch (str/trim (u/run-cmd ["git" "branch" "--show-current"]
-                                   {:dir (:vcs/project-dir vcs)}))]
-    (when-not (str/blank? current-branch)
-      (u/run-cmd ["git" "push" "origin" current-branch "--force-with-lease"]
-        (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))))
-
 (defn delete-bookmark! [vcs branch-name]
   (u/run-cmd ["git" "branch" "-D" branch-name]
     {:dir (:vcs/project-dir vcs) :echo? true}))
@@ -271,9 +260,6 @@
 
   (rebase-on-trunk! [this]
     (rebase-on-trunk! this))
-
-  (push-tracked! [this]
-    (push-tracked! this))
 
   (delete-bookmark! [this bookmark-name]
     (delete-bookmark! this bookmark-name))
