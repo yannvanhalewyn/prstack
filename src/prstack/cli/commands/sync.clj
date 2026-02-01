@@ -62,10 +62,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 3: Sync base branches
 
-(defn- sync-base-branches!
-  "Syncs base branches. Returns set of branches that were pulled."
+(defn- sync-branches!
+  "Syncs branches by either pushing or pulling them, according to their status.
+  Returns the set of branches that were pulled."
   [system]
-  (ui-header "Syncing base branches")
+  (ui-header "Syncing branches")
   (let [vcs (:system/vcs system)
         vcs-graph (vcs/read-graph vcs (:system/user-config system))
         selected-branches (vcs.branch/selected-branches-info vcs-graph)]
@@ -83,7 +84,7 @@
     (let [pulled (atom #{})]
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/behind? selected-branches)]
         (println)
-        (when (tty/prompt-confirm {:prompt (format "Pull %s?" branchname)})
+        (when (tty/prompt-confirm {:prompt (format "Pull %s?" (ui-branch branchname))})
           (ui-info "Pulling " (ui-branch branchname) "...")
           (vcs/set-bookmark-to-remote! vcs branchname)
           (ui-success "Pulled")
@@ -91,7 +92,7 @@
 
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/ahead? selected-branches)]
         (println)
-        (when (tty/prompt-confirm {:prompt (format "Push %s?" branchname)})
+        (when (tty/prompt-confirm {:prompt (format "Push %s?" (ui-branch branchname))})
           (ui-info "Pushing " (ui-branch branchname) "...")
           (vcs/push-branch! vcs branchname)
           (ui-success "Pushed")))
@@ -193,7 +194,7 @@
        (cleanup-merged-branches! vcs)
 
        ;; Step 3: Sync base branches
-       (let [pulled-branches (sync-base-branches! system)
+       (let [pulled-branches (sync-branches! system)
              current-stacks (stack/get-current-stacks system)]
          ;; Step 4: Offer rebase if base was pulled
          (offer-rebase! vcs pulled-branches current-stacks))
