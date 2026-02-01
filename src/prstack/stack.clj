@@ -90,6 +90,13 @@
         paths (vcs.graph/find-all-paths-to-trunk vcs-graph current-id fork-point-id)]
     (keep #(path->stack % vcs-graph) paths)))
 
+(defn has-segments? [stack]
+  ;; When a stack has only the trunk node
+  (> (count stack) 1))
+
+(defn any-segments? [stacks]
+  (some has-segments? stacks))
+
 (comment
   (def sys-
     (prstack.system/new

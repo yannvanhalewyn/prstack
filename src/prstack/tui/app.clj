@@ -5,11 +5,12 @@
     [bb-tty.tty :as tty]
     [bb-tty.tui :as tui]
     [clojure.string :as str]
+    [prstack.config :as config]
     [prstack.init :as init]
+    [prstack.stack :as stack]
     [prstack.tui.db :as db]
     [prstack.ui :as ui]
-    [prstack.utils :as u]
-    [prstack.config :as config]))
+    [prstack.utils :as u]))
 
 (defn- render-stack-section
   "Renders a single stack with PR information.
@@ -87,9 +88,7 @@
                 (apply max counts)))]
         (cond->
           ;; When every stack has only the trunk node, that means no stacks
-          (if (not (every? #(>= (count %) 1) regular-stacks))
-            [(ansi/colorize :cyan "No stacks detetected")
-             "Create some branches to see some stacks appear."]
+          (if (stack/any-segments? regular-stacks)
             (when (and (seq regular-stacks)
                        (not (every? #(<= (count %) 1) regular-stacks)))
               (mapcat
@@ -105,7 +104,9 @@
                     (when-not (and (= i (dec (count regular-stacks)))
                                    (empty? feature-base-stacks))
                       [""])))
-                (u/indexed regular-stacks))))
+                (u/indexed regular-stacks)))
+            [(ansi/colorize :cyan "No stacks detetected")
+             "Create some branches to see some stacks appear."])
           (seq feature-base-stacks)
           ;; Render feature base stacks
           (concat

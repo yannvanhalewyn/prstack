@@ -43,35 +43,35 @@
   stacks must be a map with :regular-stacks and :feature-base-stacks"
   [split-stacks prs]
   (let [{:keys [regular-stacks feature-base-stacks]} split-stacks
-        all-stacks (concat regular-stacks feature-base-stacks)
-        max-width
-        (when-let [counts
-                   (seq
-                     (mapcat
-                       (fn [stack]
-                         (map (fn [change]
-                                (ansi/visual-length (ui/format-change change)))
-                           stack))
-                       (stack/reverse-stacks all-stacks)))]
-          (apply max counts))
-        name-column-width (max 20 (or max-width 0))]
-
-    (when-not (seq regular-stacks)
-      (println (ansi/colorize :cyan "No stacks detetected")))
-
-    ;; Print regular stacks
-    (let [reversed-stacks (stack/reverse-stacks regular-stacks)]
-      (doseq [[i stack] (map-indexed vector reversed-stacks)]
-        (print-stack-section stack prs
-          {:max-width name-column-width
-           :header (str "\uf51e "
-                        (if (zero? i) "Current Stack" "Other Stack")
-                        " (" (dec (count stack)) ")")})))
-
-    ;; Print feature base stacks
-    (when (seq feature-base-stacks)
-      (println (ansi/colorize :cyan "\uf126 Feature Base Branches"))
-      (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
-        (doseq [stack reversed-stacks]
+        all-stacks (concat regular-stacks feature-base-stacks)]
+    (if (stack/any-segments? regular-stacks)
+      (let [max-width
+            (when-let [counts
+                       (seq
+                         (mapcat
+                           (fn [stack]
+                             (map (fn [change]
+                                    (ansi/visual-length (ui/format-change change)))
+                               stack))
+                           (stack/reverse-stacks all-stacks)))]
+              (apply max counts))
+            name-column-width (+ (max 20 (or max-width 0)) 2)]
+        ;; Print regular stacks
+        (doseq [[i stack] (map-indexed vector
+                            (stack/reverse-stacks regular-stacks))]
           (print-stack-section stack prs
-            {:max-width name-column-width}))))))
+            {:max-width name-column-width
+             :header (str "\uf51e "
+                          (if (zero? i) "Current Stack" "Other Stack")
+                          " (" (dec (count stack)) ")")}))
+
+        ;; Print feature base stacks
+        (when (seq feature-base-stacks)
+          (println (ansi/colorize :cyan "\uf126 Feature Base Branches"))
+          (let [reversed-stacks (stack/reverse-stacks feature-base-stacks)]
+            (doseq [stack reversed-stacks]
+              (print-stack-section stack prs
+                {:max-width name-column-width})))))
+      (do
+        (println (ansi/colorize :cyan "No stacks detetected"))
+        (println "Create some branches to see some stacks appear.")))))
