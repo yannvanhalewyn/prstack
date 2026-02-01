@@ -11,8 +11,7 @@
     [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.vcs :as vcs]
-    [prstack.vcs.graph :as vcs.graph]
-    [prstack.utils :as u]))
+    [prstack.vcs.branch :as vcs.branch]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI Helpers (TODO move to some UI namespace)
@@ -63,40 +62,26 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 3: Sync base branches
 
-(defn- branch-sync-status
-  "Returns sync status for a branch: :in-sync, :pull, :push, or :diverged"
-  [vcs-graph branchname]
-  (let [local (vcs.graph/find-change-for-local-branchname vcs-graph branchname)
-        remote (vcs.graph/find-change-for-remote-branchname vcs-graph branchname)
-        local-id (:change/change-id local)
-        remote-id (:change/change-id remote)]
-    (cond
-      (= local-id remote-id) :in-sync
-      (vcs.graph/is-ancestor? vcs-graph local-id remote-id) :pull
-      (vcs.graph/is-ancestor? vcs-graph remote-id local-id) :push
-      :else :diverged)))
-
 (defn- sync-base-branches!
   "Syncs base branches. Returns set of branches that were pulled."
-  [system base-branches]
+  [system]
   (ui-header "Syncing base branches")
   (let [vcs (:system/vcs system)
         vcs-graph (vcs/read-graph vcs (:system/user-config system))
-        statuses (u/build-index identity #(branch-sync-status vcs-graph %) base-branches)
-        to-pull (keep (fn [[b s]] (when (= s :pull) b)) statuses)
-        to-push (keep (fn [[b s]] (when (= s :push) b)) statuses)
-        diverged (keep (fn [[b s]] (when (= s :diverged) b)) statuses)]
+        selected-branches (vcs.branch/selected-branches-info vcs-graph)]
 
     ;; Show status for all branches
-    (doseq [branchname base-branches]
-      (case (get statuses branchname)
-        :in-sync (ui-info (ansi/colorize :green "✓") " " (ui-branch branchname) (ansi/colorize :gray " up to date"))
-        :push (ui-info (ansi/colorize :yellow "↑") " " (ui-branch branchname) (ansi/colorize :gray " local ahead"))
-        :pull (ui-info (ansi/colorize :yellow "↓") " " (ui-branch branchname) (ansi/colorize :gray " remote ahead"))
-        :diverged (ui-info (ansi/colorize :red "⚠") " " (ui-branch branchname) (ansi/colorize :red " diverged"))))
+    (doseq [branch selected-branches]
+      (let [branchname (:branch/branchname branch)]
+        (case (:branch/status branch)
+          :branch.status/no-remote (ui-info (ansi/colorize :yellow "•") " " (ui-branch branchname) (ansi/colorize :yellow " no remote"))
+          :branch.status/up-to-date (ui-info (ansi/colorize :green "✓") " " (ui-branch branchname) (ansi/colorize :gray " up to date"))
+          :branch.status/ahead (ui-info (ansi/colorize :yellow "↑") " " (ui-branch branchname) (ansi/colorize :yellow " local ahead"))
+          :branch.status/behind (ui-info (ansi/colorize :yellow "↓") " " (ui-branch branchname) (ansi/colorize :yellow " remote ahead"))
+          :branch.status/diverged (ui-info (ansi/colorize :red "⚠") " " (ui-branch branchname) (ansi/colorize :red " diverged")))))
 
     (let [pulled (atom #{})]
-      (doseq [branchname to-pull]
+      (doseq [{:keys [branch/branchname]} (filter vcs.branch/behind? selected-branches)]
         (println)
         (when (tty/prompt-confirm {:prompt (format "Pull %s?" branchname)})
           (ui-info "Pulling " (ui-branch branchname) "...")
@@ -104,14 +89,14 @@
           (ui-success "Pulled")
           (swap! pulled conj branchname)))
 
-      (doseq [branchname to-push]
+      (doseq [{:keys [branch/branchname]} (filter vcs.branch/ahead? selected-branches)]
         (println)
         (when (tty/prompt-confirm {:prompt (format "Push %s?" branchname)})
           (ui-info "Pushing " (ui-branch branchname) "...")
           (vcs/push-branch! vcs branchname)
           (ui-success "Pushed")))
 
-      (doseq [branchname diverged]
+      (doseq [{:keys [branch/branchname]} (filter vcs.branch/diverged? selected-branches)]
         (println)
         (let [solution
               (tty/prompt-pick
@@ -208,10 +193,7 @@
      (let [opts (parse-opts args)
            local-config (config/read-local)
            system (system/new (config/read-global) local-config global-opts)
-           vcs (:system/vcs system)
-           trunk (vcs/trunk-branch vcs)
-           feature-bases (:feature-base-branches local-config)
-           base-branches (cons trunk feature-bases)]
+           vcs (:system/vcs system)]
 
        ;; Step 1: Fetch
        (fetch! vcs)
@@ -220,7 +202,7 @@
        (cleanup-merged-branches! vcs)
 
        ;; Step 3: Sync base branches
-       (let [pulled-branches (sync-base-branches! system base-branches)
+       (let [pulled-branches (sync-base-branches! system)
              current-stacks (stack/get-current-stacks system)]
          ;; Step 4: Offer rebase if base was pulled
          (offer-rebase! vcs pulled-branches current-stacks))

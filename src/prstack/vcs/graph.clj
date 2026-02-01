@@ -72,6 +72,12 @@
 (defn all-nodes [vcs-graph]
   (vals (:graph/nodes vcs-graph)))
 
+(defn find-nodes [vcs-graph pred]
+  (filter pred (all-nodes vcs-graph)))
+
+(defn all-selected-branchnames [vcs-graph]
+  (keep :change/selected-branchname (all-nodes vcs-graph)))
+
 (defn bookmarked-leaf-nodes
   "Returns all leaf nodes that have local bookmarks.
   These are the 'real' leaves that represent feature branches."
@@ -129,19 +135,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph traversal
-
-(defn find-nodes [vcs-graph pred]
-  (filter pred (all-nodes vcs-graph)))
-
-(defn find-change-for-local-branchname [vcs-graph local-branchname]
-  (first
-   (find-nodes vcs-graph
-     #(some #{local-branchname} (:change/local-branchnames %)))))
-
-(defn find-change-for-remote-branchname [vcs-graph remote-branchname]
-  (first
-   (find-nodes vcs-graph
-     #(some #{remote-branchname} (:change/remote-branchnames %)))))
 
 (defn find-all-paths-to-trunk
   "Finds all paths from node-id to trunk, following all parent edges.
