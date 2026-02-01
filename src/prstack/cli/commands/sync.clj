@@ -146,7 +146,7 @@
         (let [base (first affected-bases)]
           (ui-info "Base " (ui-branch base) " was updated")
           (println)
-          (when (tty/prompt-confirm {:prompt (str "  Rebase onto " base "?")})
+          (when (tty/prompt-confirm {:prompt (str "Rebase onto " base "?")})
             (ui-info "Rebasing...")
             (vcs/rebase-on! vcs base)
             (ui-success "Rebased")))))))
@@ -166,20 +166,20 @@
     (cli.ui/print-stacks split-stacks [prs])
 
     ;; Offer to create missing PRs
-    (doseq [s stacks]
-      (let [leaf-branch (:change/selected-branchname (last s))
-            has-missing-prs? (and (> (count s) 1)
+    (doseq [stack stacks]
+      (let [leaf-branch (:change/selected-branchname (last stack))
+            has-missing-prs? (and (> (count stack) 1)
                                   (some (fn [change]
-                                          (let [b (:change/selected-branchname change)]
-                                            (and b
+                                          (let [branchname (:change/selected-branchname change)]
+                                            (and branchname
                                                  (not= (:change/type change) :trunk)
                                                  (not= (:change/type change) :feature-base)
-                                                 (not (some #(= b (:pr/head-branch %)) prs)))))
-                                    s))]
+                                                 (not (some #(= (:pr/head-branch %) branchname) prs)))))
+                                    stack))]
         (when has-missing-prs?
           (ui-info "Stack " (ui-branch leaf-branch) " has branches without PRs")
-          (when (tty/prompt-confirm {:prompt "  Create missing PRs?"})
-            (commands.create-prs/create-prs! vcs {:prs prs :stack s})))))))
+          (when (tty/prompt-confirm {:prompt "Create missing PRs?"})
+            (commands.create-prs/create-prs! vcs {:prs prs :stack stack})))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main command

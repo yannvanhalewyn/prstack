@@ -1,8 +1,9 @@
 (ns bb-tty.tty
   (:require
-    [bblgum.core :as b]
-    [clojure.string :as str]
-    [prstack.utils :as u]))
+   [bb-tty.ansi :as ansi]
+   [bblgum.core :as b]
+   [clojure.string :as str]
+   [prstack.utils :as u]))
 
 (defn- has-terminal? []
   (try
@@ -48,10 +49,10 @@
    (gum-args {} opts))
   ([base {:keys [prompt]}]
    (cond-> (into [] (mapcat identity base))
-     prompt (concat [:header prompt]))))
+     prompt (concat [:header (str (ansi/colorize :white prompt))]))))
 
 (defn prompt-confirm [{:keys [prompt]}]
-  (:result (b/gum :confirm [prompt] :as :bool)))
+  (:result (b/gum :confirm [(str (ansi/colorize :reset "") prompt)] :as :bool)))
 
 (defn prompt-pick
   {:arglists '([{:keys [prompt options render-option limit]}])}
