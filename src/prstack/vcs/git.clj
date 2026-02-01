@@ -41,10 +41,6 @@
         (remove empty?))
       (str/split-lines output))))
 
-(defn get-change-id [vcs ref]
-  (str/trim (u/run-cmd ["git" "rev-parse" ref]
-              {:dir (:vcs/project-dir vcs)})))
-
 (defn rebase-on! [vcs target-ref]
   (u/run-cmd ["git" "rebase" target-ref]
     {:dir (:vcs/project-dir vcs) :echo? true}))
@@ -266,9 +262,6 @@
 
   (list-local-bookmarks [this]
     (list-local-bookmarks this))
-
-  (get-change-id [this ref]
-    (get-change-id this ref))
 
   (rebase-on! [this target-ref]
     (rebase-on! this target-ref)))

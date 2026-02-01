@@ -180,15 +180,6 @@
      Returns:
        Vector of strings, each being a bookmark/branch name")
 
-  (get-change-id [this ref]
-    "Returns the change-id/commit-sha for a given ref.
-
-     Args:
-       ref - String, a ref like branch name, 'HEAD', '@', etc.
-
-     Returns:
-       String, the change-id or commit-sha for the ref")
-
   (rebase-on! [this target-ref]
     "Rebases the current change/commit onto the given target ref.
 
