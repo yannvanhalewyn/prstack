@@ -5,6 +5,7 @@
     [prstack.config :as config]
     [prstack.github :as github]
     [prstack.stack :as stack]
+    [prstack.system :as system]
     [prstack.vcs :as vcs]
     [prstack.vcs.graph :as vcs.graph]))
 
@@ -23,18 +24,16 @@
   (repl/refresh)
   (start-portal!))
 
-;; Test out Github 'gh' integration
-
 (comment
-
-;; Testing out reading vcs graph
-(comment
-  (def sys- (system/new
-              (assoc (config/read-local) :vcs :jujutsu)))
+  (def sys-
+    (system/new
+      (config/read-global)
+      (assoc (config/read-local) :vcs :jujutsu)
+      {:project-dir "./tmp/parallel-branches"}))
 
   (stack/get-current-stacks sys-)
   (stack/get-all-stacks sys-)
-  (github/list-prs (:system/vcs sys-)))
+  (github/list-prs (:system/vcs sys-))
 
   ;; Deeper
   (do

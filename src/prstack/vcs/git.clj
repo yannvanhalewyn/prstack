@@ -141,7 +141,7 @@
 (comment
   (parse-branch-info
     "heads/docs/add-workflows-and-diagrams+++7534a572+++(feat): add code example component")
-  (map :branch/name (get-branches {:dir "tmp/parallel-branches"})))
+  (map :branch/name (get-branches {:vcs/project-dir "tmp/parallel-branches"})))
 
 (defn get-commits-between
   "Gets all commit SHAs between trunk and the given ref (inclusive).
@@ -223,7 +223,7 @@
   (read-vcs-config [this]
     {:vcs-config/trunk-branch (detect-trunk-branch! {:dir (:vcs/project-dir this)})})
 
-  (push-branch [this branch-name]
+  (push-branch! [this branch-name]
     (u/run-cmd ["git" "push" "-u" "origin" branch-name "--force-with-lease"]
       {:echo? true :dir (:vcs/project-dir this)}))
 

@@ -2,6 +2,7 @@
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
+    [clojure.set :as set]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
@@ -10,259 +11,225 @@
     [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.vcs :as vcs]
-    [prstack.vcs.graph :as vcs.graph]))
+    [prstack.vcs.graph :as vcs.graph]
+    [prstack.utils :as u]))
 
-(defn parse-opts [args]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI Helpers (TODO move to some UI namespace)
+
+(defn- ui-header [title]
+  (println)
+  (println (ansi/colorize :blue (str "▸ " title))))
+
+(defn- ui-info [& parts]
+  (println (str "  " (apply str parts))))
+
+(defn- ui-success [msg]
+  (println (str "  " (ansi/colorize :green "✓") " " msg)))
+
+(defn- ui-branch [name]
+  (ansi/colorize :cyan name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Step 1: Fetch
+
+(defn- fetch! [vcs]
+  (ui-header "Fetching from remote")
+  (vcs/fetch! vcs)
+  (ui-success "Done"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Step 2: Cleanup merged branches
+
+(defn- cleanup-merged-branches! [vcs]
+  (ui-header "Checking for merged PRs")
+  (let [[merged-prs] (github/list-prs vcs {:state :merged})
+        local-bookmarks (set (vcs/list-local-bookmarks vcs))
+        merged-branches (set (map :pr/head-branch merged-prs))
+        to-delete (set/intersection local-bookmarks merged-branches)]
+    (if (empty? to-delete)
+      (ui-success "No merged branches to clean up")
+      (do
+        (ui-info "Local branches with merged PRs:")
+        (doseq [b (sort to-delete)]
+          (ui-info "  • " (ui-branch b)))
+        (println)
+        (when (tty/prompt-confirm {:prompt "  Delete these branches?"})
+          (doseq [b to-delete]
+            (ui-info "Deleting " (ui-branch b) "...")
+            (vcs/delete-bookmark! vcs b))
+          (ui-success "Cleanup complete"))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Step 3: Sync base branches
+
+(defn- branch-sync-status
+  "Returns sync status for a branch: :in-sync, :pull, :push, or :diverged"
+  [vcs-graph branchname]
+  (let [local (vcs.graph/find-change-for-local-branchname vcs-graph branchname)
+        remote (vcs.graph/find-change-for-remote-branchname vcs-graph branchname)
+        local-id (:change/change-id local)
+        remote-id (:change/change-id remote)]
+    (cond
+      (= local-id remote-id) :in-sync
+      (vcs.graph/is-ancestor? vcs-graph local-id remote-id) :pull
+      (vcs.graph/is-ancestor? vcs-graph remote-id local-id) :push
+      :else :diverged)))
+
+(defn- sync-base-branches!
+  "Syncs base branches. Returns set of branches that were pulled."
+  [system base-branches]
+  (ui-header "Syncing base branches")
+  (let [vcs (:system/vcs system)
+        vcs-graph (vcs/read-graph vcs (:system/user-config system))
+        statuses (u/build-index identity #(branch-sync-status vcs-graph %) base-branches)
+        to-pull (keep (fn [[b s]] (when (= s :pull) b)) statuses)
+        to-push (keep (fn [[b s]] (when (= s :push) b)) statuses)
+        diverged (keep (fn [[b s]] (when (= s :diverged) b)) statuses)]
+
+    ;; Show status for all branches
+    (doseq [branchname base-branches]
+      (case (get statuses branchname)
+        :in-sync (ui-info (ansi/colorize :green "✓") " " (ui-branch branchname) (ansi/colorize :gray " up to date"))
+        :push (ui-info (ansi/colorize :yellow "↑") " " (ui-branch branchname) (ansi/colorize :gray " local ahead"))
+        :pull (ui-info (ansi/colorize :yellow "↓") " " (ui-branch branchname) (ansi/colorize :gray " remote ahead"))
+        :diverged (ui-info (ansi/colorize :red "⚠") " " (ui-branch branchname) (ansi/colorize :red " diverged"))))
+
+    (let [pulled (atom #{})]
+      (doseq [branchname to-pull]
+        (println)
+        (when (tty/prompt-confirm {:prompt (format "Pull %s?" branchname)})
+          (ui-info "Pulling " (ui-branch branchname) "...")
+          (vcs/set-bookmark-to-remote! vcs branchname)
+          (ui-success "Pulled")
+          (swap! pulled conj branchname)))
+
+      (doseq [branchname to-push]
+        (println)
+        (when (tty/prompt-confirm {:prompt (format "Push %s?" branchname)})
+          (ui-info "Pushing " (ui-branch branchname) "...")
+          (vcs/push-branch! vcs branchname)
+          (ui-success "Pushed")))
+
+      (doseq [branchname diverged]
+        (println)
+        (let [solution
+              (tty/prompt-pick
+                {:prompt (str "Branch " (ui-branch branchname) " diverged. What do you want to do?")
+                 :options ["Push local to remote" "Set local to remote" "Do nothing"]})]
+          (case solution
+            "Push local to remote"
+            (do
+              (ui-info "Pushing " (ui-branch branchname) "...")
+              (vcs/push-branch! vcs branchname)
+              (ui-success "Pushed"))
+            "Set local to remote"
+            (do
+              (ui-info "Setting " (ui-branch branchname) " to remote...")
+              (vcs/set-bookmark-to-remote! vcs branchname)
+              (ui-success (str "Set local " (ui-branch branchname) " to remote revision")))
+            nil)))
+
+      ;; Return pulled branches for rebase decision
+      @pulled)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Step 4: Offer rebase
+
+(defn- offer-rebase! [vcs pulled-branches current-stacks]
+  (when (seq pulled-branches)
+    (ui-header "Rebase")
+    (let [stack-bases (->> current-stacks
+                        (map first)
+                        (keep :change/selected-branchname)
+                        set)
+          affected-bases (set/intersection stack-bases pulled-branches)]
+      (if (empty? affected-bases)
+        (ui-info (ansi/colorize :gray "Current stack not affected"))
+        (let [base (first affected-bases)]
+          (ui-info "Base " (ui-branch base) " was updated")
+          (println)
+          (when (tty/prompt-confirm {:prompt (str "  Rebase onto " base "?")})
+            (ui-info "Rebasing...")
+            (vcs/rebase-on! vcs base)
+            (ui-success "Rebased")))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Step 5: Push working branches
+
+(defn- push-branches! [vcs]
+  (ui-header "Push working branches")
+  (when (tty/prompt-confirm {:prompt "  Push tracked branches?"})
+    (vcs/push-tracked! vcs)
+    (ui-success "Pushed")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Step 6: Show status & create PRs
+
+(defn- show-status-and-create-prs! [vcs system opts]
+  (ui-header "Stack status")
+  (println)
+  (let [stacks (if (:all? opts)
+                 (stack/get-all-stacks system)
+                 (stack/get-current-stacks system))
+        split-stacks (stack/split-feature-base-stacks stacks)
+        [prs] (ui/fetch-prs-with-spinner)]
+
+    (cli.ui/print-stacks split-stacks [prs])
+
+    ;; Offer to create missing PRs
+    (doseq [s stacks]
+      (let [leaf-branch (:change/selected-branchname (last s))
+            has-missing-prs? (and (> (count s) 1)
+                                  (some (fn [change]
+                                          (let [b (:change/selected-branchname change)]
+                                            (and b
+                                                 (not= (:change/type change) :trunk)
+                                                 (not= (:change/type change) :feature-base)
+                                                 (not (some #(= b (:pr/head-branch %)) prs)))))
+                                    s))]
+        (when has-missing-prs?
+          (ui-info "Stack " (ui-branch leaf-branch) " has branches without PRs")
+          (when (tty/prompt-confirm {:prompt "  Create missing PRs?"})
+            (commands.create-prs/create-prs! vcs {:prs prs :stack s})))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Main command
+
+(defn- parse-opts [args]
   {:all? (boolean (some #{"--all"} args))})
-
-(comment
-  (parse-opts ["--all"])
-  (parse-opts []))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Merged PR handling
-
-(defn find-merged-bookmarks
-  "Finds local bookmarks whose PRs have been merged.
-  Returns a set of bookmark names."
-  [local-bookmarks merged-prs]
-  (let [merged-branches (set (map :pr/head-branch merged-prs))]
-    (set (filter merged-branches local-bookmarks))))
-
-(defn cleanup-merged-bookmarks!
-  "Prompts user to delete local bookmarks for merged PRs."
-  [vcs merged-bookmarks]
-  (when (seq merged-bookmarks)
-    (println (ansi/colorize :yellow "\nThe following branches have merged PRs:"))
-    (doseq [b (sort merged-bookmarks)]
-      (println (str "  - " (ansi/colorize :cyan b))))
-    (when (tty/prompt-confirm
-            {:prompt "\nDelete these local bookmarks?"})
-      (doseq [b merged-bookmarks]
-        (println (format "Deleting bookmark %s..." (ansi/colorize :blue b)))
-        (vcs/delete-bookmark! vcs b))
-      (println (ansi/colorize :green "Done.")))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Base branch syncing (trunk + feature bases)
-
-(defn get-base-branch-status
-  "Returns the status of a base branch (trunk or feature-base).
-  Uses the vcs-graph to check ancestry relationships.
-  Returns a map with :branch, :local-ref, :remote-ref, and :status where status is one of:
-    :in-sync     - local and remote are the same
-    :pull-needed - remote is ahead, local should be updated to remote
-    :push-needed - local is ahead, should be pushed to remote
-    :diverged    - both have changes, needs manual resolution"
-  [vcs vcs-graph branch-name]
-  (try
-    (let [local-ref (vcs/get-change-id vcs branch-name)
-          remote-ref (vcs/get-change-id vcs (str branch-name "@origin"))
-          status (cond
-                   (= local-ref remote-ref)
-                   :in-sync
-
-                   (vcs.graph/is-ancestor? vcs-graph local-ref remote-ref)
-                   :pull-needed
-
-                   (vcs.graph/is-ancestor? vcs-graph remote-ref local-ref)
-                   :push-needed
-
-                   :else
-                   :diverged)]
-      {:branch branch-name
-       :local-ref local-ref
-       :remote-ref remote-ref
-       :status status})
-    (catch Exception _
-      ;; Branch might not exist on remote
-      {:branch branch-name
-       :local-ref nil
-       :remote-ref nil
-       :status :in-sync})))
-
-(defn sync-base-branches!
-  "Syncs all base branches (trunk + feature bases) with remote.
-  Handles three cases:
-  - Remote ahead: offers to update local to match remote
-  - Local ahead: offers to push local to remote
-  - Diverged: warns user and skips (requires manual resolution)
-  Returns a map of branch -> status info"
-  [vcs vcs-graph trunk-branch feature-base-branches]
-  (let [all-bases (cons trunk-branch feature-base-branches)
-        statuses (map #(get-base-branch-status vcs vcs-graph %) all-bases)
-        pull-needed (filter #(= :pull-needed (:status %)) statuses)
-        push-needed (filter #(= :push-needed (:status %)) statuses)
-        diverged (filter #(= :diverged (:status %)) statuses)]
-
-    ;; Handle branches where remote is ahead (pull needed)
-    (when (seq pull-needed)
-      (println (ansi/colorize :yellow "\nThe following base branches have new changes on remote:"))
-      (doseq [{:keys [branch]} pull-needed]
-        (println (str "  - " (ansi/colorize :cyan branch))))
-      (when (tty/prompt-confirm
-              {:prompt "\nUpdate local branches to match remote?"})
-        (doseq [{:keys [branch]} pull-needed]
-          (println (format "Updating %s to remote..." (ansi/colorize :blue branch)))
-          (vcs/set-bookmark-to-remote! vcs branch))
-        (println (ansi/colorize :green "Done."))))
-
-    ;; Handle branches where local is ahead (push needed)
-    (when (seq push-needed)
-      (println (ansi/colorize :yellow "\nThe following base branches have local changes not on remote:"))
-      (doseq [{:keys [branch]} push-needed]
-        (println (str "  - " (ansi/colorize :cyan branch))))
-      (when (tty/prompt-confirm
-              {:prompt "\nPush local changes to remote?"})
-        (doseq [{:keys [branch]} push-needed]
-          (println (format "Pushing %s to remote..." (ansi/colorize :blue branch)))
-          (vcs/push-branch vcs branch))
-        (println (ansi/colorize :green "Done."))))
-
-    ;; Warn about diverged branches
-    (when (seq diverged)
-      (println (ansi/colorize :red "\nWarning: The following base branches have diverged (both local and remote have changes):"))
-      (doseq [{:keys [branch]} diverged]
-        (println (str "  - " (ansi/colorize :cyan branch))))
-      (println (ansi/colorize :yellow "These branches need manual resolution.")))
-
-    ;; Return status for use in rebase decisions
-    (into {} (map (juxt :branch identity) statuses))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; PR base branch fixes
-
-(defn find-prs-with-wrong-base
-  "Finds PRs whose base branch is a merged branch (no longer exists as open PR).
-  Returns a seq of {:pr pr, :expected-base branch-name}"
-  [open-prs merged-bookmarks trunk-branch feature-base-branches]
-  (let [valid-bases (set (cons trunk-branch feature-base-branches))
-        open-branches (set (map :pr/head-branch open-prs))]
-    (for [pr open-prs
-          :let [base (:pr/base-branch pr)]
-          ;; Base is wrong if it's a merged branch (not in open PRs and not a valid base)
-          :when (and (not (valid-bases base))
-                     (not (open-branches base))
-                     (or (merged-bookmarks base)
-                         ;; Or base branch simply doesn't exist locally anymore
-                         true))]
-      {:pr pr
-       ;; The expected base is the trunk or feature-base that this stack is based on
-       ;; For simplicity, default to trunk. A more sophisticated approach would
-       ;; trace the stack to find the correct base.
-       :expected-base trunk-branch})))
-
-(defn fix-pr-bases!
-  "Prompts user to fix PRs with wrong base branches on GitHub."
-  [prs-with-wrong-base]
-  (when (seq prs-with-wrong-base)
-    (println (ansi/colorize :yellow "\nThe following PRs have outdated base branches:"))
-    (doseq [{:keys [pr expected-base]} prs-with-wrong-base]
-      (println (format "  - #%d %s (base: %s -> %s)"
-                 (:pr/number pr)
-                 (:pr/title pr)
-                 (ansi/colorize :red (:pr/base-branch pr))
-                 (ansi/colorize :green expected-base))))
-    (when (tty/prompt-confirm
-            {:prompt "\nUpdate PR base branches on remote?"})
-      (doseq [{:keys [pr expected-base]} prs-with-wrong-base]
-        (println (format "Updating PR #%d base to %s..."
-                   (:pr/number pr)
-                   (ansi/colorize :blue expected-base)))
-        (github/update-pr-base! (:pr/number pr) expected-base))
-      (println (ansi/colorize :green "Done.")))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Rebasing
-
-(defn find-stack-base
-  "Finds the base branch for a stack (trunk or feature-base)."
-  [stack]
-  (let [base-change (first stack)]
-    (when (#{:trunk :feature-base} (:change/type base-change))
-      (:change/selected-branchname base-change))))
-
-(defn offer-rebase!
-  "Offers to rebase the current stack onto its base branch if the base has moved."
-  [vcs base-statuses stacks]
-  (let [;; Find unique bases from all stacks
-        stack-bases (->> stacks
-                      (map find-stack-base)
-                      (remove nil?)
-                      distinct)
-        ;; Find which bases have moved
-        moved-bases (filter #(get-in base-statuses [% :moved?]) stack-bases)]
-    (when (seq moved-bases)
-      (let [;; For now, just offer to rebase onto the first moved base
-            ;; A more sophisticated approach would handle multiple stacks separately
-            target-base (first moved-bases)]
-        (when (tty/prompt-confirm
-                {:prompt (format "\nRebase onto %s?" (ansi/colorize :blue target-base))})
-          (vcs/rebase-on! vcs target-base))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Main sync command
 
 (def command
   {:name "sync"
-   :flags [["--all" "-a" "Looks all your stacks, not just the current one"]]
-   :description "Syncs the current stack with the remote"
+   :description "Sync local state with remote"
+   :flags [["--all" "-a" "Sync all stacks, not just current"]]
    :exec
-   (fn sync [args global-opts]
+   (fn [args global-opts]
      (let [opts (parse-opts args)
            local-config (config/read-local)
            system (system/new (config/read-global) local-config global-opts)
            vcs (:system/vcs system)
-           trunk-branch (vcs/trunk-branch vcs)
-           feature-base-branches (:feature-base-branches local-config)]
+           trunk (vcs/trunk-branch vcs)
+           feature-bases (:feature-base-branches local-config)
+           base-branches (cons trunk feature-bases)]
 
-       ;; Step 1: Fetch from remote
-       (println (ansi/colorize :yellow "\nFetching from remote..."))
-       (vcs/fetch! vcs)
+       ;; Step 1: Fetch
+       (fetch! vcs)
 
-       ;; Step 2: Get merged PRs and find bookmarks to clean up
-       (println (ansi/colorize :yellow "\nChecking for merged PRs..."))
-       (let [[merged-prs _err] (github/list-prs vcs {:state :merged})
-             local-bookmarks (vcs/list-local-bookmarks vcs)
-             merged-bookmarks (find-merged-bookmarks local-bookmarks merged-prs)]
+       ;; Step 2: Cleanup merged branches
+       (cleanup-merged-branches! vcs)
 
-         ;; Step 3: Clean up merged bookmarks
-         (cleanup-merged-bookmarks! vcs merged-bookmarks)
+       ;; Step 3: Sync base branches
+       (let [pulled-branches (sync-base-branches! system base-branches)
+             current-stacks (stack/get-current-stacks system)]
+         ;; Step 4: Offer rebase if base was pulled
+         (offer-rebase! vcs pulled-branches current-stacks))
 
-         ;; Step 4: Sync all base branches (trunk + feature bases)
-         ;; Read the graph first to check ancestry relationships
-         (println (ansi/colorize :yellow "\nChecking base branches..."))
-         (let [vcs-graph (vcs/read-graph vcs (:system/user-config system))
-               base-statuses (sync-base-branches! vcs vcs-graph trunk-branch feature-base-branches)
-               ;; Step 5: Re-read stacks with clean state (graph may have changed after sync)
-               stacks (if (:all? opts)
-                        (stack/get-all-stacks system)
-                        (stack/get-current-stacks system))
-               ;; Step 6: Check for PRs with wrong base branches
-               [open-prs _err :as prs-result] (ui/fetch-prs-with-spinner)
-               prs-with-wrong-base (find-prs-with-wrong-base open-prs
-                                     merged-bookmarks trunk-branch feature-base-branches)
-               split-stacks (stack/split-feature-base-stacks stacks)]
+       ;; Step 5: Push working branches
+       (push-branches! vcs)
 
-           (fix-pr-bases! prs-with-wrong-base)
+       ;; Step 6: Show status & create PRs
+       (show-status-and-create-prs! vcs system opts)
 
-           ;; Step 7: Offer rebase if bases moved
-           (offer-rebase! vcs base-statuses stacks)
-
-           ;; Step 8: Push tracked branches
-           (println (ansi/colorize :yellow "\nPushing local tracked branches..."))
-           (vcs/push-tracked! vcs)
-           (println)
-
-           ;; Step 9: Display stacks and offer to create missing PRs
-           (cli.ui/print-stacks split-stacks prs-result)
-           (doseq [stack stacks]
-             (println "Syncing stack:"
-               (ansi/colorize :blue
-                 (first (:change/local-branchnames (last stack)))))
-             (if (> (count stack) 1)
-               (when (tty/prompt-confirm
-                       {:prompt "Would you like to create missing PRs?"})
-                 (commands.create-prs/create-prs! vcs {:prs prs-result :stack stack}))
-               (println "No missing PRs to create."))
-             (println))))))})
+       (println)
+       (println (ansi/colorize :green "✓ Sync complete"))))})

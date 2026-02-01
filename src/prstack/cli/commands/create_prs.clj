@@ -12,12 +12,13 @@
     [prstack.utils :as u]
     [prstack.vcs :as vcs]))
 
+;; TODO verify this
 (defn- ensure-remote-branch! [vcs change msg]
   (or (vcs/remote-branchname vcs change)
       (let [branchname (:change/selected-branchname change)]
         (when (tty/prompt-confirm
                 {:prompt (str msg (format "Push %s to remote?" (ansi/colorize :blue branchname)))})
-          (vcs/push-branch vcs branchname)
+          (vcs/push-branch! vcs branchname)
           true))))
 
 (defn- prompt-and-create-prs! [head-branch base-branch]

@@ -40,26 +40,37 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Branch Operations
 
-(defn push-branch [vcs branch-name]
-  (u/run-cmd ["jj" "git" "push" "-b" branch-name "--allow-new"]
-    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
+(defn push-branch! [vcs branch-name]
+  ;; First try to track the remote bookmark if it exists (ignoring errors if it doesn't)
+  ;; This is because --allow-new got deprecated, and some situations may arise
+  ;; where the remote bookmark is not tracked.
+  (try
+    (u/run-cmd ["jj" "bookmark" "track" branch-name "--remote" "origin"]
+      {:echo? true :dir (:vcs/project-dir vcs)})
+    (catch Exception e
+      (println "Error tracking bookmark" branch-name (ex-message e))))
+  ;; Then push
+  (u/run-cmd ["jj" "git" "push" "-b" branch-name]
+    {:echo? true :dir (:vcs/project-dir vcs)}))
+
 
 (defn fetch! [vcs]
   (u/run-cmd ["jj" "git" "fetch"]
-    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
+    {:echo? true :dir (:vcs/project-dir vcs)}))
 
 (defn set-bookmark-to-remote! [vcs branch-name]
   (u/run-cmd ["jj" "bookmark" "set" branch-name
-              "-r" (str branch-name "@origin")]
-    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
+              "-r" (str branch-name "@origin")
+              "--allow-backwards"]
+    {:echo? true :dir (:vcs/project-dir vcs)}))
 
 (defn rebase-on-trunk! [vcs trunk-branch]
   (u/run-cmd ["jj" "rebase" "-d" trunk-branch]
-    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
+    {:echo? true :dir (:vcs/project-dir vcs)}))
 
 (defn push-tracked! [vcs]
   (u/run-cmd ["jj" "git" "push" "--tracked"]
-    (merge {:echo? true} {:dir (:vcs/project-dir vcs)})))
+    {:echo? true :dir (:vcs/project-dir vcs)}))
 
 (defn delete-bookmark! [vcs bookmark-name]
   (u/run-cmd ["jj" "bookmark" "delete" bookmark-name]
@@ -102,20 +113,23 @@
       ["jj" "log" "--no-graph"
        "-r" (format "fork_point(trunk() | %s)" ref)
        "-T" "change_id"]
-      {:vcs/project-dir vcs})))
+      {:dir (:vcs/project-dir vcs)})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations
 
-(defn- remove-asterisk-from-branch-name [branch-name]
-  (when branch-name
-    (str/replace branch-name #"\*$" "")))
-
-(defn- parse-branchnames [log-str]
-  (if (empty? log-str)
+(defn- parse-branchnames [s]
+  (if (empty? s)
     []
-    (map remove-asterisk-from-branch-name
-      (str/split log-str #" "))))
+    ;; Consider keeping 'git' and 'origin' as the remote name next to the
+    ;; remote branch.
+    (->> (str/split s #" ")
+      ;; Remove names with @git suffix
+      (remove #(str/ends-with? % "@git"))
+      ;; Truncate @... suffixes
+      (map #(str/replace % #"\@.*" ""))
+      ;; Truncate trailing asterisk
+      (map #(str/replace % #"\*$" "")))))
 
 (def ^:private separator
   "#PRSTACK#")
@@ -142,74 +156,60 @@
                 :change/remote-branchnames (parse-branchnames remote-branches-str)})))
       (str/split-lines output))))
 
+(def ^:private log-template
+  (str "separate('#PRSTACK#', "
+       "change_id, "
+       "commit_id, "
+       "parents.map(|p| p.change_id()).join(' '), "
+       "coalesce(local_bookmarks.join(' '), ' '), "
+       "remote_bookmarks.join(' ')) "
+       "++ \"\\n\""))
+
+(defn- read-nodes
+  [vcs revset]
+  {:nodes (parse-log
+            (u/run-cmd
+              ["jj" "log" "--no-graph"
+               "-r" revset
+               "-T" log-template]
+              {:dir (:vcs/project-dir vcs)}))
+   :trunk-change-id
+   (str/trim
+     (u/run-cmd
+       ["jj" "log" "--no-graph"
+        "-r" (:vcs-config/trunk-branch (vcs/vcs-config vcs))
+        "-T" "change_id"]
+       {:dir (:vcs/project-dir vcs)})) })
+
 (defn read-all-nodes
   "Reads the full VCS graph from jujutsu.
 
-  Reads all commits from trunk to all bookmark heads, building a complete
-  graph representation with parent/child relationships.
+  Reads all changes from trunk to all bookmark heads.
 
-  Returns a Graph (see prstack.vcs.graph/Graph)"
+  Returns `:nodes` and a `:trunk-change-id` for the VCS graph."
   [vcs]
-  (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config vcs))
-        trunk-change-id
-        (str/trim
-          (u/run-cmd
-            ["jj" "log" "--no-graph" "-r" trunk-branch
-             "-T" "change_id"]
-            {:dir (:vcs/project-dir vcs)}))
-        ;; Get all changes from any trunk commit to all bookmark heads
-        ;; This uses trunk()::bookmarks() to include stacks that forked from
-        ;; old trunk commits (before trunk advanced), rather than restricting
-        ;; to descendants of the current trunk bookmark position
-        revset "trunk()::bookmarks()"
-        output (u/run-cmd
-                 ["jj" "log" "--no-graph"
-                  "-r" revset
-                  "-T" (str "separate('#PRSTACK#', "
-                            "change_id, "
-                            "commit_id, "
-                            "parents.map(|p| p.change_id()).join(' '), "
-                            "local_bookmarks.join(' '), "
-                            "remote_bookmarks.join(' ')) "
-                            "++ \"\\n\"")]
-                 {:dir (:vcs/project-dir vcs)})]
-    {:nodes (parse-log output)
-     :trunk-change-id trunk-change-id}))
+  ;; Get all changes from any trunk commit to all bookmark heads
+  ;; This uses trunk()::bookmarks() to include stacks that forked from
+  ;; old trunk commits (before trunk advanced), rather than restricting
+  ;; to descendants of the current trunk bookmark position
+  (read-nodes vcs "trunk()::bookmarks()"))
+
+(defn read-current-stack-nodes
+  "Reads a graph specifically for the current working copy stack.
+
+  This includes all changes from trunk's fork-point to @, even if @ is not bookmarked.
+
+  Returns `:nodes` and a `:trunk-change-id` for the VCS graph."
+  [vcs]
+  ;; Gets all changes from fork point to current
+  (read-nodes vcs "fork_point(trunk() | @)::@"))
 
 (defn current-change-id
   "Returns the change-id of the current working copy (@)."
   [vcs]
-  (str/trim (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id"]
-              {:dir (:vcs/project-dir vcs)})))
-
-(defn read-current-stack-nodes
-  "TODO fix Reads a graph specifically for the current working copy stack.
-
-  This includes all changes from trunk to @, even if @ is not bookmarked.
-
-  Returns a Graph (see prstack.vcs.graph/Graph)"
-  [{:keys [vcs/project-dir] :as vcs}]
-  (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config vcs))]
-    {:nodes
-     (parse-log
-       (u/run-cmd
-         ["jj" "log" "--no-graph"
-         ;; Gets all changes from fork point to current
-          "-r" "fork_point(trunk() | @)::@"
-          "-T" (str "separate('#PRSTACK#', "
-                    "change_id, "
-                    "commit_id, "
-                    "parents.map(|p| p.change_id()).join(' '), "
-                    "local_bookmarks.join(' '), "
-                    "remote_bookmarks.join(' ')) "
-                    "++ \"\\n\"")]
-         {:dir project-dir}))
-     :trunk-change-id
-     (str/trim
-       (u/run-cmd
-         ["jj" "log" "--no-graph" "-r" trunk-branch
-          "-T" "change_id"]
-         {:dir project-dir}))}))
+  (str/trim
+    (u/run-cmd ["jj" "log" "--no-graph" "-r" "@" "-T" "change_id"]
+      {:dir (:vcs/project-dir vcs)})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS implementation
@@ -237,8 +237,8 @@
   (read-vcs-config [this]
     (config this))
 
-  (push-branch [this branch-name]
-    (push-branch this branch-name))
+  (push-branch! [this branch-name]
+    (push-branch! this branch-name))
 
   (remote-branchname [_this change]
     (remote-branchname change))

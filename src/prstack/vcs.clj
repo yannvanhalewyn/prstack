@@ -40,7 +40,7 @@
     Returns:
       VCSConfig - A map according to `VCSConfig` schema")
 
-  (push-branch [this branch-name]
+  (push-branch! [this branch-name]
     "Pushes a local branch to the remote repository.
 
     Args:

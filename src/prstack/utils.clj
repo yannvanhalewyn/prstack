@@ -26,7 +26,7 @@
     (dissoc coll (first path))
     (update-in coll (butlast path) dissoc (last path))))
 
-(defn ^:lsp/allow-unused vectorize [x]
+(defn vectorize [x]
   (cond
     (nil? x) []
     (sequential? x) (vec x)
@@ -35,6 +35,34 @@
 
 (defn consecutive-pairs [coll]
   (map vector coll (rest coll)))
+
+(defn build-index
+  "Reduces a coll into a map as follows:
+    {(key-fn el) (val-fn el)}
+
+  When no val-fn is supplied will create a hashmap with the elements keyed to
+  their key-fn:
+    {(key-fn el) el}
+
+  @example
+  (def users
+    [{:name \"John\" :id 2} {:name \"Jeff\" :id 3}])
+
+  (build-index :id users)
+  ;; => {2 {:name \"John\" :id 2}
+         3 {:name \"Jeff\" :id 3}}
+
+  (build-index :id :name users)
+  ;; => {2 \"John\"
+         3 \"Jeff\"}
+
+  Useful when building an index out of a list. Using this prevents combining
+  `key-by` with `map-vals`, or to replace `(into {})`."
+  ([key-fn coll]
+   (build-index key-fn identity coll))
+  ([key-fn val-fn coll]
+   (persistent!
+     (reduce #(assoc! %1 (key-fn %2) (val-fn %2)) (transient {}) coll))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Shell

@@ -23,17 +23,12 @@
      :vcs/config (vcs/read-vcs-config vcs)
      :vcs/project-dir (:project-dir global-opts))))
 
-(defn make
+(defn new
   "Creates a new system with the given configuration.
 
   Options:
     :project-dir - Directory of the project to operate on. Defaults to current directory."
-  ([global-config user-config]
-   (make global-config user-config {}))
-  ([global-config user-config global-opts]
-   {:system/global-config global-config
-    :system/user-config user-config
-    :system/vcs (new-vcs user-config global-opts) }))
-
-;; Keep the old name as an alias for backward compatibility
-(def new make)
+  [global-config user-config & [global-opts]]
+  {:system/global-config global-config
+   :system/user-config user-config
+   :system/vcs (new-vcs user-config global-opts)})

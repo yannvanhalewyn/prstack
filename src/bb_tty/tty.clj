@@ -53,14 +53,16 @@
 (defn prompt-confirm [{:keys [prompt]}]
   (:result (b/gum :confirm [prompt] :as :bool)))
 
-(defn ^:lsp/allow-unused prompt-pick
+(defn prompt-pick
   {:arglists '([{:keys [prompt options render-option limit]}])}
   [{:keys [options render-option limit]
     :or {limit 1}
     :as opts}]
-  (:result
-    (apply b/gum :choose (map (or render-option identity) options)
-      (gum-args {:limit limit} opts))))
+  (cond->
+    (:result
+      (apply b/gum :choose (map (or render-option identity) options)
+        (gum-args {:limit limit} opts)))
+    (= limit 1) (first)))
 
 (defn prompt-filter
   [{:keys [prompt options render-option limit]}]

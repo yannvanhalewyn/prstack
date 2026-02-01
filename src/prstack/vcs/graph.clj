@@ -130,6 +130,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph traversal
 
+(defn find-nodes [vcs-graph pred]
+  (filter pred (all-nodes vcs-graph)))
+
+(defn find-change-for-local-branchname [vcs-graph local-branchname]
+  (first
+   (find-nodes vcs-graph
+     #(some #{local-branchname} (:change/local-branchnames %)))))
+
+(defn find-change-for-remote-branchname [vcs-graph remote-branchname]
+  (first
+   (find-nodes vcs-graph
+     #(some #{remote-branchname} (:change/remote-branchnames %)))))
+
 (defn find-all-paths-to-trunk
   "Finds all paths from node-id to trunk, following all parent edges.
 
@@ -214,4 +227,6 @@
         :change/remote-branchnames []} ]
       "trunk"))
   (find-all-paths-to-trunk test-graph "feature-2")
-  (find-all-paths-to-trunk test-graph "megamerge"))
+  (find-all-paths-to-trunk test-graph "megamerge")
+
+  )

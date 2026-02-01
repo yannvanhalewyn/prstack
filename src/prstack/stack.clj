@@ -67,16 +67,13 @@
   [{:system/keys [vcs user-config]}]
   (let [vcs-graph (vcs/read-graph vcs user-config)
         bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
-        ;; We did this work to get the bookmarks graph but I could've just
-        ;; found all the leaves and worked from there.
         leaves (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)]
     (mapcat
       (fn [leaf]
-        ;; Find the fork point for this leaf to handle cases where trunk has advanced
-        (let [leaf-ref (or (:change/selected-branchname leaf)
-                           (:change/change-id leaf))
-              fork-point-id (vcs/find-fork-point vcs leaf-ref)]
-          (node->stacks leaf vcs-graph fork-point-id)))
+        ;; Find the fork point for this leaf to handle cases where trunk has
+        ;; advanced
+        (node->stacks leaf vcs-graph
+          (vcs/find-fork-point vcs (:change/change-id leaf))))
       leaves)))
 
 (defn get-current-stacks
@@ -94,9 +91,12 @@
     (keep #(path->stack % vcs-graph) paths)))
 
 (comment
-  (def sys- (prstack.system/make
-              (assoc (prstack.config/read-local)
-                :vcs :jujutsu #_:git)))
+  (def sys-
+    (prstack.system/new
+      (prstack.config/read-global)
+      (assoc (prstack.config/read-local)
+        :vcs :jujutsu #_:git)
+      {:project-dir "./tmp/parallel-branches"}))
   (def vcs- (:system/vcs sys-))
 
   (def vcs-graph- (vcs/read-current-stack-graph sys-))
