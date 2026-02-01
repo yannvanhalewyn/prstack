@@ -1,17 +1,18 @@
 (ns prstack.cli.commands.sync
   (:require
-    [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
-    [clojure.set :as set]
-    [prstack.cli.commands.create-prs :as commands.create-prs]
-    [prstack.cli.ui :as cli.ui]
-    [prstack.config :as config]
-    [prstack.github :as github]
-    [prstack.stack :as stack]
-    [prstack.system :as system]
-    [prstack.ui :as ui]
-    [prstack.vcs :as vcs]
-    [prstack.vcs.branch :as vcs.branch]))
+   [bb-tty.ansi :as ansi]
+   [bb-tty.tty :as tty]
+   [clojure.set :as set]
+   [prstack.cli.commands.create-prs :as commands.create-prs]
+   [prstack.cli.ui :as cli.ui]
+   [prstack.config :as config]
+   [prstack.github :as github]
+   [prstack.stack :as stack]
+   [prstack.system :as system]
+   [prstack.ui :as ui]
+   [prstack.vcs :as vcs]
+   [prstack.vcs.branch :as vcs.branch]
+   [prstack.vcs.graph :as vcs.graph]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI Helpers (TODO move to some UI namespace)
@@ -25,6 +26,9 @@
 
 (defn- ui-success [msg]
   (println (str "  " (ansi/colorize :green "✓") " " msg)))
+
+(defn- ui-error [err]
+  (println (str "  " (ansi/colorize :red "Error:") " " err)))
 
 (defn- ui-branch [name]
   (ansi/colorize :cyan name))
@@ -40,24 +44,31 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 2: Cleanup merged branches
 
-(defn- cleanup-merged-branches! [vcs]
+(defn- cleanup-merged-branches! [system]
   (ui-header "Checking for merged PRs")
-  (let [[merged-prs] (github/list-prs vcs {:state :merged})
-        local-bookmarks (set (vcs/list-local-bookmarks vcs))
-        merged-branches (set (map :pr/head-branch merged-prs))
-        to-delete (set/intersection local-bookmarks merged-branches)]
-    (if (empty? to-delete)
+  (let [vcs (:system/vcs system)
+        vcs-graph (vcs/read-current-stack-graph system)
+        [merged-prs err] (github/list-prs vcs {:state :merged})
+        local-bookmarks (set (vcs.graph/all-selected-branchnames vcs-graph))
+        to-delete (filter #(contains? local-bookmarks (:pr/head-branch %)) merged-prs)]
+    (cond
+      err (ui-error (:error/message err))
+      (empty? to-delete)
       (ui-success "No merged branches to clean up")
+      :else
       (do
         (ui-info "Local branches with merged PRs:")
-        (doseq [b (sort to-delete)]
-          (ui-info "  • " (ui-branch b)))
+        (doseq [pr (sort-by :pr/head-branch to-delete)]
+          (ui-info (format "  • %s was merged into %s (PR #%s)"
+                     (ui-branch (:pr/head-branch pr))
+                     (ui-branch (:pr/base-branch pr))
+                     (:pr/number pr))))
         (println)
-        (when (tty/prompt-confirm {:prompt "  Delete these branches?"})
-          (doseq [b to-delete]
-            (ui-info "Deleting " (ui-branch b) "...")
-            (vcs/delete-bookmark! vcs b))
-          (ui-success "Cleanup complete"))))))
+        (doseq [pr to-delete]
+          (when (tty/prompt-confirm {:prompt (str "Delete " (ui-branch (:pr/head-branch pr)))})
+            (ui-info "Deleting " (ui-branch (:pr/head-branch pr)) "...")
+            (vcs/delete-bookmark! vcs (:pr/head-branch pr))
+            (ui-success "Branch deleted")))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 3: Sync base branches
@@ -68,7 +79,7 @@
   [system]
   (ui-header "Syncing branches")
   (let [vcs (:system/vcs system)
-        vcs-graph (vcs/read-graph vcs (:system/user-config system))
+        vcs-graph (vcs/read-current-stack-graph system)
         selected-branches (vcs.branch/selected-branches-info vcs-graph)]
 
     ;; Show status for all branches
@@ -191,7 +202,7 @@
        (fetch! vcs)
 
        ;; Step 2: Cleanup merged branches
-       (cleanup-merged-branches! vcs)
+       (cleanup-merged-branches! system)
 
        ;; Step 3: Sync base branches
        (let [pulled-branches (sync-branches! system)
