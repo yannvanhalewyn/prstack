@@ -59,10 +59,13 @@
   [{:keys [options render-option limit]
     :or {limit 1}
     :as opts}]
-  (cond->
+  (cond->>
     (:result
       (apply b/gum :choose (map (or render-option identity) options)
         (gum-args {:limit limit} opts)))
+    render-option
+    (map (fn [result]
+           (u/find-first #(= (render-option %) result) options)))
     (= limit 1) (first)))
 
 (defn prompt-filter

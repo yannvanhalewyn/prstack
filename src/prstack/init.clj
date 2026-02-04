@@ -6,16 +6,6 @@
     [prstack.config :as config]
     [prstack.vcs.jujutsu :as vcs.jj]))
 
-(defn- read-user-choice [prompt options]
-  (let [selected (first
-                   (tty/prompt-pick
-                     {:prompt prompt
-                      :options options
-                      :render-option :label}))]
-    (when selected
-      ;; Find the option that matches the selected label
-      (first (filter #(= (:label %) selected) options)))))
-
 (defn- config-file-exists? []
   (.exists (io/file ".prstack/config.edn")))
 
@@ -34,10 +24,12 @@
   (println "First, choose your version control system:")
   (println)
 
-  (let [choice (read-user-choice
-                 "Which VCS would you like to use?"
-                 [{:label "Jujutsu (recommended)" :value :jujutsu}
-                  {:label "Git" :value :git}])]
+  (let [choice (tty/prompt-pick
+                 {:prompt "Which VCS would you like to use?"
+                  :options
+                  [{:label "Jujutsu (recommended)" :value :jujutsu}
+                   {:label "Git" :value :git}]
+                  :render-option :label})]
     (if choice
       (:value choice)
       (do
@@ -52,10 +44,12 @@
   (println "You can install it from: https://martinvonz.github.io/jj/latest/install-and-setup/")
   (println)
 
-  (let [choice (read-user-choice
-                 "What would you like to do?"
-                 [{:label "Exit and install Jujutsu (recommended)" :value :exit}
-                  {:label "Use Git instead" :value :git}])]
+  (let [choice (tty/prompt-pick
+                 {:prompt "What would you like to do?"
+                  :options
+                  [{:label "Exit and install Jujutsu (recommended)" :value :exit}
+                   {:label "Use Git instead" :value :git}]
+                  :render-option :label})]
     (if choice
       (:value choice)
       (do

@@ -122,11 +122,14 @@
       ;; Truncate trailing asterisk
       (map #(str/replace % #"\*$" "")))))
 
-(def ^:private separator
-  "#PRSTACK#")
+(def ^:private column-separator
+  "#COLUMN_SEP#")
+
+(def ^:private line-separator
+  "#ITEM_SEP#")
 
 (comment
-  (str/split "foo#PRSTACK#bar#PRSTACK#baz" #"#PRSTACK#"))
+  (str/split "foo#PRSTACK#bar\nx#PRSTACK#baz" #"#PRSTACK#"))
 
 (defn- parse-log
   "Parses jj log output into a collection of node maps."
@@ -136,25 +139,44 @@
       (comp
         (map str/trim)
         (remove empty?)
-        (map #(str/split % (re-pattern separator)))
-        (map (fn [[change-id commit-sha parents-str local-branches-str remote-branches-str]]
+        (map #(str/split % (re-pattern column-separator)))
+        (map (fn [[change-id description commit-sha parents-str local-branches-str remote-branches-str]]
+               (println change-id description)
                {:change/change-id change-id
+                :change/description description
                 :change/commit-sha commit-sha
                 :change/parent-ids (if (empty? parents-str)
                                      []
                                      (str/split parents-str #" "))
                 :change/local-branchnames (parse-branchnames local-branches-str)
                 :change/remote-branchnames (parse-branchnames remote-branches-str)})))
-      (str/split-lines output))))
+      (str/split output (re-pattern line-separator)))))
 
 (def ^:private log-template
-  (str "separate('#PRSTACK#', "
+  (str (format "separate('%s', ", column-separator)
        "change_id, "
+       "coalesce(description, ' '), "
        "commit_id, "
        "parents.map(|p| p.change_id()).join(' '), "
        "coalesce(local_bookmarks.join(' '), ' '), "
        "remote_bookmarks.join(' ')) "
-       "++ \"\\n\""))
+       (format "++ '%s'" line-separator)))
+
+(defn- echo-nodes [nodes]
+  (println "Count:" (count nodes))
+  (println "Nodes:")
+  (doseq [node nodes]
+    ;; Master seems ahead of fork point? Fork point detection not working correctly
+
+    ;; Ok so it seems to return all changes, just not returning wether it's a
+    ;; descendant of main or not.
+    (println (:change/change-id node) #_(:change/description node)
+      (if-let [lb (seq (:change/local-branchnames node))]
+        (str/join " " lb)
+        (if-let [rb (seq (:change/remote-branchnames node))]
+          (str/join " " rb)
+          ""))))
+  nodes)
 
 (defn- read-relevant-changes
   "Reads the full VCS graph from jujutsu.
@@ -164,19 +186,20 @@
   Returns `:nodes` and a `:trunk-change-id` for the VCS graph."
   [vcs]
   {:nodes
-   (parse-log
-     (u/run-cmd
-       ["jj" "log" "--no-graph"
-        ;; Get all changes from any trunk commit to all bookmark heads
-        ;; This uses trunk()::bookmarks() to include stacks that forked from
-        ;; old trunk commits (before trunk advanced), rather than restricting
-        ;; to descendants of the current trunk bookmark position
-        ;;(read-nodes vcs "fork_point(trunk() | @)::@")
-        ;;"-r"  "fork_point(trunk() | @)::@ | trunk()::(bookmarks() | remote_bookmarks())"
-        ;;"-r"  "fork_point(trunk() | @)::@ & trunk()::(bookmarks() | remote_bookmarks())"
-        "-r"  "fork_point(trunk() | @)::@"
-        "-T" log-template]
-       {:dir (:vcs/project-dir vcs)}))
+   (echo-nodes
+    (parse-log
+      (u/run-cmd
+        ["jj" "log" "--no-graph"
+         ;; Get all changes from any trunk commit to all bookmark heads
+         ;; This uses trunk()::bookmarks() to include stacks that forked from
+         ;; old trunk commits (before trunk advanced), rather than restricting
+         ;; to descendants of the current trunk bookmark position
+         "-r" (str "fork_point(trunk() | @)::"
+                   #_ " | fork_point(trunk() | remote_bookmarks())::"
+                   #_ " | fork_point(trunk() | bookmarks())")
+         "-T" log-template]
+        {:dir (:vcs/project-dir vcs)
+         :echo? true})))
    :trunk-change-id
    (str/trim
      (u/run-cmd

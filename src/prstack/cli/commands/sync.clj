@@ -117,14 +117,18 @@
         (let [solution
               (tty/prompt-pick
                 {:prompt (str "Branch " (ui-branch branchname) " diverged. What do you want to do?")
-                 :options ["Push local to remote" "Set local to remote" "Do nothing"]})]
-          (case solution
-            "Push local to remote"
+                 :options
+                 [{:name "Push local to remote" :action :push}
+                  {:name "Set local to remote" :action :pull}
+                  {:name "Do nothing"}]
+                 :render-option :name})]
+          (case (:action solution)
+            :push
             (do
               (ui-info "Pushing " (ui-branch branchname) "...")
               (vcs/push-branch! vcs branchname)
               (ui-success "Pushed"))
-            "Set local to remote"
+            :pull
             (do
               (ui-info "Setting " (ui-branch branchname) " to remote...")
               (vcs/set-bookmark-to-remote! vcs branchname)

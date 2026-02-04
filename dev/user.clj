@@ -50,7 +50,8 @@
     (vcs/read-relevant-changes (vcs))
     (def vcs-graph- (vcs/read-graph (vcs) (user-config)))
     (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
-    (def current-id- (vcs/current-change-id sys-))
+    (def current-id- (vcs/current-change-id (vcs)))
+    (vcs.graph/get-node vcs-graph- current-id-)
     (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
 
   (vcs/read-relevant-changes (:system/vcs sys-))
