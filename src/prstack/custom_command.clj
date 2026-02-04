@@ -192,8 +192,8 @@
   {'pipe (fn [args]
            (u/pipeline (vec args) {:inherit-last true}))
    'do  (fn [args]
-           (doseq [cmd args]
-             (eval-command cmd)))
+          (doseq [cmd args]
+            (eval-command cmd)))
    'or   (fn [args]
            (loop [[cmd & rest] args]
              (when cmd

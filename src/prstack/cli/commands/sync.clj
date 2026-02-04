@@ -1,18 +1,18 @@
 (ns prstack.cli.commands.sync
   (:require
-   [bb-tty.ansi :as ansi]
-   [bb-tty.tty :as tty]
-   [clojure.set :as set]
-   [prstack.cli.commands.create-prs :as commands.create-prs]
-   [prstack.cli.ui :as cli.ui]
-   [prstack.config :as config]
-   [prstack.github :as github]
-   [prstack.stack :as stack]
-   [prstack.system :as system]
-   [prstack.ui :as ui]
-   [prstack.vcs :as vcs]
-   [prstack.vcs.branch :as vcs.branch]
-   [prstack.vcs.graph :as vcs.graph]))
+    [bb-tty.ansi :as ansi]
+    [bb-tty.tty :as tty]
+    [clojure.set :as set]
+    [prstack.cli.commands.create-prs :as commands.create-prs]
+    [prstack.cli.ui :as cli.ui]
+    [prstack.config :as config]
+    [prstack.github :as github]
+    [prstack.stack :as stack]
+    [prstack.system :as system]
+    [prstack.ui :as ui]
+    [prstack.vcs :as vcs]
+    [prstack.vcs.branch :as vcs.branch]
+    [prstack.vcs.graph :as vcs.graph]))
 
 (defn- read-vcs-graph [system opts]
   (vcs/read-graph (:system/vcs system) (:system/user-config system)))

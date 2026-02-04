@@ -161,7 +161,8 @@
 
 (defmethod dispatch! :event/read-local-repo
   [_evt]
-  (let [system (system/new (config/read-global) (config/read-local))]
+  (let [system (system/new (config/read-global) (config/read-local)
+                 {:project-dir nil})]
     (swap! app-state merge
       {:app-state/system system
        :app-state/current-stacks (delay (stack/get-current-stacks system))

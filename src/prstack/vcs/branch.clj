@@ -1,6 +1,6 @@
 (ns prstack.vcs.branch
   (:require
-   [prstack.vcs.graph :as vcs.graph]))
+    [prstack.vcs.graph :as vcs.graph]))
 
 (def Branch
   [:map
@@ -15,13 +15,13 @@
 
 (defn find-change-for-local-branchname [vcs-graph local-branchname]
   (first
-   (vcs.graph/find-nodes vcs-graph
-     #(some #{local-branchname} (:change/local-branchnames %)))))
+    (vcs.graph/find-nodes vcs-graph
+      #(some #{local-branchname} (:change/local-branchnames %)))))
 
 (defn find-change-for-remote-branchname [vcs-graph remote-branchname]
   (first
-   (vcs.graph/find-nodes vcs-graph
-     #(some #{remote-branchname} (:change/remote-branchnames %)))))
+    (vcs.graph/find-nodes vcs-graph
+      #(some #{remote-branchname} (:change/remote-branchnames %)))))
 
 (defn selected-branches-info
   "Returns a list of selected branches in the VCS graph. Each element will have

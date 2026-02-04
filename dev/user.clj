@@ -12,11 +12,11 @@
 (require 'hashp.preload)
 
 (def sys-
-    (system/new
-      (config/read-global)
-      (assoc (config/read-local) :vcs :jujutsu)
-      {:project-dir "/Users/yannvanhalewyn/spronq/arqiver"}
-      #_
+  (system/new
+    (config/read-global)
+    (assoc (config/read-local) :vcs :jujutsu)
+    {:project-dir "/Users/yannvanhalewyn/spronq/arqiver"}
+    #_
       {:project-dir "./tmp/parallel-branches"}))
 
 (defn vcs []

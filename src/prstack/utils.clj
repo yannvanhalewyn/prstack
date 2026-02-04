@@ -163,5 +163,5 @@
           []
           cmds)]
     ;; Wait for all processes to complete
-      (doseq [proc processes]
-        (p/check proc))))
+    (doseq [proc processes]
+      (p/check proc))))

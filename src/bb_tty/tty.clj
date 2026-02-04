@@ -1,9 +1,9 @@
 (ns bb-tty.tty
   (:require
-   [bb-tty.ansi :as ansi]
-   [bblgum.core :as b]
-   [clojure.string :as str]
-   [prstack.utils :as u]))
+    [bb-tty.ansi :as ansi]
+    [bblgum.core :as b]
+    [clojure.string :as str]
+    [prstack.utils :as u]))
 
 (defn- has-terminal? []
   (try

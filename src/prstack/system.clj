@@ -19,15 +19,15 @@
   (let [vcs (if (= (:vcs user-config) :git)
               (vcs.git/->GitVCS)
               (vcs.jj/->JujutsuVCS))]
-   (as-> (assoc vcs :vcs/project-dir (:project-dir global-opts)) $
-     (assoc $ :vcs/config (vcs/read-vcs-config $)))))
+    (as-> (assoc vcs :vcs/project-dir (:project-dir global-opts)) $
+      (assoc $ :vcs/config (vcs/read-vcs-config $)))))
 
 (defn new
   "Creates a new system with the given configuration.
 
   Options:
     :project-dir - Directory of the project to operate on. Defaults to current directory."
-  [global-config user-config & [global-opts]]
+  [global-config user-config global-opts]
   {:system/global-config global-config
    :system/user-config user-config
    :system/vcs (new-vcs user-config global-opts)})

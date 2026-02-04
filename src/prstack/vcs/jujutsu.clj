@@ -171,7 +171,10 @@
         ;; This uses trunk()::bookmarks() to include stacks that forked from
         ;; old trunk commits (before trunk advanced), rather than restricting
         ;; to descendants of the current trunk bookmark position
-        "-r"  "trunk()::(bookmarks() | remote_bookmarks() | @)"
+        ;;(read-nodes vcs "fork_point(trunk() | @)::@")
+        ;;"-r"  "fork_point(trunk() | @)::@ | trunk()::(bookmarks() | remote_bookmarks())"
+        ;;"-r"  "fork_point(trunk() | @)::@ & trunk()::(bookmarks() | remote_bookmarks())"
+        "-r"  "fork_point(trunk() | @)::@"
         "-T" log-template]
        {:dir (:vcs/project-dir vcs)}))
    :trunk-change-id

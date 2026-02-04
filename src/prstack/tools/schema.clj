@@ -16,7 +16,7 @@
 
 (defn merge [schema1 schema2]
   (into [:map]
-   (concat (rest schema1) (rest schema2))))
+    (concat (rest schema1) (rest schema2))))
 
 (comment
   (properties [:name {:attr true} :string])

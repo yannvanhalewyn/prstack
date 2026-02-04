@@ -23,16 +23,27 @@
   Returns [global-opts remaining-args]"
   [args]
   (loop [opts {}
-         [arg & more :as remaining] args]
+         remaining []
+         [arg & more] args]
     (cond
       (nil? arg)
-      [opts []]
+      [opts remaining]
 
       (= "--project-dir" arg)
-      (recur (assoc opts :project-dir (first more)) (rest more))
+      (recur
+        (assoc opts :project-dir (first more))
+        remaining
+        (rest more))
+
+      (#{"--help" "-h"} arg)
+      (recur (assoc opts :help? true) remaining more)
 
       :else
-      [opts remaining])))
+      (recur opts (conj remaining arg) more))))
+
+(comment
+  (parse-global-opts ["sync" "-h"])
+  (parse-global-opts ["list" "--all" "--project-dir" "foo/bar"]))
 
 (defn- print-help
   ([]
@@ -48,7 +59,7 @@
          (println (format "    %-13s %s" (str (:name command) " " (:name subcmd)) (:description subcmd))))))
    (println)
    (println "Global Options:")
-   (println "  -C, --project-dir <dir>  Run as if prstack was started in <dir>")
+   (println "      --project-dir <dir>  Run as if prstack was started in <dir>")
    (println "  -h, --help               Show this help message and exit")
    (println))
   ([command]
@@ -65,13 +76,13 @@
 (defn -main [& args]
   (let [[global-opts remaining-args] (parse-global-opts args)]
     (cond
-      (empty? remaining-args)
-      (tui.app/run!)
-
-      (some #{"-h" "--help"} remaining-args)
+      (:help? global-opts)
       (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
         (print-help command)
         (print-help))
+
+      (empty? remaining-args)
+      (tui.app/run!)
 
       :else
       (do

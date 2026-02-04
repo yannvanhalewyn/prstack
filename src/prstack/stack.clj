@@ -84,12 +84,15 @@
   stacks - one for each parent path. Otherwise, returns a single stack."
   [{:system/keys [vcs user-config]}]
   (let [vcs-graph (vcs/read-graph vcs user-config)
-        ;; Current ID not in vcs-graph
         current-id (vcs/current-change-id vcs)
-        ;; Find the fork point for the current change to handle advanced trunk
-        fork-point-id (vcs/find-fork-point vcs "@")
-        paths (vcs.graph/find-all-paths-to-trunk vcs-graph current-id fork-point-id)]
-    (keep #(path->stack % vcs-graph) paths)))
+        current-node (vcs.graph/get-node vcs-graph current-id)]
+    (if current-node
+      ;; Current HEAD is in the graph - compute stacks from it
+      (when-let [change-id (:change/change-id current-node)]
+        (let [fork-point-id (vcs/find-fork-point vcs change-id)]
+          (node->stacks current-node vcs-graph fork-point-id)))
+      ;; Current HEAD is not in the graph (e.g., on trunk or detached)
+      [])))
 
 (comment
   (get-current-stacks user/sys-)
