@@ -15,9 +15,9 @@
   (tools.schema/merge
     change/Change
     [:map
-     ;; While the VCS is responsible for setting the correct parent-ids
-     ;; When it becomes a graph we pre-calculate the children-ids to
-     ;; make it easier to navigate in both directions.
+     ;; The VCS is responsible for returning the correct parent-ids
+     ;; Later we turn it into a graph and pre-compute children-ids for
+     ;; bi-directional navigation.
      [:change/children-ids [:sequential :string]]]))
 
 (def ^:lsp/allow-unused Graph

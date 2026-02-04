@@ -156,34 +156,31 @@
        "remote_bookmarks.join(' ')) "
        "++ \"\\n\""))
 
-(defn- read-nodes
-  [vcs revset]
-  {:nodes (parse-log
-            (u/run-cmd
-              ["jj" "log" "--no-graph"
-               "-r" revset
-               "-T" log-template]
-              {:dir (:vcs/project-dir vcs)}))
-   :trunk-change-id
-   (str/trim
-     (u/run-cmd
-       ["jj" "log" "--no-graph"
-        "-r" (:vcs-config/trunk-branch (vcs/vcs-config vcs))
-        "-T" "change_id"]
-       {:dir (:vcs/project-dir vcs)})) })
-
-(defn read-commit-log
+(defn- read-relevant-changes
   "Reads the full VCS graph from jujutsu.
 
   Reads all changes from trunk to all bookmark heads.
 
   Returns `:nodes` and a `:trunk-change-id` for the VCS graph."
   [vcs]
-  ;; Get all changes from any trunk commit to all bookmark heads
-  ;; This uses trunk()::bookmarks() to include stacks that forked from
-  ;; old trunk commits (before trunk advanced), rather than restricting
-  ;; to descendants of the current trunk bookmark position
-  (read-nodes vcs "trunk()::(bookmarks() | remote_bookmarks())"))
+  {:nodes
+   (parse-log
+     (u/run-cmd
+       ["jj" "log" "--no-graph"
+        ;; Get all changes from any trunk commit to all bookmark heads
+        ;; This uses trunk()::bookmarks() to include stacks that forked from
+        ;; old trunk commits (before trunk advanced), rather than restricting
+        ;; to descendants of the current trunk bookmark position
+        "-r"  "trunk()::(bookmarks() | remote_bookmarks() | @)"
+        "-T" log-template]
+       {:dir (:vcs/project-dir vcs)}))
+   :trunk-change-id
+   (str/trim
+     (u/run-cmd
+       ["jj" "log" "--no-graph"
+        "-r" (:vcs-config/trunk-branch (vcs/vcs-config vcs))
+        "-T" "change_id"]
+       {:dir (:vcs/project-dir vcs)}))})
 
 (defn current-change-id
   "Returns the change-id of the current working copy (@)."
@@ -224,8 +221,8 @@
   (remote-branchname [_this change]
     (remote-branchname change))
 
-  (read-commit-log [this]
-    (read-commit-log this))
+  (read-relevant-changes [this]
+    (read-relevant-changes this))
 
   (current-change-id [this]
     (current-change-id this))

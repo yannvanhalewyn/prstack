@@ -283,7 +283,7 @@
   (remote-branchname [_this change]
     (first (:change/remote-branchnames change)))
 
-  (read-commit-log [this]
+  (read-relevant-changes [this]
     (let [trunk-sha (commit-sha this (vcs/trunk-branch this))
           log-entries (get-all-commits-from-log this)
           nodes (build-changes-from-log this log-entries trunk-sha)]

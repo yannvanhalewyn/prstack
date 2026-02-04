@@ -61,12 +61,12 @@
     Returns:
       String or nil, the remote branch name without markers")
 
-  (read-commit-log [this]
-    "Reads all nodes from the VCS graph.
-
-     Reads all commits/changes from trunk to all branch/bookmark heads,
-     building a complete graph representation with parent/child relationships.
-     This is used to visualize and manage all PR stacks in the repository.
+  (read-relevant-changes [this]
+    "Reads all relevant changes from the VCS graph. The relevant changes are
+    the ones that have not been merged to the trunk yet. It should return a
+    list of Changes with their parent IDs and leaf branchnames. The returned
+    list of changes with parent-ids and branch-names will later be turned into
+    a navigable graph (a Directed Acyclic Graph with bi-directional pointers).
 
      Returns:
        Map containing:
@@ -76,7 +76,7 @@
      Schema:
      ```clojure
      [:map
-      [:nodes [:vector prstack.stack/Change]]
+      [:nodes [:sequential prstack.change/Change]]
       [:trunk-change-id :string]]
      ```")
 
@@ -208,6 +208,6 @@
       selected-branch (assoc :change/selected-branchname selected-branch))))
 
 (defn read-graph [vcs config]
-  (let [{:keys [nodes trunk-change-id]} (read-commit-log vcs)
+  (let [{:keys [nodes trunk-change-id]} (read-relevant-changes vcs)
         nodes (map #(parse-change % config) nodes)]
     (graph/build-graph nodes trunk-change-id)))
