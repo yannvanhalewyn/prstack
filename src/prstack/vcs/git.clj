@@ -283,24 +283,11 @@
   (remote-branchname [_this change]
     (first (:change/remote-branchnames change)))
 
-  (read-all-nodes [this]
+  (read-commit-log [this]
     (let [trunk-sha (commit-sha this (vcs/trunk-branch this))
           log-entries (get-all-commits-from-log this)
           nodes (build-changes-from-log this log-entries trunk-sha)]
       {:nodes nodes
-       :trunk-change-id trunk-sha}))
-
-  (read-current-stack-nodes [this]
-    (let [trunk-branch (:vcs-config/trunk-branch (vcs/vcs-config this))
-          trunk-sha (commit-sha this trunk-branch)
-          head-sha (commit-sha this "HEAD")
-          commit-shas (get-commits-between this trunk-branch "HEAD")
-          all-commits (-> commit-shas
-                        (conj trunk-sha)
-                        (conj head-sha)
-                        distinct
-                        vec)]
-      {:nodes (parse-graph-commits this all-commits trunk-sha)
        :trunk-change-id trunk-sha}))
 
   (current-change-id [this]

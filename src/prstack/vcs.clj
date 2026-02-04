@@ -61,7 +61,7 @@
     Returns:
       String or nil, the remote branch name without markers")
 
-  (read-all-nodes [this]
+  (read-commit-log [this]
     "Reads all nodes from the VCS graph.
 
      Reads all commits/changes from trunk to all branch/bookmark heads,
@@ -79,25 +79,6 @@
       [:nodes [:vector prstack.stack/Change]]
       [:trunk-change-id :string]]
      ```")
-
-  (read-current-stack-nodes [this]
-    "Returns a history of all changes between current working copy (HEAD)
-    and the fork point with trunk.
-
-    Returns:
-      Graph - See prstack.vcs.graph/Graph (same schema as read-graph)
-
-    Returns:
-      Map containing:
-        :nodes - Vector of `prstack.change/Change` maps
-        :trunk-change-id - String, the change-id of the trunk branch
-
-    Schema:
-    ```clojure
-    [:map
-     [:nodes [:vector prstack.stack/Change]]
-     [:trunk-change-id :string]]
-    ```")
 
   (current-change-id [this]
     "Returns the change-id of the current working copy.
@@ -227,11 +208,6 @@
       selected-branch (assoc :change/selected-branchname selected-branch))))
 
 (defn read-graph [vcs config]
-  (let [{:keys [nodes trunk-change-id]} (read-all-nodes vcs)
+  (let [{:keys [nodes trunk-change-id]} (read-commit-log vcs)
         nodes (map #(parse-change % config) nodes)]
-    (graph/build-graph nodes trunk-change-id)))
-
-(defn read-current-stack-graph [{:system/keys [user-config vcs]}]
-  (let [{:keys [nodes trunk-change-id]} (read-current-stack-nodes vcs)
-        nodes (map #(parse-change % user-config) nodes)]
     (graph/build-graph nodes trunk-change-id)))

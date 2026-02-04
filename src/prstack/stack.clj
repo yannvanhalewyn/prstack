@@ -68,19 +68,13 @@
   (let [vcs-graph (vcs/read-graph vcs user-config)
         bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
         leaves (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)]
-    ;; DEBUG: Print leaves to understand the issue
-    (println "DEBUG: leaves count:" (count leaves))
-    (doseq [leaf leaves]
-      (println "DEBUG: leaf change-id:" (pr-str (:change/change-id leaf))
-               "selected-branch:" (pr-str (:change/selected-branchname leaf))))
     (mapcat
       (fn [leaf]
         ;; Find the fork point for this leaf to handle cases where trunk has
-        ;; advanced
-        (let [change-id (:change/change-id leaf)]
-          (when (seq change-id)  ;; Guard against empty change-id
-            (node->stacks leaf vcs-graph
-              (vcs/find-fork-point vcs change-id)))))
+        ;; advanced. Guard against nodes with nil/empty change-id.
+        (when-let [change-id (:change/change-id leaf)]
+          (node->stacks leaf vcs-graph
+            (vcs/find-fork-point vcs change-id))))
       leaves)))
 
 (defn get-current-stacks
@@ -88,9 +82,8 @@
 
   If the current change is a megamerge (multiple parents), returns multiple
   stacks - one for each parent path. Otherwise, returns a single stack."
-  [system]
-  (let [vcs (:system/vcs system)
-        vcs-graph (vcs/read-current-stack-graph system)
+  [{:system/keys [vcs user-config]}]
+  (let [vcs-graph (vcs/read-graph vcs user-config)
         current-id (vcs/current-change-id vcs)
         ;; Find the fork point for the current change to handle advanced trunk
         fork-point-id (vcs/find-fork-point vcs "@")
@@ -109,11 +102,12 @@
     (prstack.system/new
       (prstack.config/read-global)
       (assoc (prstack.config/read-local)
-        :vcs :jujutsu #_:git)
+        :vcs #_:jujutsu :git)
       {:project-dir "./tmp/parallel-branches"}))
   (def vcs- (:system/vcs sys-))
+  (def user-config- (:system/user-config sys-))
 
-  (def vcs-graph- (vcs/read-current-stack-graph sys-))
+  (def vcs-graph- (vcs/read-graph vcs- user-config-))
   (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
   (def current-id- (vcs/current-change-id vcs-))
   (def paths- (vcs.graph/find-all-paths-to-trunk bookmarks-graph- current-id-))

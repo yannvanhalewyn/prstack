@@ -80,14 +80,14 @@
 ;; Jujutsu VCS Tests
 ;; ============================================================================
 
-(deftest jujutsu-read-all-nodes-test
+(deftest jujutsu-read-commit-log-test
   (testing "reads all nodes from a jujutsu repository using project-dir"
     (let [vcs (system/new-vcs
                 ;; user config
                 {:vcs :jujutsu}
                 ;; global opts (--project-dir)
                 {:project-dir *test-repo-dir*})
-          {:keys [nodes trunk-change-id]} (vcs/read-all-nodes vcs)]
+          {:keys [nodes trunk-change-id]} (vcs/read-graph vcs {})]
 
       (is (some? trunk-change-id) "Should have a trunk change id")
       (is (seq nodes) "Should have nodes")
@@ -105,7 +105,7 @@
     (let [vcs (system/new-vcs
                 {:vcs :jujutsu}
                 {:project-dir *test-repo-dir*})
-          {:keys [nodes trunk-change-id]} (vcs/read-all-nodes vcs)
+          {:keys [nodes trunk-change-id]} (vcs/read-graph vcs {})
           g (graph/build-graph nodes trunk-change-id)]
 
       (is (= trunk-change-id (:graph/trunk-id g)) "Graph trunk should match")
@@ -121,7 +121,7 @@
     (let [vcs (system/new-vcs
                 {:vcs :jujutsu}
                 {:project-dir *test-repo-dir*})
-          {:keys [nodes trunk-change-id]} (vcs/read-all-nodes vcs)
+          {:keys [nodes trunk-change-id]} (vcs/read-graph vcs {})
           g (graph/build-graph nodes trunk-change-id)
 
           ;; Find feature-step-2 node

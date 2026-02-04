@@ -31,19 +31,20 @@
       (assoc (config/read-local) :vcs :git)
       {:project-dir "./tmp/parallel-branches"}))
 
-  (stack/get-current-stacks sys-)
+  (map #(map :change/selected-branchname %) (stack/get-current-stacks sys-))
   (stack/get-all-stacks sys-)
   (github/list-prs (:system/vcs sys-))
+  (def vcs- (:system/vcs sys-))
+  (def user-config- (:system/user-config sys-))
 
   ;; Deeper
   (do
-    (def vcs-graph- (vcs/read-current-stack-graph sys-))
+    (def vcs-graph- (vcs/read-graph vcs- user-config-))
     (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
     (def current-id- (vcs/current-change-id sys-))
     (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
 
-  (vcs/read-current-stack-nodes (:system/vcs sys-))
-  (vcs/read-all-nodes (:system/vcs sys-))
+  (vcs/read-commit-log (:system/vcs sys-))
   (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-)
 
   (stack/path->stack (first paths-) vcs-graph-)

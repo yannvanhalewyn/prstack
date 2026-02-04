@@ -15,9 +15,7 @@
    [prstack.vcs.graph :as vcs.graph]))
 
 (defn- read-vcs-graph [system opts]
-  (if (:all? opts)
-    (vcs/read-graph (:system/vcs system) (:system/user-config system))
-    (vcs/read-current-stack-graph system)))
+  (vcs/read-graph (:system/vcs system) (:system/user-config system)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI Helpers (TODO move to some UI namespace)
@@ -49,10 +47,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 2: Cleanup merged branches
 
-(defn- cleanup-merged-branches! [system opts]
+(defn- cleanup-merged-branches! [system _opts]
   (ui-header "Checking for merged PRs")
   (let [vcs (:system/vcs system)
-        vcs-graph (read-vcs-graph system opts)
+        user-config (:system/user-config system)
+        vcs-graph (vcs/read-graph vcs user-config)
         [merged-prs err] (github/list-prs vcs {:state :merged})
         local-bookmarks (set (vcs.graph/all-selected-branchnames vcs-graph))
         to-delete (filter #(contains? local-bookmarks (:pr/head-branch %)) merged-prs)]

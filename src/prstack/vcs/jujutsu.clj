@@ -172,7 +172,7 @@
         "-T" "change_id"]
        {:dir (:vcs/project-dir vcs)})) })
 
-(defn read-all-nodes
+(defn read-commit-log
   "Reads the full VCS graph from jujutsu.
 
   Reads all changes from trunk to all bookmark heads.
@@ -184,18 +184,6 @@
   ;; old trunk commits (before trunk advanced), rather than restricting
   ;; to descendants of the current trunk bookmark position
   (read-nodes vcs "trunk()::(bookmarks() | remote_bookmarks())"))
-
-;; Probably ditch this in favor of a single 'read-relevant-nodes' functions
-;; In sync, will need to select the bookmarks according to --all
-(defn read-current-stack-nodes
-  "Reads a graph specifically for the current working copy stack.
-
-  This includes all changes from trunk's fork-point to @, even if @ is not bookmarked.
-
-  Returns `:nodes` and a `:trunk-change-id` for the VCS graph."
-  [vcs]
-  ;; Gets all changes from fork point to current
-  (read-nodes vcs "fork_point(trunk() | @)::@"))
 
 (defn current-change-id
   "Returns the change-id of the current working copy (@)."
@@ -236,11 +224,8 @@
   (remote-branchname [_this change]
     (remote-branchname change))
 
-  (read-all-nodes [this]
-    (read-all-nodes this))
-
-  (read-current-stack-nodes [this]
-    (read-current-stack-nodes this))
+  (read-commit-log [this]
+    (read-commit-log this))
 
   (current-change-id [this]
     (current-change-id this))
