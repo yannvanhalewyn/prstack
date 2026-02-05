@@ -257,6 +257,26 @@
       (remove #(str/blank? (:change/change-id %)))
       vec)))
 
+(defn- build-change-from-sha
+  "Builds a change map for a single commit SHA.
+  Used to include commits not captured by git log --branches --not trunk,
+  such as the fork-point when trunk has advanced."
+  [vcs sha branch-idx]
+  (let [parents (get-parent-shas vcs sha)
+        branches-at-sha (get branch-idx sha [])]
+    {:change/change-id sha
+     :change/commit-sha sha
+     :change/parent-ids parents
+     :change/local-branchnames (->> branches-at-sha
+                                 (remove remote-branch?)
+                                 (map :branch/name)
+                                 vec)
+     :change/remote-branchnames (->> branches-at-sha
+                                  (filter remote-branch?)
+                                  (map :branch/name)
+                                  vec)
+     :change/trunk-node? false}))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS Implementation
 
@@ -285,8 +305,18 @@
 
   (read-relevant-changes [this]
     (let [trunk-sha (commit-sha this (vcs/trunk-branch this))
+          fork-point-sha (find-fork-point* this "HEAD")
           log-entries (get-all-commits-from-log this)
-          nodes (build-changes-from-log this log-entries trunk-sha)]
+          nodes (build-changes-from-log this log-entries trunk-sha)
+          ;; Include fork-point if it differs from trunk (trunk already included)
+          ;; and isn't already in the log entries
+          nodes (if (and fork-point-sha
+                         (not= fork-point-sha trunk-sha)
+                         (not (contains? log-entries fork-point-sha)))
+                  (let [branch-idx (group-by :branch/commit-sha (get-branches this))
+                        fork-point-change (build-change-from-sha this fork-point-sha branch-idx)]
+                    (conj nodes fork-point-change))
+                  nodes)]
       {:nodes nodes
        :trunk-change-id trunk-sha}))
 

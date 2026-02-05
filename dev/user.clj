@@ -15,6 +15,8 @@
   (system/new
     (config/read-global)
     (assoc (config/read-local) :vcs :jujutsu)
+    {:project-dir "./tmp/log-read-test"}
+    #_
     {:project-dir "/Users/yannvanhalewyn/spronq/arqiver"}
     #_
       {:project-dir "./tmp/parallel-branches"}))

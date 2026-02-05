@@ -27,23 +27,37 @@
 (defn path->stack
   "Converts a path (vector of change-ids) to a Stack (vector of Changes).
 
-  Only includes nodes that have a selected bookmark. This effecively filters
-  out intermediate unbookmarked commits or ignored bookmarks.
+  Only includes nodes that have a selected bookmark, EXCEPT for the terminal
+  node (fork-point) which gets the trunk branch name if it has no bookmark.
+  This handles the case where trunk has advanced past the fork point.
 
   Args:
-    graph - the graph containing the nodes
-    path - vector of change-ids [leaf ... trunk]
-    opts - options map with :trunk-branch and :feature-base-branches
+    path - vector of change-ids [leaf ... fork-point]
+    vcs-graph - the graph containing the nodes
+    trunk-branch - name of trunk branch (e.g., \"main\") for fork-point attribution
 
   Returns:
-    Vector of Change maps ordered from trunk to leaf, containing only bookmarked nodes."
-  [path vcs-graph]
-  (reverse
-    (into []
-      (comp
-        (map #(vcs.graph/get-node vcs-graph %))
-        (filter :change/selected-branchname))
-      path)))
+    Vector of Change maps ordered from trunk to leaf."
+  [path vcs-graph trunk-branch]
+  (let [terminal-id (last path)]  ;; Fork-point is always last per find-all-paths-to-trunk contract
+    (reverse
+      (into []
+        (comp
+          (map #(vcs.graph/get-node vcs-graph %))
+          (map (fn [node]
+                 (when (nil? node)
+                   (throw (ex-info "Path contains node not in graph" {:path path})))
+                 node))
+          (map (fn [node]
+                 (if (and (= (:change/change-id node) terminal-id)
+                          (not (:change/selected-branchname node)))
+                   ;; Terminal node with no bookmark = fork-point of advanced trunk
+                   (assoc node
+                     :change/selected-branchname trunk-branch
+                     :change/type :trunk)
+                   node)))
+          (filter :change/selected-branchname))
+        path))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public
@@ -54,18 +68,19 @@
   Optionally accepts a fork-point-id to use as the trunk anchor for this
   specific stack. This is useful when trunk has advanced and the stack is
   forked from an older trunk commit."
-  ([node vcs-graph]
-   (node->stacks node vcs-graph nil))
-  ([node vcs-graph fork-point-id]
+  ([node vcs-graph trunk-branch]
+   (node->stacks node vcs-graph trunk-branch nil))
+  ([node vcs-graph trunk-branch fork-point-id]
    (let [paths (if fork-point-id
                  (vcs.graph/find-all-paths-to-trunk vcs-graph (:change/change-id node) fork-point-id)
                  (vcs.graph/find-all-paths-to-trunk vcs-graph (:change/change-id node)))]
-     (map #(path->stack % vcs-graph) paths))))
+     (map #(path->stack % vcs-graph trunk-branch) paths))))
 
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
   [{:system/keys [vcs user-config]}]
   (let [vcs-graph (vcs/read-graph vcs user-config)
+        trunk-branch (vcs/trunk-branch vcs)
         bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
         leaves (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)]
     (mapcat
@@ -73,7 +88,7 @@
         ;; Find the fork point for this leaf to handle cases where trunk has
         ;; advanced. Guard against nodes with nil/empty change-id.
         (when-let [change-id (:change/change-id leaf)]
-          (node->stacks leaf vcs-graph
+          (node->stacks leaf vcs-graph trunk-branch
             (vcs/find-fork-point vcs change-id))))
       leaves)))
 
@@ -84,13 +99,14 @@
   stacks - one for each parent path. Otherwise, returns a single stack."
   [{:system/keys [vcs user-config]}]
   (let [vcs-graph (vcs/read-graph vcs user-config)
+        trunk-branch (vcs/trunk-branch vcs)
         current-id (vcs/current-change-id vcs)
         current-node (vcs.graph/get-node vcs-graph current-id)]
     (if current-node
       ;; Current HEAD is in the graph - compute stacks from it
       (when-let [change-id (:change/change-id current-node)]
         (let [fork-point-id (vcs/find-fork-point vcs change-id)]
-          (node->stacks current-node vcs-graph fork-point-id)))
+          (node->stacks current-node vcs-graph trunk-branch fork-point-id)))
       ;; Current HEAD is not in the graph (e.g., on trunk or detached)
       [])))
 
@@ -123,12 +139,13 @@
   (def paths- (vcs.graph/find-all-paths-to-trunk bookmarks-graph- current-id-))
 
   (def leaf-nodes- (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-))
-  (node->stacks leaf-nodes- vcs-graph-))
+  (node->stacks leaf-nodes- vcs-graph- "main"))
 
 (defn get-stacks
   "Returns a single stack for the given ref."
   [{:system/keys [user-config vcs]} ref]
   (let [vcs-graph (vcs/read-graph vcs user-config)
+        trunk-branch (vcs/trunk-branch vcs)
         ;; For now, assume ref is a branch name and find the node with that branch
         node (some (fn [[_id node]]
                      (when (some #{ref} (:change/local-branchnames node))
@@ -136,7 +153,7 @@
                (:graph/nodes vcs-graph))]
     (when node
       (let [fork-point-id (vcs/find-fork-point vcs ref)]
-        (node->stacks node vcs-graph fork-point-id)))))
+        (node->stacks node vcs-graph trunk-branch fork-point-id)))))
 
 (defn reverse-stacks
   "Reverses the order of the changes in every stack. Stacks are represented in

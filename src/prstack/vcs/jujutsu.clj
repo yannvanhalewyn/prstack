@@ -141,9 +141,8 @@
         (remove empty?)
         (map #(str/split % (re-pattern column-separator)))
         (map (fn [[change-id description commit-sha parents-str local-branches-str remote-branches-str]]
-               (println change-id description)
-               {:change/change-id change-id
-                :change/description description
+             {:change/change-id change-id
+                :change/description (str/trim description)
                 :change/commit-sha commit-sha
                 :change/parent-ids (if (empty? parents-str)
                                      []
@@ -159,7 +158,8 @@
        "commit_id, "
        "parents.map(|p| p.change_id()).join(' '), "
        "coalesce(local_bookmarks.join(' '), ' '), "
-       "remote_bookmarks.join(' ')) "
+       "remote_bookmarks.join(' ')"
+       ") "
        (format "++ '%s'" line-separator)))
 
 (defn- echo-nodes [nodes]
@@ -207,6 +207,9 @@
         "-r" (:vcs-config/trunk-branch (vcs/vcs-config vcs))
         "-T" "change_id"]
        {:dir (:vcs/project-dir vcs)}))})
+
+(comment
+  (read-relevant-changes (user/vcs)))
 
 (defn current-change-id
   "Returns the change-id of the current working copy (@)."
