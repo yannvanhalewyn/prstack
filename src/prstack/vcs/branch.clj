@@ -54,3 +54,6 @@
 
 (defn diverged? [branch]
   (= (:branch/status branch) :branch.status/diverged))
+
+(defn no-remote? [branch]
+  (= (:branch/status branch) :branch.status/no-remote))

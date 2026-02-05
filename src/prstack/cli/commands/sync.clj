@@ -14,7 +14,7 @@
     [prstack.vcs.branch :as vcs.branch]
     [prstack.vcs.graph :as vcs.graph]))
 
-(defn- read-vcs-graph [system opts]
+(defn- read-vcs-graph [system]
   (vcs/read-graph (:system/vcs system) (:system/user-config system)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -24,17 +24,8 @@
   (println)
   (println (ansi/colorize :blue (str "▸ " title))))
 
-(defn- ui-info [& parts]
-  (println (str "  " (apply str parts))))
-
-(defn- ui-success [msg]
-  (println (str "  " (ansi/colorize :green "✓") " " msg)))
-
 (defn- ui-error [err]
   (println (str "  " (ansi/colorize :red "Error:") " " err)))
-
-(defn- ui-branch [name]
-  (ansi/colorize :cyan name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 1: Fetch
@@ -42,7 +33,7 @@
 (defn- fetch! [vcs]
   (ui-header "Fetching from remote")
   (vcs/fetch! vcs)
-  (ui-success "Done"))
+  (ui/success "Done"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 2: Cleanup merged branches
@@ -58,21 +49,21 @@
     (cond
       err (ui-error (:error/message err))
       (empty? to-delete)
-      (ui-success "No merged branches to clean up")
+      (ui/success "No merged branches to clean up")
       :else
       (do
-        (ui-info "Local branches with merged PRs:")
+        (ui/info "Local branches with merged PRs:")
         (doseq [pr (sort-by :pr/head-branch to-delete)]
-          (ui-info (format "  • %s was merged into %s (PR #%s)"
-                     (ui-branch (:pr/head-branch pr))
-                     (ui-branch (:pr/base-branch pr))
+          (ui/info (format "  • %s was merged into %s (PR #%s)"
+                     (ui/format-branch (:pr/head-branch pr))
+                     (ui/format-branch (:pr/base-branch pr))
                      (:pr/number pr))))
         (println)
         (doseq [pr to-delete]
-          (when (tty/prompt-confirm {:prompt (str "Delete " (ui-branch (:pr/head-branch pr)))})
-            (ui-info "Deleting " (ui-branch (:pr/head-branch pr)) "...")
+          (when (tty/prompt-confirm {:prompt (str "Delete " (ui/format-branch (:pr/head-branch pr)))})
+            (ui/info "Deleting " (ui/format-branch (:pr/head-branch pr)) "...")
             (vcs/delete-bookmark! vcs (:pr/head-branch pr))
-            (ui-success "Branch deleted")))))))
+            (ui/success "Branch deleted")))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 3: Sync base branches
@@ -80,43 +71,43 @@
 (defn- sync-branches!
   "Syncs branches by either pushing or pulling them, according to their status.
   Returns the set of branches that were pulled."
-  [system opts]
+  [system]
   (ui-header "Syncing branches")
   (let [vcs (:system/vcs system)
-        vcs-graph (read-vcs-graph system opts)
+        vcs-graph (read-vcs-graph system)
         selected-branches (vcs.branch/selected-branches-info vcs-graph)]
 
     ;; Show status for all branches
     (doseq [branch selected-branches]
       (let [branchname (:branch/branchname branch)]
         (case (:branch/status branch)
-          :branch.status/no-remote (ui-info (ansi/colorize :yellow "•") " " (ui-branch branchname) (ansi/colorize :yellow " no remote"))
-          :branch.status/up-to-date (ui-info (ansi/colorize :green "✓") " " (ui-branch branchname) (ansi/colorize :gray " up to date"))
-          :branch.status/ahead (ui-info (ansi/colorize :yellow "↑") " " (ui-branch branchname) (ansi/colorize :yellow " local ahead"))
-          :branch.status/behind (ui-info (ansi/colorize :yellow "↓") " " (ui-branch branchname) (ansi/colorize :yellow " remote ahead"))
-          :branch.status/diverged (ui-info (ansi/colorize :red "⚠") " " (ui-branch branchname) (ansi/colorize :red " diverged")))))
+          :branch.status/no-remote (ui/info (ansi/colorize :yellow "•") " " (ui/format-branch branchname) (ansi/colorize :yellow " no remote"))
+          :branch.status/up-to-date (ui/info (ansi/colorize :green "✓") " " (ui/format-branch branchname) (ansi/colorize :gray " up to date"))
+          :branch.status/ahead (ui/info (ansi/colorize :yellow "↑") " " (ui/format-branch branchname) (ansi/colorize :yellow " local ahead"))
+          :branch.status/behind (ui/info (ansi/colorize :yellow "↓") " " (ui/format-branch branchname) (ansi/colorize :yellow " remote ahead"))
+          :branch.status/diverged (ui/info (ansi/colorize :red "⚠") " " (ui/format-branch branchname) (ansi/colorize :red " diverged")))))
 
     (let [pulled (atom #{})]
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/behind? selected-branches)]
         (println)
-        (when (tty/prompt-confirm {:prompt (format "Pull %s?" (ui-branch branchname))})
-          (ui-info "Pulling " (ui-branch branchname) "...")
+        (when (tty/prompt-confirm {:prompt (format "Pull %s?" (ui/format-branch branchname))})
+          (ui/info "Pulling " (ui/format-branch branchname) "...")
           (vcs/set-bookmark-to-remote! vcs branchname)
-          (ui-success "Pulled")
+          (ui/success "Pulled")
           (swap! pulled conj branchname)))
 
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/ahead? selected-branches)]
         (println)
-        (when (tty/prompt-confirm {:prompt (format "Push %s?" (ui-branch branchname))})
-          (ui-info "Pushing " (ui-branch branchname) "...")
+        (when (tty/prompt-confirm {:prompt (format "Push %s?" (ui/format-branch branchname))})
+          (ui/info "Pushing " (ui/format-branch branchname) "...")
           (vcs/push-branch! vcs branchname)
-          (ui-success "Pushed")))
+          (ui/success "Pushed")))
 
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/diverged? selected-branches)]
         (println)
         (let [solution
               (tty/prompt-pick
-                {:prompt (str "Branch " (ui-branch branchname) " diverged. What do you want to do?")
+                {:prompt (str "Branch " (ui/format-branch branchname) " diverged. What do you want to do?")
                  :options
                  [{:name "Push local to remote" :action :push}
                   {:name "Set local to remote" :action :pull}
@@ -125,14 +116,14 @@
           (case (:action solution)
             :push
             (do
-              (ui-info "Pushing " (ui-branch branchname) "...")
+              (ui/info "Pushing " (ui/format-branch branchname) "...")
               (vcs/push-branch! vcs branchname)
-              (ui-success "Pushed"))
+              (ui/success "Pushed"))
             :pull
             (do
-              (ui-info "Setting " (ui-branch branchname) " to remote...")
+              (ui/info "Setting " (ui/format-branch branchname) " to remote...")
               (vcs/set-bookmark-to-remote! vcs branchname)
-              (ui-success (str "Set local " (ui-branch branchname) " to remote revision")))
+              (ui/success (str "Set local " (ui/format-branch branchname) " to remote revision")))
             nil)))
 
       ;; Return pulled branches for rebase decision
@@ -150,24 +141,26 @@
                         set)
           affected-bases (set/intersection stack-bases pulled-branches)]
       (if (empty? affected-bases)
-        (ui-info (ansi/colorize :gray "Current stack not affected"))
+        (ui/info (ansi/colorize :gray "Current stack not affected"))
         (let [base (first affected-bases)]
-          (ui-info "Base " (ui-branch base) " was updated")
+          (ui/info "Base " (ui/format-branch base) " was updated")
           (println)
           (when (tty/prompt-confirm {:prompt (str "Rebase onto " base "?")})
-            (ui-info "Rebasing...")
+            (ui/info "Rebasing...")
             (vcs/rebase-on! vcs base)
-            (ui-success "Rebased")))))))
+            (ui/success "Rebased")))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 5: Show status & create PRs
 
-(defn- show-status-and-create-prs! [vcs system opts]
+(defn- show-status-and-create-prs! [system opts]
   (ui-header "Stack status")
   (println)
-  (let [stacks (if (:all? opts)
-                 (stack/get-all-stacks system)
-                 (stack/get-current-stacks system))
+  (let [vcs (:system/vcs system)
+        vcs-graph (vcs/read-graph vcs (:system/user-config system))
+        stacks (if (:all? opts)
+                 (stack/get-all-stacks system vcs-graph)
+                 (stack/get-current-stacks system vcs-graph))
         split-stacks (stack/split-feature-base-stacks stacks)
         [prs _err :as pr-result] (ui/fetch-prs-with-spinner)]
 
@@ -185,9 +178,12 @@
                                                  (not (some #(= (:pr/head-branch %) branchname) prs)))))
                                     stack))]
         (when has-missing-prs?
-          (ui-info "Stack " (ui-branch leaf-branch) " has branches without PRs")
-          (when (tty/prompt-confirm {:prompt "Create missing PRs?"})
-            (commands.create-prs/create-prs! vcs {:prs pr-result :stacks [stack]})))))))
+          (ui/info "Stack " (ui/format-branch leaf-branch) " has branches without PRs")
+          (when (tty/prompt-confirm {:prompt "  Create missing PRs?"})
+            (commands.create-prs/create-prs! vcs
+              {:prs pr-result
+               :stacks [stack]
+               :vcs-graph vcs-graph})))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main command
@@ -213,13 +209,13 @@
        (cleanup-merged-branches! system opts)
 
        ;; Step 3: Sync base branches
-       (let [pulled-branches (sync-branches! system opts)
+       (let [pulled-branches (sync-branches! system)
              current-stacks (stack/get-current-stacks system)]
          ;; Step 4: Offer rebase if base was pulled
          (offer-rebase! vcs pulled-branches current-stacks))
 
        ;; Step 5: Show status & create PRs
-       (show-status-and-create-prs! vcs system opts)
+       (show-status-and-create-prs! system opts)
 
        (println)
        (println (ansi/colorize :green "✓ Sync complete"))))})

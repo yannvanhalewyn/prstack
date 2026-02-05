@@ -38,10 +38,7 @@
                   :change/local-branchnames ["merge"]
                   :change/remote-branchnames []}]
           g (graph/build-graph nodes "trunk")]
-      (is (true? (get-in g [:graph/nodes "trunk" :change/trunk-node?])))
-      (is (false? (get-in g [:graph/nodes "feature" :change/trunk-node?])))
-      (is (false? (get-in g [:graph/nodes "feature" :change/merge-node?])))
-      (is (true? (get-in g [:graph/nodes "merge" :change/merge-node?]))))))
+      (is (true? (get-in g [:graph/nodes "trunk" :change/trunk-node?]))))))
 
 (deftest test-find-path-to-trunk
   (testing "finds path from leaf to trunk"

@@ -10,27 +10,19 @@
     [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.utils :as u]
-    [prstack.vcs :as vcs]))
+    [prstack.vcs :as vcs]
+    [prstack.vcs.branch :as vcs.branch]))
 
-;; TODO verify this
-(defn- ensure-remote-branch! [vcs change msg]
-  (or (vcs/remote-branchname vcs change)
-      (let [branchname (:change/selected-branchname change)]
-        (when (tty/prompt-confirm
-                {:prompt (str msg (format "Push %s to remote?" (ansi/colorize :blue branchname)))})
-          (vcs/push-branch! vcs branchname)
-          true))))
+(defn- ensure-remote-branch! [branchname msg vcs branch-infos]
+  (let [branch-info (get branch-infos branchname)]
+    (if (vcs.branch/no-remote? branch-info)
+      (when (tty/prompt-confirm
+              {:prompt (str msg (format "Push %s to remote?" (ansi/colorize :blue branchname)))})
+        (vcs/push-branch! vcs branchname)
+        true)
+      true)))
 
-(defn- prompt-and-create-prs! [head-branch base-branch]
-  (when (tty/prompt-confirm
-          {:prompt
-           (format "Create a PR for %s onto %s?"
-             (ansi/colorize :blue head-branch)
-             (ansi/colorize :blue base-branch))})
-    (github/create-pr! head-branch base-branch)
-    (println (ansi/colorize :green "\n✅ Created PR ... \n"))))
-
-(defn create-pr! [{:keys [vcs prs head-change base-change]}]
+(defn create-pr! [{:keys [head-change base-change prs vcs branch-infos]}]
   (let [head-branch (:change/selected-branchname head-change)
         base-branch (:change/selected-branchname base-change)
         [prs err] prs
@@ -57,23 +49,30 @@
             (ansi/colorize :blue base-branch)))
 
         :else
-        (do
-          (ansi/colorize :yellow "Checking remote branches")
-          (when (ensure-remote-branch! vcs base-change "Base branch not pushed to remote. ")
-            (when (ensure-remote-branch! vcs head-change "Head branch not pushed to remote. ")
-              (prompt-and-create-prs! head-branch base-branch))))))))
+        (when (tty/prompt-confirm
+                {:prompt
+                 (format "Create a PR for %s onto %s?"
+                   (ansi/colorize :blue head-branch)
+                   (ansi/colorize :blue base-branch))})
+          (ui/info (ansi/colorize :yellow "Checking remote branches"))
+          (when (ensure-remote-branch! base-branch "Base branch not pushed to remote. " vcs branch-infos)
+            (when (ensure-remote-branch! head-branch "Head branch not pushed to remote. " vcs branch-infos)
+              (github/create-pr! head-branch base-branch)
+              (println (ansi/colorize :green "\n✅ Created PR ... \n")))))))))
 
-(defn create-prs! [vcs {:keys [prs stacks]}]
+(defn create-prs! [vcs {:keys [prs stacks vcs-graph]}]
   (if (seq stacks)
-    (do
+    (let [branch-infos (->> (vcs.branch/selected-branches-info vcs-graph)
+                         (u/build-index :branch/branchname))]
       (println (ansi/colorize :cyan "Let's create the PRs!\n"))
       (doseq [stack stacks]
         (doseq [[base-change head-change] (u/consecutive-pairs stack)]
           (create-pr!
-            {:vcs vcs
+            {:head-change head-change
+             :base-change base-change
              :prs prs
-             :head-change head-change
-             :base-change base-change}))))
+             :vcs vcs
+             :branch-infos branch-infos}))))
     (println (ansi/colorize :cyan "No PRs to create"))))
 
 ;; TODO also check if branch is pushed before making PR
@@ -85,12 +84,16 @@
      (let [ref (first args)
            system (system/new (config/read-global) (config/read-local) global-opts)
            vcs (:system/vcs system)
+           vcs-graph (vcs/read-graph vcs (:system/user-config system))
            stacks
            (if ref
-             (stack/get-stacks system ref)
-             (stack/get-current-stacks system))
+             (stack/get-stacks system ref vcs-graph)
+             (stack/get-current-stacks system vcs-graph))
            split-stacks
            (stack/split-feature-base-stacks stacks)
            prs (ui/fetch-prs-with-spinner)]
        (cli.ui/print-stacks split-stacks prs)
-       (create-prs! vcs {:prs prs :stacks stacks})))})
+       (create-prs! vcs
+         {:prs prs
+          :stacks stacks
+          :vcs-graph vcs-graph})))})

@@ -5,6 +5,15 @@
     [bb-tty.tty :as tty]
     [prstack.github :as github]))
 
+(defn format-branch [name]
+  (ansi/colorize :cyan name))
+
+(defn info [& parts]
+  (println (str "  " (apply str parts))))
+
+(defn success [msg]
+  (println (str "  " (ansi/colorize :green "✓") " " msg)))
+
 (defn format-change
   "Formats a branch name with appropriate icon and color based on bookmark type.
 

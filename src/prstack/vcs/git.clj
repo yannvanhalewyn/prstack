@@ -247,9 +247,8 @@
 
   Combines commit info from git log with branch pointer info from get-branches.
   Filters out any changes with blank change-id to prevent downstream errors."
-  [vcs log-entries trunk-sha]
-  (let [branch-idx (group-by :branch/commit-sha (get-branches vcs))
-        trunk-change (build-trunk-change trunk-sha vcs branch-idx)
+  [vcs log-entries trunk-sha branch-idx]
+  (let [trunk-change (build-trunk-change trunk-sha vcs branch-idx)
         other-changes (into []
                         (keep #(build-change-from-log-entry % branch-idx trunk-sha))
                         (vals log-entries))]
@@ -300,23 +299,28 @@
     (u/run-cmd ["git" "push" "-u" "origin" branch-name "--force-with-lease"]
       {:echo? true :dir (:vcs/project-dir this)}))
 
-  (remote-branchname [_this change]
-    (first (:change/remote-branchnames change)))
-
   (read-relevant-changes [this]
     (let [trunk-sha (commit-sha this (vcs/trunk-branch this))
-          fork-point-sha (find-fork-point* this "HEAD")
           log-entries (get-all-commits-from-log this)
-          nodes (build-changes-from-log this log-entries trunk-sha)
-          ;; Include fork-point if it differs from trunk (trunk already included)
-          ;; and isn't already in the log entries
-          nodes (if (and fork-point-sha
-                         (not= fork-point-sha trunk-sha)
-                         (not (contains? log-entries fork-point-sha)))
-                  (let [branch-idx (group-by :branch/commit-sha (get-branches this))
-                        fork-point-change (build-change-from-sha this fork-point-sha branch-idx)]
-                    (conj nodes fork-point-change))
-                  nodes)]
+          branches (get-branches this)
+          branch-idx (group-by :branch/commit-sha branches)
+          nodes (build-changes-from-log this log-entries trunk-sha branch-idx)
+          ;; Get fork-points for all local branches to ensure get-all-stacks works
+          local-branches (->> branches
+                           (remove remote-branch?)
+                           (map :branch/name))
+          fork-point-shas (into #{}
+                            (comp
+                              (map #(find-fork-point* this %))
+                              (filter some?))
+                            local-branches)
+          ;; Include any fork-points that aren't already in the graph
+          missing-fork-points (remove #(or (= % trunk-sha)
+                                           (contains? log-entries %))
+                                fork-point-shas)
+          fork-point-changes (map #(build-change-from-sha this % branch-idx)
+                               missing-fork-points)
+          nodes (into nodes fork-point-changes)]
       {:nodes nodes
        :trunk-change-id trunk-sha}))
 

@@ -51,12 +51,11 @@
         nodes-map (into {}
                     (map (fn [node]
                            (let [change-id (:change/change-id node)
-                                 parent-ids (:change/parent-ids node)]
+                                 trunk-node? (= change-id trunk-id)]
                              [change-id
-                              (assoc node
-                                :change/children-ids (or (parent->children change-id) [])
-                                :change/trunk-node? (= change-id trunk-id)
-                                :change/merge-node? (> (count parent-ids) 1))])))
+                              (cond-> (assoc node
+                                        :change/children-ids (or (parent->children change-id) [])
+                                        :change/trunk-node? trunk-node?))])))
                     nodes)]
     {:graph/nodes nodes-map
      :graph/trunk-id trunk-id}))
@@ -82,7 +81,8 @@
   "Returns all leaf nodes that have local bookmarks.
   These are the 'real' leaves that represent feature branches."
   [bookmarks-graph]
-  (remove (comp seq :change/children-ids) (all-nodes bookmarks-graph)))
+  (->> (all-nodes bookmarks-graph)
+    (remove (comp seq :change/children-ids))))
 
 (declare remove-node)
 

@@ -88,11 +88,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Change data structure
 
-(defn remote-branchname [change]
-  (u/find-first
-    #(not (str/ends-with? % "@git"))
-    (:change/remote-branchnames change)))
-
 (defn find-fork-point
   "Finds the fork point (common ancestor) between a ref and trunk.
 
@@ -141,7 +136,7 @@
         (remove empty?)
         (map #(str/split % (re-pattern column-separator)))
         (map (fn [[change-id description commit-sha parents-str local-branches-str remote-branches-str]]
-             {:change/change-id change-id
+               {:change/change-id change-id
                 :change/description (str/trim description)
                 :change/commit-sha commit-sha
                 :change/parent-ids (if (empty? parents-str)
@@ -163,19 +158,20 @@
        (format "++ '%s'" line-separator)))
 
 (defn- echo-nodes [nodes]
-  (println "Count:" (count nodes))
-  (println "Nodes:")
-  (doseq [node nodes]
+  #_#_#_
+        (println "Count:" (count nodes))
+      (println "Nodes:")
+    (doseq [node nodes]
     ;; Master seems ahead of fork point? Fork point detection not working correctly
 
     ;; Ok so it seems to return all changes, just not returning wether it's a
     ;; descendant of main or not.
-    (println (:change/change-id node) #_(:change/description node)
-      (if-let [lb (seq (:change/local-branchnames node))]
-        (str/join " " lb)
-        (if-let [rb (seq (:change/remote-branchnames node))]
-          (str/join " " rb)
-          ""))))
+      (println (:change/change-id node) #_(:change/description node)
+        (if-let [lb (seq (:change/local-branchnames node))]
+          (str/join " " lb)
+          (if-let [rb (seq (:change/remote-branchnames node))]
+            (str/join " " rb)
+            ""))))
   nodes)
 
 (defn- read-relevant-changes
@@ -187,19 +183,19 @@
   [vcs]
   {:nodes
    (echo-nodes
-    (parse-log
-      (u/run-cmd
-        ["jj" "log" "--no-graph"
+     (parse-log
+       (u/run-cmd
+         ["jj" "log" "--no-graph"
          ;; Get all changes from any trunk commit to all bookmark heads
          ;; This uses trunk()::bookmarks() to include stacks that forked from
          ;; old trunk commits (before trunk advanced), rather than restricting
          ;; to descendants of the current trunk bookmark position
-         "-r" (str "fork_point(trunk() | @)::"
-                   #_ " | fork_point(trunk() | remote_bookmarks())::"
-                   #_ " | fork_point(trunk() | bookmarks())")
-         "-T" log-template]
-        {:dir (:vcs/project-dir vcs)
-         :echo? true})))
+          "-r" (str "fork_point(trunk() | @)::"
+                    #_ ;; This causes performance issues on large repos
+                      " | fork_point(trunk() | remote_bookmarks())::"
+                    " | fork_point(trunk() | bookmarks())")
+          "-T" log-template]
+         {:dir (:vcs/project-dir vcs)})))
    :trunk-change-id
    (str/trim
      (u/run-cmd
@@ -246,9 +242,6 @@
 
   (push-branch! [this branch-name]
     (push-branch! this branch-name))
-
-  (remote-branchname [_this change]
-    (remote-branchname change))
 
   (read-relevant-changes [this]
     (read-relevant-changes this))

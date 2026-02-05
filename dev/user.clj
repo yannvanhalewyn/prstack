@@ -15,11 +15,11 @@
   (system/new
     (config/read-global)
     (assoc (config/read-local) :vcs :jujutsu)
+    #_
     {:project-dir "./tmp/log-read-test"}
     #_
     {:project-dir "/Users/yannvanhalewyn/spronq/arqiver"}
-    #_
-      {:project-dir "./tmp/parallel-branches"}))
+    {:project-dir "./tmp/parallel-branches"}))
 
 (defn vcs []
   (:system/vcs sys-))
@@ -41,24 +41,23 @@
   (start-portal!))
 
 (comment
-
-  (map #(map :change/selected-branchname %) (stack/get-current-stacks sys-))
-  (stack/get-all-stacks sys-)
-  (stack/get-current-stacks sys-)
-  (github/list-prs (:system/vcs sys-))
-
-  ;; Deeper
   (do
-    (vcs/read-relevant-changes (vcs))
     (def vcs-graph- (vcs/read-graph (vcs) (user-config)))
     (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
     (def current-id- (vcs/current-change-id (vcs)))
     (vcs.graph/get-node vcs-graph- current-id-)
     (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
 
-  (vcs/read-relevant-changes (:system/vcs sys-))
+  (stack/get-all-stacks sys-)
+  (stack/get-current-stacks sys-)
+  (map #(stack/path->stack % vcs-graph- "main") paths-)
+  (stack/path->stack (first paths-) vcs-graph- (vcs/trunk-branch (vcs)))
+  (vcs/read-relevant-changes (vcs))
   (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-)
+  (map #(vcs.graph/get-node vcs-graph- %) (first paths-))
+  (vcs.graph/get-node vcs-graph- (last (first paths-)))
+  ;;"vrsqkszuzpvlowuvvormsqxzvxswsypy"
 
-  (stack/path->stack (first paths-) vcs-graph-)
-  (map #(stack/path->stack % vcs-graph-) paths-)
-  (map #(vcs.graph/get-node vcs-graph- %) (first paths-)))
+  (github/list-prs (:system/vcs sys-))
+  (map #(map :change/selected-branchname %) (stack/get-current-stacks sys-))
+  )

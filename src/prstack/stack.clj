@@ -39,15 +39,12 @@
   Returns:
     Vector of Change maps ordered from trunk to leaf."
   [path vcs-graph trunk-branch]
-  (let [terminal-id (last path)]  ;; Fork-point is always last per find-all-paths-to-trunk contract
+  ;; Fork-point is always last per find-all-paths-to-trunk contract
+  (let [terminal-id (last path)]
     (reverse
       (into []
         (comp
           (map #(vcs.graph/get-node vcs-graph %))
-          (map (fn [node]
-                 (when (nil? node)
-                   (throw (ex-info "Path contains node not in graph" {:path path})))
-                 node))
           (map (fn [node]
                  (if (and (= (:change/change-id node) terminal-id)
                           (not (:change/selected-branchname node)))
@@ -78,37 +75,38 @@
 
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
-  [{:system/keys [vcs user-config]}]
-  (let [vcs-graph (vcs/read-graph vcs user-config)
-        trunk-branch (vcs/trunk-branch vcs)
-        bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
-        leaves (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)]
-    (mapcat
-      (fn [leaf]
-        ;; Find the fork point for this leaf to handle cases where trunk has
-        ;; advanced. Guard against nodes with nil/empty change-id.
-        (when-let [change-id (:change/change-id leaf)]
-          (node->stacks leaf vcs-graph trunk-branch
-            (vcs/find-fork-point vcs change-id))))
-      leaves)))
+  ([{:system/keys [vcs user-config] :as system}]
+   (get-all-stacks system (vcs/read-graph vcs user-config)))
+  ([{:system/keys [vcs]} vcs-graph]
+   (let [trunk-branch (vcs/trunk-branch vcs)
+         bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
+         leaves (->> (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)
+                  (remove #(= (:change/selected-branchname %) trunk-branch)))]
+     (mapcat
+       (fn [leaf]
+         ;; Find the fork point for this leaf to handle cases where trunk has
+         ;; advanced. Guard against nodes with nil/empty change-id.
+         (when-let [change-id (:change/change-id leaf)]
+           (node->stacks leaf vcs-graph trunk-branch
+             (vcs/find-fork-point vcs change-id))))
+       leaves))))
 
 (defn get-current-stacks
   "Returns the stack(s) containing the current working copy.
 
   If the current change is a megamerge (multiple parents), returns multiple
   stacks - one for each parent path. Otherwise, returns a single stack."
-  [{:system/keys [vcs user-config]}]
-  (let [vcs-graph (vcs/read-graph vcs user-config)
-        trunk-branch (vcs/trunk-branch vcs)
-        current-id (vcs/current-change-id vcs)
-        current-node (vcs.graph/get-node vcs-graph current-id)]
-    (if current-node
-      ;; Current HEAD is in the graph - compute stacks from it
-      (when-let [change-id (:change/change-id current-node)]
-        (let [fork-point-id (vcs/find-fork-point vcs change-id)]
-          (node->stacks current-node vcs-graph trunk-branch fork-point-id)))
-      ;; Current HEAD is not in the graph (e.g., on trunk or detached)
-      [])))
+  ([{:system/keys [vcs user-config] :as system}]
+   (get-current-stacks system (vcs/read-graph vcs user-config)))
+  ([{:system/keys [vcs]} vcs-graph]
+   (let [trunk-branch (vcs/trunk-branch vcs)
+         current-id (vcs/current-change-id vcs)
+         current-node (vcs.graph/get-node vcs-graph current-id)]
+     (if current-node
+       (when-let [change-id (:change/change-id current-node)]
+         (let [fork-point-id (vcs/find-fork-point vcs change-id)]
+           (node->stacks current-node vcs-graph trunk-branch fork-point-id)))
+       []))))
 
 (comment
   (get-current-stacks user/sys-)
@@ -124,36 +122,39 @@
   (some has-segments? stacks))
 
 (comment
-  (def sys-
-    (prstack.system/new
-      (prstack.config/read-global)
-      (assoc (prstack.config/read-local)
-        :vcs #_:jujutsu :git)
-      {:project-dir "./tmp/parallel-branches"}))
-  (def vcs- (:system/vcs sys-))
-  (def user-config- (:system/user-config sys-))
+  (do
+    (def sys-
+      (prstack.system/new
+        (prstack.config/read-global)
+        (assoc (prstack.config/read-local)
+          :vcs #_:jujutsu :git)
+        {:project-dir "./tmp/parallel-branches"}))
+    (def vcs- (:system/vcs sys-))
+    (def user-config- (:system/user-config sys-))
 
-  (def vcs-graph- (vcs/read-graph vcs- user-config-))
-  (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
-  (def current-id- (vcs/current-change-id vcs-))
-  (def paths- (vcs.graph/find-all-paths-to-trunk bookmarks-graph- current-id-))
+    (def vcs-graph- (vcs/read-graph vcs- user-config-))
+    (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
+    (def current-id- (vcs/current-change-id vcs-))
+    (def paths- (vcs.graph/find-all-paths-to-trunk bookmarks-graph- current-id-))
 
-  (def leaf-nodes- (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-))
-  (node->stacks leaf-nodes- vcs-graph- "main"))
+    (def leaf-nodes- (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-)))
+
+  (node->stacks (first leaf-nodes-) vcs-graph- "main"))
 
 (defn get-stacks
   "Returns a single stack for the given ref."
-  [{:system/keys [user-config vcs]} ref]
-  (let [vcs-graph (vcs/read-graph vcs user-config)
-        trunk-branch (vcs/trunk-branch vcs)
-        ;; For now, assume ref is a branch name and find the node with that branch
-        node (some (fn [[_id node]]
-                     (when (some #{ref} (:change/local-branchnames node))
-                       node))
-               (:graph/nodes vcs-graph))]
-    (when node
-      (let [fork-point-id (vcs/find-fork-point vcs ref)]
-        (node->stacks node vcs-graph trunk-branch fork-point-id)))))
+  ([{:system/keys [vcs user-config] :as system} ref]
+   (get-stacks system ref (vcs/read-graph vcs user-config)))
+  ([{:system/keys [vcs]} ref vcs-graph]
+    (let [trunk-branch (vcs/trunk-branch vcs)
+          ;; For now, assume ref is a branch name and find the node with that branch
+          node (some (fn [[_id node]]
+                       (when (some #{ref} (:change/local-branchnames node))
+                         node))
+                 (:graph/nodes vcs-graph))]
+      (when node
+        (let [fork-point-id (vcs/find-fork-point vcs ref)]
+          (node->stacks node vcs-graph trunk-branch fork-point-id))))))
 
 (defn reverse-stacks
   "Reverses the order of the changes in every stack. Stacks are represented in

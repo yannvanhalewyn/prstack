@@ -52,15 +52,6 @@
     Throws:
       ExceptionInfo if push fails")
 
-  (remote-branchname [this change]
-    "Extracts the remote branch name from a change.
-
-    Args:
-      change - Change map (see prstack.vcs.graph/node->change)
-
-    Returns:
-      String or nil, the remote branch name without markers")
-
   (read-relevant-changes [this]
     "Reads all relevant changes from the VCS graph. The relevant changes are
     the ones that have not been merged to the trunk yet. It should return a

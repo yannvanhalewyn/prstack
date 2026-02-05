@@ -7,13 +7,15 @@
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.sync :as commands.sync]
     [prstack.config :as config]
+    [prstack.custom-command :as custom-command]
     [prstack.github :as github]
     [prstack.pr :as pr]
     [prstack.stack :as stack]
     [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.utils :as u]
-    [prstack.custom-command :as custom-command]))
+    [prstack.vcs.branch :as vcs.branch]
+    [prstack.vcs :as vcs]))
 
 (defn- http-request-schema [result-schema]
   [:map
@@ -29,6 +31,7 @@
    [:app-state/system system/SystemSchema]
 
    ;; Stacks
+   [:app-state/vcs-graph [:fn #(instance? clojure.lang.Delay %)]]
    [:app-state/current-stacks [:fn #(instance? clojure.lang.Delay %)]]
    [:app-state/all-stacks [:fn #(instance? clojure.lang.Delay %)]]
    [:app-state/prs (http-request-schema [:sequential github/PR])]
@@ -47,6 +50,9 @@
 
 (defn global-config [state]
   (get-in state [:app-state/system :system/global-config]))
+
+(defn vcs-graph [state]
+  @(:app-state/vcs-graph state))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Displaying Stacks
@@ -162,11 +168,14 @@
 (defmethod dispatch! :event/read-local-repo
   [_evt]
   (let [system (system/new (config/read-global) (config/read-local)
-                 {:project-dir nil})]
+                 {:project-dir nil})
+        vcs-graph (delay (vcs/read-graph (:system/vcs system)
+                           (:system/user-config system)))]
     (swap! app-state merge
       {:app-state/system system
-       :app-state/current-stacks (delay (stack/get-current-stacks system))
-       :app-state/all-stacks (delay (stack/get-all-stacks system))})))
+       :app-state/vcs-graph vcs-graph
+       :app-state/current-stacks (delay (stack/get-current-stacks system @vcs-graph))
+       :app-state/all-stacks (delay (stack/get-all-stacks system @vcs-graph))})))
 
 (defmethod dispatch! :event/fetch-prs
   [_evt]
@@ -236,10 +245,11 @@
     (swap! app-state assoc :app-state/run-in-fg
       (fn []
         (commands.create-prs/create-pr!
-          {:vcs (vcs @app-state)
+          {:head-change selected-change
+           :base-change prev-change
            :prs (ui/fetch-prs-with-spinner)
-           :head-change selected-change
-           :base-change prev-change})))))
+           :vcs (vcs @app-state)
+           :branch-statuses (vcs.branch/selected-branches-info (vcs-graph @app-state))})))))
 
 (defmethod dispatch! :event/merge-pr
   [_evt]
