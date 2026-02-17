@@ -270,13 +270,13 @@
             (github/merge-pr! (:pr/number current-pr))
             (when (tty/prompt-confirm
                     {:prompt (str "Would you like to run " (ansi/colorize :yellow "prstack sync") "?")})
-              ((:exec commands.sync/command) [])))))
+              ((:exec commands.sync/command) [] {})))))
       (tui/close!))))
 
 (defmethod dispatch! :event/sync
   [_evt]
   (swap! app-state assoc :app-state/run-in-fg
-    #((:exec commands.sync/command) []))
+    #((:exec commands.sync/command) [] {}))
   (tui/close!))
 
 (defmethod dispatch! :event/select-tab
