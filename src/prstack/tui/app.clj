@@ -106,7 +106,8 @@
                       [""])))
                 (u/indexed regular-stacks)))
             [(ansi/colorize :cyan "No stacks detetected")
-             "Create some branches to see some stacks appear."])
+             "Create some branches to see some stacks appear."
+             ""])
           (seq feature-base-stacks)
           ;; Render feature base stacks
           (concat
