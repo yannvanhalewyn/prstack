@@ -164,25 +164,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graph operations
 
-(defn- parse-change
-  "Builds a node map from a commit SHA."
-  [sha vcs trunk-sha branch-idx]
-  (let [parents (get-parent-shas vcs sha)]
-    {:change/change-id sha
-     :change/commit-sha sha
-     :change/parent-ids parents
-     :change/local-branchnames (->> (get branch-idx sha)
-                                 (remove remote-branch?)
-                                 (map :branch/name))
-     :change/remote-branchnames (->> (get branch-idx sha)
-                                  (filter remote-branch?)
-                                  (map :branch/name))
-     :change/trunk-node? (= sha trunk-sha)}))
-
 (defn- build-change-from-log-entry
   "Builds a change map from a parsed log entry and branch index.
   Returns nil for entries with blank sha."
-  [log-entry branch-idx trunk-sha]
+  [log-entry branch-idx]
   (when-let [sha (not-empty (:sha log-entry))]
     (let [branches-at-sha (get branch-idx sha [])
           local-branches (->> branches-at-sha
@@ -197,8 +182,7 @@
        :change/commit-sha sha
        :change/parent-ids (:parent-shas log-entry)
        :change/local-branchnames local-branches
-       :change/remote-branchnames remote-branches
-       :change/trunk-node? (= sha trunk-sha)})))
+       :change/remote-branchnames remote-branches})))
 
 (defn- build-trunk-change
   "Builds the trunk change node."
@@ -215,16 +199,7 @@
      :change/remote-branchnames (->> branches-at-sha
                                   (filter remote-branch?)
                                   (map :branch/name)
-                                  vec)
-     :change/trunk-node? true}))
-
-(defn parse-graph-commits
-  "Parses a collection of commit SHAs into Change maps."
-  [vcs commit-shas trunk-sha]
-  (let [branch-idx (group-by :branch/commit-sha (get-branches vcs))]
-    (into []
-      (map #(parse-change % vcs trunk-sha branch-idx))
-      commit-shas)))
+                                  vec)}))
 
 (defn build-changes-from-log
   "Builds change maps from git log output and branch index.
@@ -234,7 +209,7 @@
   [vcs log-entries trunk-sha branch-idx]
   (let [trunk-change (build-trunk-change trunk-sha vcs branch-idx)
         other-changes (into []
-                        (keep #(build-change-from-log-entry % branch-idx trunk-sha))
+                        (keep #(build-change-from-log-entry % branch-idx))
                         (vals log-entries))]
     (->> (conj other-changes trunk-change)
       (remove #(str/blank? (:change/change-id %)))
@@ -257,8 +232,7 @@
      :change/remote-branchnames (->> branches-at-sha
                                   (filter remote-branch?)
                                   (map :branch/name)
-                                  vec)
-     :change/trunk-node? false}))
+                                  vec)}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS Implementation

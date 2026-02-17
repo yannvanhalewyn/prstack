@@ -54,17 +54,15 @@
                     (map (fn [node]
                           (let [change-id (:change/change-id node)
                                 trunk-node? (= change-id trunk-id)
-                                selected-branchname (:change/selected-branchname node)
-                                change-type
-                                (cond
-                                  trunk-node? :trunk
-                                  (and selected-branchname (contains? feature-base-branches selected-branchname)) :feature-base
-                                  :else :regular)]
+                                selected-branchname (:change/selected-branchname node)]
                             [change-id
                              (assoc node
                                :change/children-ids (or (parent->children change-id) [])
-                               :change/trunk-node? trunk-node?
-                               :change/type change-type)])))
+                               :change/type
+                               (cond
+                                  trunk-node? :trunk
+                                  (and selected-branchname (contains? feature-base-branches selected-branchname)) :feature-base
+                                  :else :regular))])))
                     nodes)]
     {:graph/nodes nodes-map
      :graph/trunk-id trunk-id}))
