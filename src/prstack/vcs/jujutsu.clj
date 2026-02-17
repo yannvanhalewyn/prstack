@@ -37,6 +37,17 @@
   [vcs]
   {:vcs-config/trunk-branch (detect-trunk-branch! vcs)})
 
+(defn current-user-email
+  "Gets the current user's email from jj config.
+  Returns the email string or nil if not configured."
+  [vcs]
+  (try
+    (str/trim
+      (u/run-cmd ["jj" "config" "get" "user.email"]
+        {:dir (:vcs/project-dir vcs)}))
+    (catch Exception _e
+      nil)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Branch Operations
 
@@ -122,7 +133,7 @@
         (map str/trim)
         (remove empty?)
         (map #(str/split % (re-pattern column-separator)))
-        (map (fn [[change-id description commit-sha parents-str local-branches-str remote-branches-str]]
+        (map (fn [[change-id description commit-sha parents-str local-branches-str remote-branches-str author-email]]
                {:change/change-id change-id
                 :change/description (str/trim description)
                 :change/commit-sha commit-sha
@@ -130,7 +141,9 @@
                                      []
                                      (str/split parents-str #" "))
                 :change/local-branchnames (parse-branchnames local-branches-str)
-                :change/remote-branchnames (parse-branchnames remote-branches-str)})))
+                :change/remote-branchnames (parse-branchnames remote-branches-str)
+                :change/author-email (when-not (str/blank? author-email)
+                                       (str/trim author-email))})))
       (str/split output (re-pattern line-separator)))))
 
 (def ^:private log-template
@@ -140,7 +153,8 @@
        "commit_id, "
        "parents.map(|p| p.change_id()).join(' '), "
        "coalesce(local_bookmarks.join(' '), ' '), "
-       "remote_bookmarks.join(' ')"
+       "coalesce(remote_bookmarks.join(' '), ' '), "
+       "author.email()"
        ") "
        (format "++ '%s'" line-separator)))
 
@@ -220,6 +234,9 @@
 
   (find-fork-point [this ref]
     (find-fork-point this ref))
+
+  (current-user-email [this]
+    (current-user-email this))
 
   (fetch! [this]
     (fetch! this))

@@ -91,6 +91,12 @@
     Returns:
       String, the change-id/commit-sha of the fork point")
 
+  (current-user-email [this]
+    "Gets the current user's email from VCS config.
+
+    Returns:
+      String, the user's email or nil if not configured")
+
   (set-bookmark-to-remote! [this branch-name]
     "Sets a local branch/bookmark to match its remote counterpart.
 

@@ -12,8 +12,7 @@
     [prstack.ui :as ui]
     [prstack.vcs :as vcs]
     [prstack.vcs.branch :as vcs.branch]
-    [prstack.vcs.graph :as vcs.graph]
-    [prstack.utils :as u]))
+    [prstack.vcs.graph :as vcs.graph]))
 
 (defn- read-vcs-graph [system]
   (vcs/read-graph (:system/vcs system) (:system/user-config system)))
@@ -76,18 +75,19 @@
   (ui-header "Syncing branches")
   (let [vcs (:system/vcs system)
         vcs-graph (read-vcs-graph system)
-        current-user (github/current-user vcs)
         all-branches (vcs.branch/selected-branches-info vcs-graph)
-        [all-prs _err] (github/list-prs vcs {:state :all})
-        branch->author (u/build-index :pr/head-branch :pr/author all-prs)
+        ;; Get current user email from VCS config
+        current-user-email (vcs/current-user-email vcs)
         ;; Filter branches to only include those belonging to current user
-        ;; Include branches without PRs (they might be the user's branches)
-        selected-branches (if current-user
+        ;; based on commit author email
+        selected-branches (if current-user-email
                             (filter (fn [branch]
                                       (let [branchname (:branch/branchname branch)
-                                            author (get branch->author branchname)]
-                                        (or (nil? author)  ; No PR exists
-                                            (= author current-user))))
+                                            ;; Get the change node for this branch
+                                            change (vcs.branch/find-change-for-local-branchname vcs-graph branchname)
+                                            author-email (:change/author-email change)]
+                                        ;; Include branch if author matches current user
+                                        (= author-email current-user-email)))
                               all-branches)
                             all-branches)]  ; If we can't determine user, show all branches
 

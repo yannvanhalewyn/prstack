@@ -52,6 +52,17 @@
   (or (detect-trunk-branch vcs)
       (throw (ex-info "Could not detect trunk branch" {}))))
 
+(defn current-user-email
+  "Gets the current user's email from git config.
+  Returns the email string or nil if not configured."
+  [vcs]
+  (try
+    (str/trim
+      (u/run-cmd ["git" "config" "user.email"]
+        {:dir (:vcs/project-dir vcs)}))
+    (catch Exception _e
+      nil)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Querying commit log
 
@@ -95,6 +106,16 @@
     ;; First part is the commit itself, rest are parents
     (into [] (rest parts))))
 
+(defn- get-author-email
+  "Returns the author email for a given commit SHA."
+  [vcs sha]
+  (try
+    (str/trim
+      (u/run-cmd ["git" "log" "-1" "--format=%ae" sha]
+        {:dir (:vcs/project-dir vcs)}))
+    (catch Exception _e
+      nil)))
+
 (defn- get-branches [vcs]
   (->>
     (u/run-cmd ["git" "branch" "-v" "--all"
@@ -129,16 +150,18 @@
 
 (defn- parse-log-line
   "Parses a single line from git log output.
-  Format: SHA+++PARENTS
+  Format: SHA+++PARENTS+++AUTHOR_EMAIL
   Returns nil for invalid lines."
   [line]
   (when-not (str/blank? line)
-    (let [[sha parents] (str/split line #"\+\+\+" 2)]
+    (let [[sha parents author-email] (str/split line #"\+\+\+" 3)]
       (when (and sha (not (str/blank? sha)))
         {:sha sha
          :parent-shas (if (or (nil? parents) (str/blank? parents))
                         []
-                        (str/split parents #" "))}))))
+                        (str/split parents #" "))
+         :author-email (when-not (str/blank? author-email)
+                         (str/trim author-email))}))))
 
 (defn get-all-commits-from-log
   "Gets all commits reachable from any branch but not from trunk.
@@ -148,17 +171,19 @@
   (let [trunk-branch (vcs/trunk-branch vcs)
         output (u/run-cmd ["git" "log" "--branches" "--remotes"
                            "--not" trunk-branch
-                           "--format=%H+++%P"
+                           "--format=%H+++%P+++%ae"
                            "--topo-order"]
                  {:dir (:vcs/project-dir vcs)})]
     (->> output
       str/split-lines
       (keep parse-log-line)
       (reduce
-        (fn [acc {:keys [sha parent-shas]}]
+        (fn [acc {:keys [sha parent-shas author-email]}]
           (if (contains? acc sha)
             acc  ;; Already seen this commit, skip
-            (assoc acc sha {:sha sha :parent-shas parent-shas})))
+            (assoc acc sha {:sha sha
+                            :parent-shas parent-shas
+                            :author-email author-email})))
         {}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -181,6 +206,7 @@
       {:change/change-id sha
        :change/commit-sha sha
        :change/parent-ids (:parent-shas log-entry)
+       :change/author-email (:author-email log-entry)
        :change/local-branchnames local-branches
        :change/remote-branchnames remote-branches})))
 
@@ -192,6 +218,7 @@
     {:change/change-id trunk-sha
      :change/commit-sha trunk-sha
      :change/parent-ids parents
+     :change/author-email (get-author-email vcs trunk-sha)
      :change/local-branchnames (->> branches-at-sha
                                  (remove remote-branch?)
                                  (map :branch/name)
@@ -225,6 +252,7 @@
     {:change/change-id sha
      :change/commit-sha sha
      :change/parent-ids parents
+     :change/author-email (get-author-email vcs sha)
      :change/local-branchnames (->> branches-at-sha
                                  (remove remote-branch?)
                                  (map :branch/name)
@@ -280,6 +308,9 @@
 
   (find-fork-point [this ref]
     (find-fork-point* this ref))
+
+  (current-user-email [this]
+    (current-user-email this))
 
   (fetch! [this]
     (fetch! this))

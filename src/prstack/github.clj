@@ -87,18 +87,6 @@
 (comment
   (list-prs {:vcs/project-dir "tmp/parallel-branches"}))
 
-(defn current-user
-  "Gets the current GitHub user's login.
-  Returns the login string or nil if unable to determine."
-  [vcs]
-  (try
-    (str/trim
-      (u/run-cmd
-        ["gh" "api" "user" "--jq" ".login"]
-        {:dir (:vcs/project-dir vcs)}))
-    (catch Exception _e
-      nil)))
-
 (defn create-pr!
   "Create a PR using the GitHub CLI"
   [head-branch base-branch]
