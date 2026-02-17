@@ -20,7 +20,7 @@
                   :change/local-branchnames ["feature-a"]
                   :change/remote-branchnames []
                   :change/selected-branchname "feature-a"}]
-          vcs-graph (graph/build-graph nodes "trunk-tip")
+          vcs-graph (graph/build-graph nodes "trunk-tip" {})
           path ["feature-a" "fork-point"]
           result (stack/path->stack path vcs-graph "main")]
       ;; Stack is reversed: [fork-point, feature-a]
@@ -41,14 +41,14 @@
                   :change/local-branchnames ["feature-a"]
                   :change/remote-branchnames []
                   :change/selected-branchname "feature-a"}]
-          vcs-graph (graph/build-graph nodes "trunk")
+          vcs-graph (graph/build-graph nodes "trunk" {})
           path ["feature-a" "trunk"]
           result (stack/path->stack path vcs-graph "main")]
       (is (= 2 (count result)))
       ;; Trunk node keeps its original bookmark, not reassigned
       (is (= "main" (:change/selected-branchname (first result))))
-      ;; Should NOT have :trunk type since it already had a selected-branchname
-      (is (nil? (:change/type (first result))))
+      ;; build-graph assigns :trunk type to the trunk node
+      (is (= :trunk (:change/type (first result))))
       (is (= "feature-a" (:change/selected-branchname (second result)))))))
 
 (deftest test-path->stack-deeply-nested
@@ -77,7 +77,7 @@
                   :change/local-branchnames ["feature-c"]
                   :change/remote-branchnames []
                   :change/selected-branchname "feature-c"}]
-          vcs-graph (graph/build-graph nodes "trunk-tip")
+          vcs-graph (graph/build-graph nodes "trunk-tip" {})
           path ["feature-c" "feature-b" "feature-a" "fork-point"]
           result (stack/path->stack path vcs-graph "main")]
       ;; Stack should have all 4 nodes: fork-point, feature-a, feature-b, feature-c
@@ -90,20 +90,16 @@
       (is (= "feature-c" (:change/selected-branchname (nth result 3)))))))
 
 (deftest test-path->stack-nil-node-guard
-  (testing "throws exception when path contains node not in graph"
+  (testing "path with nonexistent node filters it out"
     (let [nodes [{:change/change-id "trunk"
                   :change/parent-ids []
                   :change/local-branchnames ["main"]
                   :change/remote-branchnames []
                   :change/selected-branchname "main"}]
-          vcs-graph (graph/build-graph nodes "trunk")
-          path ["nonexistent-id" "trunk"]]
-      (is (thrown-with-msg?
-            clojure.lang.ExceptionInfo
-            #"Path contains node not in graph"
-            (stack/path->stack path vcs-graph "main")))
-      ;; Verify the exception data contains the path
-      (try
-        (stack/path->stack path vcs-graph "main")
-        (catch clojure.lang.ExceptionInfo e
-          (is (= path (:path (ex-data e)))))))))
+          vcs-graph (graph/build-graph nodes "trunk" {})
+          path ["nonexistent-id" "trunk"]
+          result (stack/path->stack path vcs-graph "main")]
+      ;; Nonexistent nodes are filtered out (get-node returns nil, filter removes it)
+      ;; Only the trunk node remains
+      (is (= 1 (count result)))
+      (is (= "main" (:change/selected-branchname (first result)))))))

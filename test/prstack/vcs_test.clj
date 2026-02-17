@@ -87,13 +87,13 @@
                 {:vcs :jujutsu}
                 ;; global opts (--project-dir)
                 {:project-dir *test-repo-dir*})
-          {:keys [nodes trunk-change-id]} (vcs/read-graph vcs {})]
+          g (vcs/read-graph vcs {})]
 
-      (is (some? trunk-change-id) "Should have a trunk change id")
-      (is (seq nodes) "Should have nodes")
+      (is (some? (:graph/trunk-id g)) "Should have a trunk change id")
+      (is (seq (vals (:graph/nodes g))) "Should have nodes")
 
       ;; Check that we have the expected bookmarks
-      (let [all-branchnames (mapcat :change/local-branchnames nodes)]
+      (let [all-branchnames (mapcat :change/local-branchnames (vals (:graph/nodes g)))]
         (is (some #{"main"} all-branchnames) "Should have main branch")
         (is (some #{"feature-base"} all-branchnames) "Should have feature-base branch")
         (is (some #{"feature-step-1"} all-branchnames) "Should have feature-step-1 branch")
@@ -105,14 +105,13 @@
     (let [vcs (system/new-vcs
                 {:vcs :jujutsu}
                 {:project-dir *test-repo-dir*})
-          {:keys [nodes trunk-change-id]} (vcs/read-graph vcs {})
-          g (graph/build-graph nodes trunk-change-id)]
+          g (vcs/read-graph vcs {})]
 
-      (is (= trunk-change-id (:graph/trunk-id g)) "Graph trunk should match")
+      (is (some? (:graph/trunk-id g)) "Graph trunk should exist")
       (is (map? (:graph/nodes g)) "Should have nodes map")
 
       ;; Find the trunk node and verify it has children
-      (let [trunk-node (graph/get-node g trunk-change-id)]
+      (let [trunk-node (graph/get-node g (:graph/trunk-id g))]
         (is (some? trunk-node) "Should find trunk node")
         (is (seq (:change/children-ids trunk-node)) "Trunk should have children")))))
 
@@ -121,8 +120,7 @@
     (let [vcs (system/new-vcs
                 {:vcs :jujutsu}
                 {:project-dir *test-repo-dir*})
-          {:keys [nodes trunk-change-id]} (vcs/read-graph vcs {})
-          g (graph/build-graph nodes trunk-change-id)
+          g (vcs/read-graph vcs {})
 
           ;; Find feature-step-2 node
           step2-node (->> (graph/all-nodes g)
@@ -133,7 +131,7 @@
 
       (let [paths (graph/find-all-paths-to-trunk g (:change/change-id step2-node))]
         (is (= 1 (count paths)) "Should have exactly one path to trunk")
-        (is (= trunk-change-id (last (first paths))) "Path should end at trunk")
+        (is (= (:graph/trunk-id g) (last (first paths))) "Path should end at trunk")
         ;; Path should go through: feature-step-2 -> feature-step-1 -> feature-base -> main
         (is (>= (count (first paths)) 4) "Path should have at least 4 nodes")))))
 

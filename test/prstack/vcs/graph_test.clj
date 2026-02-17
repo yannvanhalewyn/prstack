@@ -17,7 +17,7 @@
                   :change/parent-ids ["feature-1"]
                   :change/local-branchnames ["feature-2"]
                   :change/remote-branchnames []}]
-          g (graph/build-graph nodes "trunk")]
+          g (graph/build-graph nodes "trunk" {})]
       (is (= "trunk" (:graph/trunk-id g)))
       (is (= 3 (count (:graph/nodes g))))
       (is (= ["feature-1"] (get-in g [:graph/nodes "trunk" :change/children-ids])))
@@ -37,8 +37,8 @@
                   :change/parent-ids ["trunk" "feature"]
                   :change/local-branchnames ["merge"]
                   :change/remote-branchnames []}]
-          g (graph/build-graph nodes "trunk")]
-      (is (true? (get-in g [:graph/nodes "trunk" :change/trunk-node?]))))))
+          g (graph/build-graph nodes "trunk" {})]
+      (is (= :trunk (get-in g [:graph/nodes "trunk" :change/type]))))))
 
 (deftest test-find-path-to-trunk
   (testing "finds path from leaf to trunk"
@@ -55,7 +55,8 @@
                 :change/parent-ids ["feature-1"]
                 :change/local-branchnames ["feature-2"]
                 :change/remote-branchnames []}]
-              "trunk")
+              "trunk"
+              {})
           paths (graph/find-all-paths-to-trunk g "feature-2")]
       (is (= [["feature-2" "feature-1" "trunk"]] paths))))
 
@@ -77,7 +78,8 @@
                 :change/parent-ids ["branch-a" "branch-b"]
                 :change/local-branchnames ["merge"]
                 :change/remote-branchnames []}]
-              "trunk")
+              "trunk"
+              {})
           paths (graph/find-all-paths-to-trunk g "merge")]
       ;; find-all-paths-to-trunk returns ALL paths, not just first parent
       (is (= 2 (count paths)))
@@ -103,7 +105,8 @@
                 :change/parent-ids ["branch-a" "branch-b"]
                 :change/local-branchnames ["merge"]
                 :change/remote-branchnames []}]
-              "trunk")
+              "trunk"
+              {})
           paths (graph/find-all-paths-to-trunk g "merge")]
       (is (= 2 (count paths)))
       (is (contains? (set paths) ["merge" "branch-a" "trunk"]))
@@ -134,7 +137,8 @@
                 :change/parent-ids ["feature-1"]
                 :change/local-branchnames ["feature-2"]
                 :change/remote-branchnames []}]
-              "new-trunk-2")
+              "new-trunk-2"
+              {})
           ;; Find path from feature-2 to the actual fork point (old-trunk)
           paths (graph/find-all-paths-to-trunk g "feature-2" "old-trunk")]
       (is (= 1 (count paths)))
