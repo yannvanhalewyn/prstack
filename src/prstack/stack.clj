@@ -81,7 +81,10 @@
    (let [trunk-branch (vcs/trunk-branch vcs)
          bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
          leaves (->> (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)
-                  (remove #(= (:change/selected-branchname %) trunk-branch)))]
+                  (remove #(= (:change/selected-branchname %) trunk-branch))
+                  ;; Also remove feature-base branches that became leaves
+                  ;; (e.g., when their only child has no bookmark)
+                  (remove #(= (:change/type %) :feature-base)))]
      (mapcat
        (fn [leaf]
          ;; Find the fork point for this leaf to handle cases where trunk has
