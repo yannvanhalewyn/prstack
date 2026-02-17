@@ -140,7 +140,7 @@
 ;; Reading Graph
 
 (defn- parse-change
-  [change {:keys [ignored-branches feature-base-branches]}]
+  [change {:keys [ignored-branches]}]
   (let [;; Filter out ignored branches and remote refs (containing @)
         ;; Remote refs like "branch@origin" should not be selected as local branches
         local-only-branches (remove #(or (ignored-branches %)
@@ -151,17 +151,11 @@
                           (:change/remote-branchnames change))
         ;; Prefer local branch, fall back to remote branch
         selected-branch (or (first local-only-branches)
-                            (first remote-branches))
-        feature-base? (and selected-branch (contains? feature-base-branches selected-branch))
-        type
-        (cond
-          (:change/trunk-node? change) :trunk
-          feature-base? :feature-base
-          :else :regular)]
-    (cond-> (assoc change :change/type type)
+                            (first remote-branches))]
+    (cond-> change
       selected-branch (assoc :change/selected-branchname selected-branch))))
 
 (defn read-graph [vcs config]
   (let [{:keys [nodes trunk-change-id]} (read-relevant-changes vcs)
         nodes (map #(parse-change % config) nodes)]
-    (graph/build-graph nodes trunk-change-id)))
+    (graph/build-graph nodes trunk-change-id config)))

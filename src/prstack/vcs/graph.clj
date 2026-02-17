@@ -32,30 +32,39 @@
 (defn build-graph
   "Builds a graph from a collection of node maps.
 
-  Args:
-    nodes - collection of maps with `:change/change-id`, `:change/parent-ids`, etc.
-    trunk-id - change-id of the trunk node
+   Args:
+     nodes - collection of maps with `:change/change-id`, `:change/parent-ids`, etc.
+     trunk-id - change-id of the trunk node
+     config - configuration map with `:feature-base-branches` set
 
-  Returns:
-    Graph map with bidirectional edges computed."
-  [nodes trunk-id]
-  (let [parent->children (reduce
-                           (fn [acc node]
-                             (reduce
-                               (fn [acc parent-id]
-                                 (update acc parent-id (fnil conj []) (:change/change-id node)))
-                               acc
-                               (:change/parent-ids node)))
-                           {}
-                           nodes)
+   Returns:
+     Graph map with bidirectional edges computed."
+  [nodes trunk-id config]
+  (let [{:keys [feature-base-branches]} config
+        parent->children (reduce
+                          (fn [acc node]
+                            (reduce
+                              (fn [acc parent-id]
+                                (update acc parent-id (fnil conj []) (:change/change-id node)))
+                              acc
+                              (:change/parent-ids node)))
+                          {}
+                          nodes)
         nodes-map (into {}
                     (map (fn [node]
-                           (let [change-id (:change/change-id node)
-                                 trunk-node? (= change-id trunk-id)]
-                             [change-id
-                              (cond-> (assoc node
-                                        :change/children-ids (or (parent->children change-id) [])
-                                        :change/trunk-node? trunk-node?))])))
+                          (let [change-id (:change/change-id node)
+                                trunk-node? (= change-id trunk-id)
+                                selected-branchname (:change/selected-branchname node)
+                                change-type
+                                (cond
+                                  trunk-node? :trunk
+                                  (and selected-branchname (contains? feature-base-branches selected-branchname)) :feature-base
+                                  :else :regular)]
+                            [change-id
+                             (assoc node
+                               :change/children-ids (or (parent->children change-id) [])
+                               :change/trunk-node? trunk-node?
+                               :change/type change-type)])))
                     nodes)]
     {:graph/nodes nodes-map
      :graph/trunk-id trunk-id}))
@@ -218,7 +227,8 @@
         :change/parent-ids ["feature-parallel" "feature-2"]
         :change/local-branchnames []
         :change/remote-branchnames []} ]
-      "trunk"))
+      "trunk"
+      {:feature-base-branches #{}}))
   (find-all-paths-to-trunk test-graph "feature-2")
   (find-all-paths-to-trunk test-graph "megamerge")
 
