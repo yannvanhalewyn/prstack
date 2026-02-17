@@ -2,7 +2,7 @@
   (:require
     [prstack.vcs.graph :as vcs.graph]))
 
-(def Branch
+(def ^:lsp/allow-unused Branch
   [:map
    [:branch/branchname :string]
    [:branch/local-change-id :string]
