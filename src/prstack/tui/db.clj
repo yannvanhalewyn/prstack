@@ -249,7 +249,8 @@
            :base-change prev-change
            :prs (ui/fetch-prs-with-spinner)
            :vcs (vcs @app-state)
-           :branch-statuses (vcs.branch/selected-branches-info (vcs-graph @app-state))})))))
+           :branch-statuses (vcs.branch/selected-branches-info (vcs-graph @app-state))})))
+    (tui/close!)))
 
 (defmethod dispatch! :event/merge-pr
   [_evt]
