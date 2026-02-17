@@ -30,6 +30,15 @@
     Returns:
       VCSConfig - A map according to `VCSConfig` schema")
 
+  (fetch! [this]
+    "Fetches all branches from the remote repository.
+
+     Side effects:
+       Updates local tracking information from remote
+
+     Returns:
+       String, output from the fetch command")
+
   (push-branch! [this branch-name]
     "Pushes a local branch to the remote repository.
 
@@ -82,15 +91,6 @@
     Returns:
       String, the change-id/commit-sha of the fork point")
 
-  (fetch! [this]
-    "Fetches all branches from the remote repository.
-
-     Side effects:
-       Updates local tracking information from remote
-
-     Returns:
-       String, output from the fetch command")
-
   (set-bookmark-to-remote! [this branch-name]
     "Sets a local branch/bookmark to match its remote counterpart.
 
@@ -102,18 +102,6 @@
 
      Returns:
        String, output from the command")
-
-  (rebase-on-trunk! [this]
-    "Rebases the current change/commit onto the trunk branch.
-
-     Side effects:
-       Rebases current working copy onto trunk
-
-     Returns:
-       String, output from the rebase command
-
-     Throws:
-       ExceptionInfo if rebase fails")
 
   (delete-bookmark! [this bookmark-name]
     "Deletes a local bookmark/branch.

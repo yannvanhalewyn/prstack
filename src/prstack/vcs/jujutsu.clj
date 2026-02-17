@@ -64,10 +64,6 @@
               "--allow-backwards"]
     {:echo? true :dir (:vcs/project-dir vcs)}))
 
-(defn rebase-on-trunk! [vcs trunk-branch]
-  (u/run-cmd ["jj" "rebase" "-d" trunk-branch]
-    {:echo? true :dir (:vcs/project-dir vcs)}))
-
 (defn delete-bookmark! [vcs bookmark-name]
   (u/run-cmd ["jj" "bookmark" "delete" bookmark-name]
     {:dir (:vcs/project-dir vcs) :echo? true}))
@@ -239,9 +235,6 @@
 
   (set-bookmark-to-remote! [this branch-name]
     (set-bookmark-to-remote! this branch-name))
-
-  (rebase-on-trunk! [this]
-    (rebase-on-trunk! this (vcs/trunk-branch this)))
 
   (delete-bookmark! [this bookmark-name]
     (delete-bookmark! this bookmark-name))

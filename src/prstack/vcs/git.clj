@@ -21,13 +21,6 @@
   (u/run-cmd ["git" "branch" "-f" branch-name (str "origin/" branch-name)]
     {:echo? true :dir (:vcs/project-dir vcs)}))
 
-;; TODO don't think this accurately rebases all PRs in the stack
-;; Likely I'll need to support a few rebasing strategies, like using machete,
-;; graphite, or a custom implementation
-(defn rebase-on-trunk! [vcs]
-  (u/run-cmd ["git" "rebase" (vcs/trunk-branch vcs)]
-    {:echo? true :dir (:vcs/project-dir vcs)}))
-
 (defn delete-bookmark! [vcs branch-name]
   (u/run-cmd ["git" "branch" "-D" branch-name]
     {:dir (:vcs/project-dir vcs) :echo? true}))
@@ -328,9 +321,6 @@
 
   (set-bookmark-to-remote! [this branch-name]
     (set-bookmark-to-remote! this branch-name))
-
-  (rebase-on-trunk! [this]
-    (rebase-on-trunk! this))
 
   (delete-bookmark! [this bookmark-name]
     (delete-bookmark! this bookmark-name))
