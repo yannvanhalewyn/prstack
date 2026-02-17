@@ -283,13 +283,6 @@
   (let [opts {:dir (:vcs/project-dir vcs)}]
     (merge-base ref (vcs/trunk-branch vcs) opts)))
 
-(defn- fork-info [vcs]
-  (let [trunk-branch (vcs/trunk-branch vcs)
-        opts {:dir (:vcs/project-dir vcs)}]
-    {:forkpoint-info/fork-point-change-id (find-fork-point* vcs "HEAD")
-     :forkpoint-info/local-trunk-commit-sha (commit-sha trunk-branch opts)
-     :forkpoint-info/remote-trunk-commit-sha (commit-sha (str "origin/" trunk-branch) opts)}))
-
 (defrecord GitVCS []
   vcs/VCS
   (read-vcs-config [this]
@@ -329,9 +322,6 @@
 
   (find-fork-point [this ref]
     (find-fork-point* this ref))
-
-  (fork-info [this]
-    (fork-info this))
 
   (fetch! [this]
     (fetch! this))

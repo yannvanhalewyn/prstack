@@ -15,16 +15,6 @@
   [:map
    [:vcs-config/trunk-branch :string]])
 
-(def ^:lsp/allow-unused ForkpointInfo
-  [:map
-   ;; the change-id where the current branch diverged from
-   ;; trunk
-   [:forkpoint-info/fork-point-change-id :string]
-   ;; the change-id of the local trunk branch
-   [:forkpoint-info/local-trunk-change-id :string]
-   ;; the change-id/commit-sha of the remote trunk branch
-   [:forkpoint-info/remote-trunk-change-id :string]])
-
 (defprotocol VCS
   "Protocol defining version control system operations.
 
@@ -91,15 +81,6 @@
 
     Returns:
       String, the change-id/commit-sha of the fork point")
-
-  (fork-info [this]
-    "Returns information about the fork point and trunk state.
-
-     This is used to determine if the local trunk has diverged from the remote trunk,
-     which helps decide whether a rebase is needed during sync operations.
-
-     Returns:
-       ForkpointInfo - a map containing some information about the forkpoint with trunk")
 
   (fetch! [this]
     "Fetches all branches from the remote repository.

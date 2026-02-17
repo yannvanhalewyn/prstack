@@ -217,24 +217,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; VCS implementation
 
-(defn- fork-info
-  ([vcs]
-   (fork-info vcs "@"))
-  ([vcs ref]
-   (let [trunk-branch (vcs/trunk-branch vcs)
-         opts {:dir (:vcs/project-dir vcs)}]
-     {:forkpoint-info/fork-point-change-id (find-fork-point vcs ref)
-      :forkpoint-info/local-trunk-commit-sha
-      (u/run-cmd ["jj" "log" "--no-graph"
-                  "-r" "fork_point(trunk() | @)"
-                  "-T" "change_id"]
-        opts)
-      :forkpoint-info/remote-trunk-commit-sha
-      (u/run-cmd ["jj" "log" "--no-graph"
-                  "-r" (str trunk-branch "@origin")
-                  "-T" "change_id"]
-        opts)})))
-
 (defrecord JujutsuVCS []
   vcs/VCS
   (read-vcs-config [this]
@@ -251,9 +233,6 @@
 
   (find-fork-point [this ref]
     (find-fork-point this ref))
-
-  (fork-info [this]
-    (fork-info this))
 
   (fetch! [this]
     (fetch! this))
