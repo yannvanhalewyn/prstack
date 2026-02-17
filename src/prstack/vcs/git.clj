@@ -25,15 +25,6 @@
   (u/run-cmd ["git" "branch" "-D" branch-name]
     {:dir (:vcs/project-dir vcs) :echo? true}))
 
-(defn list-local-bookmarks [vcs]
-  (let [output (u/run-cmd ["git" "branch" "--list" "--format" "%(refname:short)"]
-                 {:dir (:vcs/project-dir vcs)})]
-    (into []
-      (comp
-        (map str/trim)
-        (remove empty?))
-      (str/split-lines output))))
-
 (defn rebase-on! [vcs target-ref]
   (u/run-cmd ["git" "rebase" target-ref]
     {:dir (:vcs/project-dir vcs) :echo? true}))
@@ -324,9 +315,6 @@
 
   (delete-bookmark! [this bookmark-name]
     (delete-bookmark! this bookmark-name))
-
-  (list-local-bookmarks [this]
-    (list-local-bookmarks this))
 
   (rebase-on! [this target-ref]
     (rebase-on! this target-ref)))

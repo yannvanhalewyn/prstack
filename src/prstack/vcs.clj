@@ -115,12 +115,6 @@
      Returns:
        String, output from the command")
 
-  (list-local-bookmarks [this]
-    "Returns a list of all local bookmark/branch names.
-
-     Returns:
-       Vector of strings, each being a bookmark/branch name")
-
   (rebase-on! [this target-ref]
     "Rebases the current change/commit onto the given target ref.
 
