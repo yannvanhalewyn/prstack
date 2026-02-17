@@ -59,6 +59,21 @@
                      (ui/format-branch (:pr/base-branch pr))
                      (:pr/number pr))))
         (println)
+
+        ;; Clean up feature bases that were merged
+        (let [merged-branch-names (set (map :pr/head-branch to-delete))
+              feature-bases (:feature-base-branches user-config)
+              merged-feature-bases (filter #(contains? merged-branch-names %) feature-bases)]
+          (when (seq merged-feature-bases)
+            (doseq [fb merged-feature-bases]
+              (ui/info "Removing merged feature base " (ui/format-branch fb) " from config..."))
+            (let [updated-config (update user-config :feature-base-branches
+                                   #(apply disj % merged-feature-bases))]
+              (config/write-local updated-config)
+              (ui/success (format "Removed %d merged feature base(s) from config"
+                            (count merged-feature-bases))))
+            (println)))
+
         (doseq [pr to-delete]
           (when (tty/prompt-confirm {:prompt (str "Delete " (ui/format-branch (:pr/head-branch pr)))})
             (ui/info "Deleting " (ui/format-branch (:pr/head-branch pr)) "...")

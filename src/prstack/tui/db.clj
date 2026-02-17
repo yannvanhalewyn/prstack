@@ -268,6 +268,16 @@
                      (ansi/colorize :blue (:change/selected-branchname selected-change))
                      (ansi/colorize :blue (:change/selected-branchname prev-change)))})
             (github/merge-pr! (:pr/number current-pr))
+            ;; Clean up feature base if the merged branch was explicitly configured
+            (let [merged-branch (:pr/head-branch current-pr)
+                  local-config (config/read-local)
+                  feature-bases (:feature-base-branches local-config)]
+              (when (contains? feature-bases merged-branch)
+                (let [updated-config (update local-config :feature-base-branches disj merged-branch)]
+                  (config/write-local updated-config)
+                  (println (ansi/colorize :green "✔")
+                    "Removed" (ansi/colorize :cyan merged-branch)
+                    "from feature base branches"))))
             (when (tty/prompt-confirm
                     {:prompt (str "Would you like to run " (ansi/colorize :yellow "prstack sync") "?")})
               ((:exec commands.sync/command) [] {})))))
