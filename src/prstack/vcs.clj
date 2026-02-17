@@ -146,34 +146,15 @@
 ;; Reading Graph
 
 (defn- parse-change
-  [change {:keys [ignored-branches]} all-local-branchnames]
-  (let [;; Filter out ignored branches and remote refs (containing @)
-        ;; Remote refs like "branch@origin" should not be selected as local branches
-        local-only-branches (remove #(or (ignored-branches %)
+  [change {:keys [ignored-branches]}]
+  (let [local-only-branches (remove #(or (ignored-branches %)
                                          (str/includes? % "@"))
                               (:change/local-branchnames change))
-        ;; Also filter remote branches by ignored-branches.
-        ;; Skip remote branches that already have a local bookmark on another
-        ;; node to prevent duplicate entries in the graph (e.g., when
-        ;; feature-add-dashboard@origin exists on a merge commit separate from
-        ;; the local feature-add-dashboard bookmark).
-        remote-branches (->> (:change/remote-branchnames change)
-                          (remove ignored-branches)
-                          (remove all-local-branchnames))
-        ;; Prefer local branch, fall back to remote branch
-        selected-branch (or (first local-only-branches)
-                            (first remote-branches))]
+        selected-branch (first local-only-branches)]
     (cond-> change
       selected-branch (assoc :change/selected-branchname selected-branch))))
 
 (defn read-graph [vcs config]
   (let [{:keys [nodes trunk-change-id]} (read-relevant-changes vcs)
-        ;; Collect all local branchnames across all nodes (excluding @ refs)
-        ;; so we can avoid selecting remote branches that duplicate local ones
-        all-local-branchnames (into #{}
-                                (comp
-                                  (mapcat :change/local-branchnames)
-                                  (remove #(str/includes? % "@")))
-                                nodes)
-        nodes (map #(parse-change % config all-local-branchnames) nodes)]
+        nodes (map #(parse-change % config) nodes)]
     (graph/build-graph nodes trunk-change-id config)))
