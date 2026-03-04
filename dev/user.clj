@@ -9,6 +9,7 @@
     [prstack.vcs :as vcs]
     [prstack.vcs.graph :as vcs.graph]))
 
+(set! *print-namespace-maps* false)
 (require 'hashp.preload)
 
 (def sys-

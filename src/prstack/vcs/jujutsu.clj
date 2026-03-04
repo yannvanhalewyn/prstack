@@ -186,16 +186,7 @@
    (echo-nodes
      (parse-log
        (u/run-cmd
-         ["jj" "log" "--no-graph"
-         ;; Get all changes from any trunk commit to all bookmark heads
-         ;; This uses trunk()::bookmarks() to include stacks that forked from
-         ;; old trunk commits (before trunk advanced), rather than restricting
-         ;; to descendants of the current trunk bookmark position
-          "-r" (str "fork_point(trunk() | @)::"
-                    #_ ;; This causes performance issues on large repos
-                      " | fork_point(trunk() | remote_bookmarks())::"
-                    " | fork_point(trunk() | bookmarks())")
-          "-T" log-template]
+         ["jj" "log" "--no-graph" "-T" log-template]
          {:dir (:vcs/project-dir vcs)})))
    :trunk-change-id
    (str/trim
