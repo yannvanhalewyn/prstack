@@ -18,8 +18,9 @@
     (assoc (config/read-local) :vcs :jujutsu)
     #_
     {:project-dir "./tmp/log-read-test"}
-    #_
+    ;;#_
     {:project-dir "/Users/yannvanhalewyn/spronq/arqiver"}
+    #_
     {:project-dir "./tmp/parallel-branches"}))
 
 (defn vcs []
