@@ -15,13 +15,10 @@
 (def sys-
   (system/new
     (config/read-global)
-    (assoc (config/read-local) :vcs :jujutsu)
-    #_
-    {:project-dir "./tmp/log-read-test"}
-    ;;#_
-    {:project-dir "/Users/yannvanhalewyn/spronq/arqiver"}
-    #_
-    {:project-dir "./tmp/parallel-branches"}))
+    (config/read-local)
+    #_ {:project-dir "./tmp/log-read-test"}
+    #_ {:project-dir "./tmp/parallel-branches"}
+    {:project-dir "/Users/yannvanhalewyn/spronq/arqiver"}))
 
 (defn vcs []
   (:system/vcs sys-))
@@ -50,11 +47,11 @@
     (vcs.graph/get-node vcs-graph- current-id-)
     (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
 
+  (count (:nodes (vcs/read-relevant-changes (vcs))))
   (stack/get-all-stacks sys-)
   (stack/get-current-stacks sys-)
   (map #(stack/path->stack % vcs-graph- "main") paths-)
   (stack/path->stack (first paths-) vcs-graph- (vcs/trunk-branch (vcs)))
-  (vcs/read-relevant-changes (vcs))
   (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-)
   (map #(vcs.graph/get-node vcs-graph- %) (first paths-))
   (vcs.graph/get-node vcs-graph- (last (first paths-)))
