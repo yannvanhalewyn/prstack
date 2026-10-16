@@ -20,3 +20,7 @@ This is a Clojure CLI tool built with Babashka for managing PR stacks. The main 
 - **CLI patterns**: Commands defined as maps with `:name`, `:description`, `:exec` keys
 - **Process execution**: Use `babashka.process` via utils/run-cmd and utils/shell-out
 - **Output**: Use colorized terminal output for user feedback
+
+## Programming
+
+When making new code changes, check to see if there are any uncommitted changes, if so make the necessary commits. Check if there is a Jujutsu change and create a new one with jj if installed.

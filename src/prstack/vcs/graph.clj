@@ -121,10 +121,11 @@
         (fn [graph {:keys [target-ids relation-key remove-id add-ids]}]
           (reduce
             (fn [graph* parent-id]
+              ;; Eager and deduplicated: with merges the same edge gets added
+              ;; repeatedly, and nesting lazy seqs over thousands of removals
+              ;; blows the stack when finally realized.
               (update-in graph* [:graph/nodes parent-id relation-key]
-                #(->> %
-                   (remove #{remove-id})
-                   (concat add-ids))))
+                #(->> % (remove #{remove-id}) (concat add-ids))))
             graph
             target-ids)) ]
     (-> vcs-graph
@@ -159,19 +160,23 @@
   ([vcs-graph node-id]
    (find-all-paths-to-trunk vcs-graph node-id (:graph/trunk-id vcs-graph)))
   ([vcs-graph node-id trunk-id]
-   (letfn [(dfs [current-id path]
-             (cond
-               ;; Found trunk
-               (= current-id trunk-id) [(conj path current-id)]
-               (nil? current-id) []
-               :else
-               (let [node (get-node vcs-graph current-id)
-                     parents (:change/parent-ids node)]
-                 (if (empty? parents)
-                   []
-                   (mapcat #(dfs % (conj path current-id))
-                     parents)))))]
-     (dfs node-id []))))
+   ;; Depth-first search using an explicit stack instead of recursion, since
+   ;; paths can be thousands of commits long. Parents are pushed in reverse so
+   ;; the first parent is explored first.
+   (loop [stack [[node-id []]]
+          paths []]
+     (if-let [[current-id path] (peek stack)]
+       (let [stack (pop stack)]
+         (cond
+           ;; Found trunk
+           (= current-id trunk-id) (recur stack (conj paths (conj path current-id)))
+           (nil? current-id) (recur stack paths)
+           :else
+           (let [path (conj path current-id)
+                 parents (:change/parent-ids (get-node vcs-graph current-id))]
+             (recur (into stack (map #(vector % path)) (reverse parents))
+               paths))))
+       paths))))
 
 (defn is-ancestor?
   "Checks if ancestor-id is an ancestor of descendant-id in the graph.

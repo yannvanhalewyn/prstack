@@ -7,4 +7,7 @@
    :description "Displays the status of all the PR stacks"
    :exec
    (fn sync [args global-opts]
-     ((:exec commands.list/command) (concat args ["--all"]) global-opts))})
+     ((:exec commands.list/command) (concat args ["--all"]) global-opts))
+   :workspace-exec
+   (fn [args global-opts]
+     ((:workspace-exec commands.list/command) (concat args ["--all"]) global-opts))})

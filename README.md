@@ -38,6 +38,18 @@ Learn more about CLI commands in the [Commands Reference](https://prstack.dev/do
 - **VCS Agnostic**: Works with Jujutsu (Git support coming soon)
 - **Adaptive**: Switch branches and PRStack adapts to your new context
 
+## Workspaces
+
+When you run `prstack` from a directory that contains several repositories but isn't one itself, like `~/work/client/`, it finds the nested repositories (up to 3 levels deep) and lists the stacks and PRs of each:
+
+```bash
+cd ~/work/client
+prstack list      # current stack of every repository
+prstack status    # all stacks of every repository
+```
+
+Repositories without stacks are summarized on one line. Repositories that were never set up with prstack are read with an inferred VCS (Jujutsu when a `.jj` directory exists, Git otherwise). Other commands still run on a single repository, so `cd` into it or pass `--project-dir`.
+
 ## Installation
 
 **Requirements**: [Babashka](https://babashka.org/), [gum](https://github.com/charmbracelet/gum) and, for GitHub repos, the [GitHub CLI](https://cli.github.com/)

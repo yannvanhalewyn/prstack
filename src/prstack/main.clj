@@ -10,7 +10,8 @@
     [prstack.cli.commands.sync :as commands.sync]
     [prstack.init :as init]
     [prstack.tui.app :as tui.app]
-    [prstack.utils :as u]))
+    [prstack.utils :as u]
+    [prstack.workspace :as workspace]))
 
 (def commands
   [commands.status/command
@@ -78,6 +79,31 @@
   (or (nil? project-dir)
       (.isDirectory (io/file project-dir))))
 
+(defn- workspace-dir
+  "Returns the canonical path of the directory to treat as a workspace, or nil
+  when prstack runs inside a repository."
+  [global-opts]
+  (let [dir (or (:project-dir global-opts) ".")]
+    (when-not (workspace/inside-repo? dir)
+      (.getCanonicalPath (io/file dir)))))
+
+(defn- exec-command!
+  "Runs `command` on the repository, or on all repositories of the workspace
+  when not inside a repository and the command supports it."
+  [command-name command args global-opts]
+  (if-let [ws-dir (workspace-dir global-opts)]
+    (if-let [workspace-exec (:workspace-exec command)]
+      (workspace-exec args (assoc global-opts :workspace-dir ws-dir))
+      (do
+        (println (ansi/colorize :red "Error") ws-dir "is not a repository.")
+        (println (ansi/colorize :yellow (str "prstack " command-name))
+          "must run inside a repository, or use --project-dir.")
+        (System/exit 1)))
+    (do
+      ;; Ensure initialization for all CLI commands
+      (init/ensure-initialized! (:project-dir global-opts))
+      ((:exec command) args global-opts))))
+
 (defn -main [& args]
   (let [[global-opts remaining-args] (parse-global-opts args)]
     (cond
@@ -91,28 +117,32 @@
         (print-help command)
         (print-help))
 
+      (and (empty? remaining-args) (workspace-dir global-opts))
+      (do
+        (println (ansi/colorize :gray "The interactive app doesn't support workspaces yet, showing status instead."))
+        (println)
+        (exec-command! "status" commands.status/command [] global-opts))
+
       (empty? remaining-args)
       (tui.app/run! global-opts)
 
       :else
-      (do
-        ;; Ensure initialization for all CLI commands
-        (init/ensure-initialized! (:project-dir global-opts))
-        (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
-          (if-let [subcommands (:subcommands command)]
-            ;; Command has subcommands, check for subcommand
-            (let [subcommand-name (second remaining-args)]
-              (if (nil? subcommand-name)
-                (print-help command)
-                (if-let [subcmd (u/find-first #(= (:name %) subcommand-name) subcommands)]
-                  ((:exec subcmd) (drop 2 remaining-args) global-opts)
-                  (do
-                    (println (ansi/colorize :red "Error") "Unknown subcommand:" subcommand-name "\n")
-                    (print-help command)
-                    (System/exit 1)))))
-            ;; Command has no subcommands, execute directly
-            ((:exec command) (rest remaining-args) global-opts))
-          (do
-            (println (ansi/colorize :red "Error") "Unknown command:" (first remaining-args) "\n")
-            (print-help)
-            (System/exit 1)))))))
+      (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
+        (if-let [subcommands (:subcommands command)]
+          ;; Command has subcommands, check for subcommand
+          (let [subcommand-name (second remaining-args)]
+            (if (nil? subcommand-name)
+              (print-help command)
+              (if-let [subcmd (u/find-first #(= (:name %) subcommand-name) subcommands)]
+                (exec-command! (str (:name command) " " subcommand-name)
+                  subcmd (drop 2 remaining-args) global-opts)
+                (do
+                  (println (ansi/colorize :red "Error") "Unknown subcommand:" subcommand-name "\n")
+                  (print-help command)
+                  (System/exit 1)))))
+          ;; Command has no subcommands, execute directly
+          (exec-command! (:name command) command (rest remaining-args) global-opts))
+        (do
+          (println (ansi/colorize :red "Error") "Unknown command:" (first remaining-args) "\n")
+          (print-help)
+          (System/exit 1))))))
