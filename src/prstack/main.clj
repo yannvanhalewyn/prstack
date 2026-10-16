@@ -2,6 +2,7 @@
   (:gen-class)
   (:require
     [bb-tty.ansi :as ansi]
+    [clojure.java.io :as io]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.feature-base :as commands.feature-base]
     [prstack.cli.commands.list :as commands.list]
@@ -73,21 +74,30 @@
        (println (format "  %-10s %s" (:name subcmd) (:description subcmd))))
      (println))))
 
+(defn- valid-project-dir? [project-dir]
+  (or (nil? project-dir)
+      (.isDirectory (io/file project-dir))))
+
 (defn -main [& args]
   (let [[global-opts remaining-args] (parse-global-opts args)]
     (cond
+      (not (valid-project-dir? (:project-dir global-opts)))
+      (do
+        (println (ansi/colorize :red "Error") "Not a directory:" (:project-dir global-opts))
+        (System/exit 1))
+
       (:help? global-opts)
       (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
         (print-help command)
         (print-help))
 
       (empty? remaining-args)
-      (tui.app/run!)
+      (tui.app/run! global-opts)
 
       :else
       (do
         ;; Ensure initialization for all CLI commands
-        (init/ensure-initialized!)
+        (init/ensure-initialized! (:project-dir global-opts))
         (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
           (if-let [subcommands (:subcommands command)]
             ;; Command has subcommands, check for subcommand

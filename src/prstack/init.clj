@@ -2,12 +2,11 @@
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
-    [clojure.java.io :as io]
     [prstack.config :as config]
     [prstack.vcs.jujutsu :as vcs.jj]))
 
-(defn- config-file-exists? []
-  (.exists (io/file ".prstack/config.edn")))
+(defn- config-file-exists? [project-dir]
+  (.exists (config/local-config-file project-dir)))
 
 (defn- welcome-message []
   (println)
@@ -56,10 +55,13 @@
         (println (ansi/colorize :red "\nError: Invalid choice. Exiting."))
         (System/exit 1)))))
 
-(defn ensure-initialized! []
+(defn ensure-initialized!
+  "Makes sure the project at `project-dir` has a local config, prompting the
+  user for setup when missing. A nil `project-dir` means the current directory."
+  [project-dir]
   ;; Check if config file exists
-  (let [config-exists? (config-file-exists?)
-        config (when config-exists? (config/read-local))
+  (let [config-exists? (config-file-exists? project-dir)
+        config (when config-exists? (config/read-local project-dir))
         vcs (or (:vcs config)
                 (initial-setup!))
         final-vcs
@@ -81,7 +83,7 @@
     ;; This can happen either when config file doesn't exist, or when it
     ;; didn't have a value for the `:vcs` key
     (when (not= final-vcs (:vcs config))
-      (config/write-local
+      (config/write-local project-dir
         (merge
           {:vcs final-vcs
            :ignored-branches #{}

@@ -92,15 +92,15 @@
     :out
     str/trim))
 
-(defn shell-out [cmd & [{:keys [echo?]}]]
+(defn shell-out [cmd & [{:keys [echo? dir]}]]
   (when echo?
     (println (ansi/colorize :gray (str "$ " (str/join " " cmd)))))
-  (-> (p/shell cmd {:inherit :true})
+  (-> (p/shell cmd {:inherit :true :dir dir})
     p/check))
 
 (defn shell-out-interactive
   "Runs an interactive shell command, properly handling terminal state"
-  [cmd & [{:keys [echo?]}]]
+  [cmd & [{:keys [echo? dir]}]]
   (when echo?
     (println (ansi/colorize :gray (str "$ " (str/join " " cmd)))))
   (if (System/getenv "TERM")
@@ -110,7 +110,7 @@
       (try
         (when original-state
           (p/shell ["stty" original-state] {:inherit true}))
-        (-> (p/shell cmd {:inherit :true})
+        (-> (p/shell cmd {:inherit :true :dir dir})
           p/check)
         (finally
           (when original-state
@@ -118,7 +118,7 @@
               (p/shell ["stty" "raw" "echo"] {:inherit true})
               (catch Exception _))))))
     ;; Fallback for non-terminal environments
-    (-> (p/shell cmd {:inherit :true})
+    (-> (p/shell cmd {:inherit :true :dir dir})
       p/check)))
 
 (defn pipeline
@@ -130,8 +130,9 @@
 
   Options:
   - :echo? - Print commands being executed
-  - :inherit-last - If true, last command inherits stdout (for interactive pagers)"
-  [cmds & [{:keys [echo? inherit-last] :or {inherit-last true}}]]
+  - :inherit-last - If true, last command inherits stdout (for interactive pagers)
+  - :dir - Working directory for all commands"
+  [cmds & [{:keys [echo? inherit-last dir] :or {inherit-last true}}]]
   (when echo?
     (println
       (ansi/colorize :gray
@@ -159,7 +160,7 @@
                     ;; First command - just write to pipe
                     :else
                     {})]
-              (conj acc (p/process cmd opts))))
+              (conj acc (p/process cmd (assoc opts :dir dir)))))
           []
           cmds)]
     ;; Wait for all processes to complete

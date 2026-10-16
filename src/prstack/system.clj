@@ -34,6 +34,12 @@
       :bitbucket (remote.bitbucket/new-remote remote-url)
       :github (remote.github/new-remote (:vcs/project-dir vcs)))))
 
+(defn project-dir
+  "Returns the project dir the system operates on. Nil means the current
+  directory."
+  [system]
+  (:vcs/project-dir (:system/vcs system)))
+
 (defn new
   "Creates a new system with the given configuration.
 

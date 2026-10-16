@@ -8,8 +8,8 @@
 
 (defn- get-all-branches
   "Returns a list of all local branches."
-  []
-  (let [output (u/run-cmd ["git" "branch" "--list"])]
+  [project-dir]
+  (let [output (u/run-cmd ["git" "branch" "--list"] {:dir project-dir})]
     (into []
       (comp
         (map str/trim)
@@ -30,15 +30,15 @@
          :options branches
          :limit 1}))))
 
-(defn- list-feature-base-branches [_args _global-opts]
-  (doseq [branch (:feature-base-branches (config/read-local))]
+(defn- list-feature-base-branches [_args {:keys [project-dir]}]
+  (doseq [branch (:feature-base-branches (config/read-local project-dir))]
     (println branch)))
 
-(defn- add-feature-base-branch [args _global-opts]
+(defn- add-feature-base-branch [args {:keys [project-dir]}]
   (let [branch-name (targetted-branch args
                       {:prompt "Select feature base branch"
-                       :get-candidates-fn get-all-branches})
-        config (config/read-local)
+                       :get-candidates-fn #(get-all-branches project-dir)})
+        config (config/read-local project-dir)
         existing-feature-bases (:feature-base-branches config)]
     (when-not branch-name
       (println (ansi/colorize :red "Error") "No branch selected")
@@ -50,11 +50,11 @@
       (System/exit 0))
     ;; Add the branch to feature-base-branches
     (let [updated-config (update config :feature-base-branches conj branch-name)]
-      (config/write-local updated-config)
+      (config/write-local project-dir updated-config)
       (println (ansi/colorize :green "✔") "Added" (ansi/colorize :cyan branch-name) "as a feature base branch"))))
 
-(defn- remove-feature-base-branch [args _global-opts]
-  (let [config (config/read-local)
+(defn- remove-feature-base-branch [args {:keys [project-dir]}]
+  (let [config (config/read-local project-dir)
         existing-feature-bases (:feature-base-branches config)
         feature-bases-vec (vec existing-feature-bases)]
     (when-not (seq feature-bases-vec)
@@ -72,7 +72,7 @@
         (System/exit 0))
       ;; Remove the branch from feature-base-branches
       (let [updated-config (update config :feature-base-branches disj branch-name)]
-        (config/write-local updated-config)
+        (config/write-local project-dir updated-config)
         (println (ansi/colorize :green "✔") "Removed" (ansi/colorize :cyan branch-name) "from feature base branches")))))
 
 (def command

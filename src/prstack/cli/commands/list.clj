@@ -30,7 +30,9 @@
    :exec
    (fn list [args global-opts]
      (let [opts (parse-opts args)
-           system (system/new (config/read-global) (config/read-local) global-opts)
+           system (system/new (config/read-global)
+                    (config/read-local (:project-dir global-opts))
+                    global-opts)
            stacks
            (if (:all? opts)
              (stack/get-all-stacks system)
@@ -44,7 +46,7 @@
   (def sys-
     (system/new
       (config/read-global)
-      (assoc (prstack.config/read-local) :vcs :jujutsu)
+      (assoc (prstack.config/read-local "./tmp/parallel-branches") :vcs :jujutsu)
       {:project-dir "./tmp/parallel-branches"}))
 
   (stack/get-current-stacks sys-)

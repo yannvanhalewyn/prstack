@@ -60,40 +60,40 @@
 
 (defn create-pr!
   "Create a PR using the GitHub CLI"
-  [{:pr/keys [head-branch base-branch]}]
+  [remote {:pr/keys [head-branch base-branch]}]
   (u/shell-out-interactive
     ["gh" "pr" "create" "--head" head-branch "--base" base-branch]
-    {:echo? true}))
+    {:echo? true :dir (:remote/project-dir remote)}))
 
 (defn merge-pr!
   "Merge a PR using the GitHub CLI"
-  [pr-number]
+  [remote pr-number]
   ;; This fails using jujutsu after the fact, because there is no branch.
   ;; maybe choose not to delete local branch?
   (u/shell-out
     ["gh" "pr" "merge" (str pr-number)]
-    {:echo? true}))
+    {:echo? true :dir (:remote/project-dir remote)}))
 
 (defn update-pr-base!
   "Updates the base branch of a PR"
-  [pr-number new-base]
+  [remote pr-number new-base]
   (u/shell-out
     ["gh" "pr" "edit" (str pr-number) "--base" new-base]
-    {:echo? true}))
+    {:echo? true :dir (:remote/project-dir remote)}))
 
 (defrecord GitHubRemote []
   remote/RemoteVCS
   (list-prs [this opts]
     (list-prs this opts))
 
-  (create-pr! [_this pr]
-    (create-pr! pr))
+  (create-pr! [this pr]
+    (create-pr! this pr))
 
-  (merge-pr! [_this pr-number]
-    (merge-pr! pr-number))
+  (merge-pr! [this pr-number]
+    (merge-pr! this pr-number))
 
-  (update-pr-base! [_this pr-number new-base]
-    (update-pr-base! pr-number new-base)))
+  (update-pr-base! [this pr-number new-base]
+    (update-pr-base! this pr-number new-base)))
 
 (defn new-remote [project-dir]
   (assoc (->GitHubRemote) :remote/project-dir project-dir))

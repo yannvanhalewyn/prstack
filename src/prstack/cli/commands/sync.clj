@@ -69,7 +69,7 @@
               (ui/info "Removing merged feature base " (ui/format-branch fb) " from config..."))
             (let [updated-config (update user-config :feature-base-branches
                                    #(apply disj % merged-feature-bases))]
-              (config/write-local updated-config)
+              (config/write-local (system/project-dir system) updated-config)
               (ui/success (format "Removed %d merged feature base(s) from config"
                             (count merged-feature-bases))))
             (println)))
@@ -227,7 +227,7 @@
    :exec
    (fn [args global-opts]
      (let [opts (parse-opts args)
-           local-config (config/read-local)
+           local-config (config/read-local (:project-dir global-opts))
            system (system/new (config/read-global) local-config global-opts)
            vcs (:system/vcs system)]
 
