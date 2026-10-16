@@ -38,14 +38,14 @@
   Looks at local branches to determine which is the trunk."
   [vcs]
   (let [branches (str/split-lines
-                   (u/run-cmd ["git" "branch" "--list" "master" "main"]
+                   (u/run-cmd ["git" "branch" "--list" "master" "main" "develop"]
                      {:dir (:vcs/project-dir vcs)}))]
     (first
       (into []
         (comp
           (map str/trim)
           (map #(str/replace % #"^[*+]\s+" ""))
-          (filter #{"master" "main"}))
+          (filter #{"master" "main" "develop"}))
         branches))))
 
 (defn detect-trunk-branch! [vcs]

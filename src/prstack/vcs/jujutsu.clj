@@ -15,13 +15,14 @@
 ;; Configuration
 
 (defn detect-trunk-branch
-  "Detects wether the trunk branch is named 'master' or 'main'"
+  "Detects wether the trunk branch is named 'master', 'main' or 'develop'.
+  Ideally this would be made configurable or more flexible"
   [vcs]
   (first
     (into []
       (comp
         (map #(str/replace % #"\*" ""))
-        (filter #{"master" "main"}))
+        (filter #{"master" "main" "develop"}))
       (str/split-lines
         (u/run-cmd
           ["jj" "bookmark" "list"
