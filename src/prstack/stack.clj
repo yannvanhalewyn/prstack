@@ -129,7 +129,7 @@
     (def sys-
       (prstack.system/new
         (prstack.config/read-global)
-        (assoc (prstack.config/read-local)
+        (assoc (prstack.config/read-local "./tmp/parallel-branches")
           :vcs #_:jujutsu :git)
         {:project-dir "./tmp/parallel-branches"}))
     (def vcs- (:system/vcs sys-))

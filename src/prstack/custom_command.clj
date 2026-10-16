@@ -188,16 +188,17 @@
 
 (def ^:private command-strategies
   "Map of symbol -> handler function for list-based commands.
-  Each handler receives the arguments (rest of the list) and executes them."
-  {'pipe (fn [args]
-           (u/pipeline (vec args) {:inherit-last true}))
-   'do  (fn [args]
+  Each handler receives the arguments (rest of the list) and the eval opts, and
+  executes them."
+  {'pipe (fn [args {:keys [dir]}]
+           (u/pipeline (vec args) {:inherit-last true :dir dir}))
+   'do  (fn [args opts]
           (doseq [cmd args]
-            (eval-command cmd)))
-   'or   (fn [args]
+            (eval-command cmd opts)))
+   'or   (fn [args opts]
            (loop [[cmd & rest] args]
              (when cmd
-               (let [result (eval-command cmd)]
+               (let [result (eval-command cmd opts)]
                  (when-not (zero? (:exit result 0))
                    (recur rest))))))})
 
@@ -212,23 +213,26 @@
     [\"git\" \"status\"]            -> command with args
     (pipe [\"ls\"] [\"grep\" \"x\"])  -> pipes ls into grep
     (and [\"cmd1\"] [\"cmd2\"])     -> runs cmd1 then cmd2
-    (shell \"ls | grep foo\")     -> explicit shell (for pipes/redirects)"
-  [cmd]
+    (shell \"ls | grep foo\")     -> explicit shell (for pipes/redirects)
+
+  Options:
+    :dir - Working directory to run the command in"
+  [cmd & [{:keys [dir] :as opts}]]
   (cond
     ;; String - run as shell command
     (string? cmd)
-    (u/shell-out cmd)
+    (u/shell-out cmd {:dir dir})
 
     ;; Vector of strings - run as command with args
     (vector? cmd)
-    (u/shell-out cmd)
+    (u/shell-out cmd {:dir dir})
 
     ;; List with symbol - dispatch to strategy
     (and (list? cmd) (symbol? (first cmd)))
     (let [[op & args] cmd
           handler (get command-strategies op)]
       (if handler
-        (handler args)
+        (handler args opts)
         (throw (ex-info (str "Unknown command strategy: " op)
                  {:op op :available (keys command-strategies)}))))
 
@@ -236,7 +240,7 @@
     (throw (ex-info "Invalid command form" {:cmd cmd}))))
 
 (comment
-  (def user-config- (prstack.config/read-local))
+  (def user-config- (prstack.config/read-local nil))
   (def glocal-config- (prstack.config/read-global))
 
   (prepare-command "git diff $from-sha..$to-sha | less"

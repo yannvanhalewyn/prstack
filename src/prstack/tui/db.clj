@@ -27,6 +27,9 @@
 
 (def ^:lsp/allow-unused AppState
   [:map
+   ;; CLI options the TUI was started with, like `:project-dir`
+   [:app-state/global-opts :map]
+
    ;; System
    [:app-state/system system/SystemSchema]
 
@@ -50,6 +53,12 @@
 
 (defn remote [state]
   (get-in state [:app-state/system :system/remote]))
+
+(defn global-opts [state]
+  (:app-state/global-opts state))
+
+(defn project-dir [state]
+  (:project-dir (global-opts state)))
 
 (defn global-config [state]
   (get-in state [:app-state/system :system/global-config]))
@@ -170,8 +179,10 @@
 
 (defmethod dispatch! :event/read-local-repo
   [_evt]
-  (let [system (system/new (config/read-global) (config/read-local)
-                 {:project-dir nil})
+  (let [global-opts (global-opts @app-state)
+        system (system/new (config/read-global)
+                 (config/read-local (:project-dir global-opts))
+                 global-opts)
         vcs-graph (delay (vcs/read-graph (:system/vcs system)
                            (:system/user-config system)))]
     (swap! app-state merge
@@ -218,7 +229,7 @@
    Sets up the app state to run in foreground and closes the TUI."
   [cmd]
   (swap! app-state assoc :app-state/run-in-fg
-    #(custom-command/eval-command cmd))
+    #(custom-command/eval-command cmd {:dir (project-dir @app-state)}))
   (tui/close!))
 
 (defmethod dispatch! :event/run-diff
@@ -275,23 +286,23 @@
             (remote/merge-pr! (remote @app-state) (:pr/number current-pr))
             ;; Clean up feature base if the merged branch was explicitly configured
             (let [merged-branch (:pr/head-branch current-pr)
-                  local-config (config/read-local)
+                  local-config (config/read-local (project-dir @app-state))
                   feature-bases (:feature-base-branches local-config)]
               (when (contains? feature-bases merged-branch)
                 (let [updated-config (update local-config :feature-base-branches disj merged-branch)]
-                  (config/write-local updated-config)
+                  (config/write-local (project-dir @app-state) updated-config)
                   (println (ansi/colorize :green "✔")
                     "Removed" (ansi/colorize :cyan merged-branch)
                     "from feature base branches"))))
             (when (tty/prompt-confirm
                     {:prompt (str "Would you like to run " (ansi/colorize :yellow "prstack sync") "?")})
-              ((:exec commands.sync/command) [] {})))))
+              ((:exec commands.sync/command) [] (global-opts @app-state))))))
       (tui/close!))))
 
 (defmethod dispatch! :event/sync
   [_evt]
   (swap! app-state assoc :app-state/run-in-fg
-    #((:exec commands.sync/command) [] {}))
+    #((:exec commands.sync/command) [] (global-opts @app-state)))
   (tui/close!))
 
 (defmethod dispatch! :event/select-tab

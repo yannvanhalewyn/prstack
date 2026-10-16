@@ -36,16 +36,22 @@
             (str "Error reading EDN config file at " file) (ex-message e))
           nil)))))
 
-(defn read-local []
-  (read-edn (io/file ".prstack/config.edn")))
+(defn local-config-file
+  "Returns the local config file of the project at `project-dir`. A nil
+  `project-dir` means the current directory."
+  [project-dir]
+  (io/file project-dir ".prstack" "config.edn"))
+
+(defn read-local [project-dir]
+  (read-edn (local-config-file project-dir)))
 
 (defn read-global []
   (read-edn
     (io/file (System/getProperty "user.home")
       ".config" "prstack" "config.edn")))
 
-(defn write-local [config]
-  (let [file (io/file ".prstack/config.edn")
+(defn write-local [project-dir config]
+  (let [file (local-config-file project-dir)
         dir (.getParentFile file)]
     ;; Create .prstack directory if it doesn't exist
     (when-not (.exists dir)
@@ -80,7 +86,7 @@
   (contains? (:keybindings global-config) keybinding))
 
 (comment
-  (read-local)
+  (read-local nil)
   (diffview-command (read-global)
     {:from-sha "abc123" :to-sha "def456"})
   (custom-command (read-global) "x" {}))

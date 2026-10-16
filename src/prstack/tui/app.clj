@@ -203,8 +203,9 @@
       (run-in-fg)
       (recur))))
 
-(defn run! []
-  (init/ensure-initialized!)
+(defn run! [global-opts]
+  (init/ensure-initialized! (:project-dir global-opts))
+  (swap! db/app-state assoc :app-state/global-opts global-opts)
   (try
     (run-app!)
     (catch Exception e
