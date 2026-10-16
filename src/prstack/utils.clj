@@ -121,6 +121,32 @@
     (-> (p/shell cmd {:inherit :true :dir dir})
       p/check)))
 
+(def ^:private worker-stack-size
+  "Stack size in bytes for threads started by `pmap-large-stack`. Larger than
+  the main thread's stack."
+  (* 64 1024 1024))
+
+(defn pmap-large-stack
+  "Like `pmap`, but runs `f` on a separate thread with a large stack for every
+  item, returning a vector of the results. Babashka's default thread stack is
+  much smaller than the main thread's, so deeply recursive code that works on
+  the main thread can overflow in a `future`. Exceptions thrown by `f` are
+  rethrown."
+  [f coll]
+  (->> coll
+    (mapv (fn [x]
+            (let [result (promise)]
+              (.start (Thread. nil
+                        #(deliver result
+                           (try [(f x)]
+                             (catch Throwable e [nil e])))
+                        "prstack-worker"
+                        worker-stack-size))
+              result)))
+    (mapv (fn [result]
+            (let [[v e] @result]
+              (if e (throw e) v))))))
+
 (defn pipeline
   "Executes a pipeline of commands, piping output from one to the next.
 

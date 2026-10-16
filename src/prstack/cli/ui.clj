@@ -7,13 +7,13 @@
 
 (defn- print-stack-section
   "Prints a single stack with optional PR information."
-  [stack prs {:keys [max-width header]}]
+  [stack prs-result {:keys [max-width header]}]
   (when header
     (println (ansi/colorize :cyan header)))
   ;; Print each branch in the stack (except the last one which is the base)
   (doseq [[cur-change prev-change]
           (partition 2 1 stack)]
-    (let [[prs prs-err] prs
+    (let [[prs prs-err] prs-result
           cur-branch (:change/selected-branchname cur-change)
           head-branch cur-branch
           base-branch (:change/selected-branchname prev-change)
@@ -29,12 +29,18 @@
           padding-needed (- max-width visual-len)
           padding (apply str (repeat padding-needed " "))]
       (println (str formatted-branch padding " "
-                    (when prs ;; Nil when `--exclude-prs` is passed
+                    (when prs-result ;; Nil when `--exclude-prs` is passed
                       (ui/format-pr-info pr
                         {:error (:error/message prs-err)
                          :wrong-base-branch wrong-base-branch}))))))
   ;; Print the base branch at the bottom
   (println (ui/format-change (last stack)))
+  (println))
+
+(defn print-repo-header
+  "Prints the header shown above each repository's stacks in a workspace."
+  [repo-name]
+  (println (ansi/colorize [:bold :blue] (str "▸ " repo-name)))
   (println))
 
 (defn print-stacks
