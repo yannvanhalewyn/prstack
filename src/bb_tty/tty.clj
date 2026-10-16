@@ -1,5 +1,6 @@
 (ns bb-tty.tty
   (:require
+    [babashka.process :as p]
     [bb-tty.ansi :as ansi]
     [bblgum.core :as b]
     [clojure.string :as str]
@@ -41,8 +42,36 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Prompts
 
-(defn with-spinner [cmd {:keys [title]}]
+(defn ^:lsp/allow-unused with-spinner [cmd {:keys [title]}]
   (b/gum :spin cmd :title title))
+
+(def ^:private spinner-frames
+  ["⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏"])
+
+(defn spin
+  "Calls `f` while displaying a spinner with a title. Unlike `with-spinner`
+  this doesn't require a shell command. Returns the result of `f`."
+  [f {:keys [title]}]
+  (if-not (System/console)
+    (f)
+    (let [done (promise)
+          render (fn [s]
+                   (binding [*out* *err*]
+                     (print (str "\r" ansi/CLEAR_LINE s))
+                     (flush)))
+          spinner (future
+                    (render ansi/HIDE_CURSOR)
+                    (loop [i 0]
+                      (render (str (ansi/colorize :magenta (nth spinner-frames (mod i (count spinner-frames))))
+                                   " " title))
+                      (when (= ::pending (deref done 80 ::pending))
+                        (recur (inc i))))
+                    (render ansi/SHOW_CURSOR))]
+      (try
+        (f)
+        (finally
+          (deliver done true)
+          @spinner)))))
 
 (defn- gum-args
   ([opts]
@@ -53,6 +82,31 @@
 
 (defn prompt-confirm [{:keys [prompt]}]
   (:result (b/gum :confirm [(str (ansi/colorize :reset "") prompt)] :as :bool)))
+
+(defn prompt-input
+  "Prompts for a single line of text. Returns nil when cancelled or empty."
+  [{:keys [value placeholder] :as opts}]
+  (let [{:keys [status result]}
+        (apply b/gum :input
+          (gum-args (cond-> {}
+                      value (assoc :value value)
+                      placeholder (assoc :placeholder placeholder))
+            opts))]
+    (when (zero? status)
+      (not-empty (str/trim (str/join "\n" result))))))
+
+(defn prompt-write
+  "Prompts for multiple lines of text. Returns nil when cancelled or empty."
+  [{:keys [prompt value placeholder]}]
+  ;; Not using bblgum here as it drops empty lines from the output
+  (let [{:keys [exit out]}
+        (apply p/shell {:out :string :in :inherit :err :inherit :continue true}
+          (cond-> ["gum" "write"]
+            prompt (conj (str "--header=" (ansi/colorize :white prompt)))
+            value (conj (str "--value=" value))
+            placeholder (conj (str "--placeholder=" placeholder))))]
+    (when (zero? exit)
+      (not-empty (str/trim out)))))
 
 (defn prompt-pick
   {:arglists '([{:keys [prompt options render-option limit]}])}

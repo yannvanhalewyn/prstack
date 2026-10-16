@@ -38,7 +38,7 @@
            split-stacks (stack/split-feature-base-stacks stacks)]
        (cli.ui/print-stacks split-stacks
          (when-not (:exclude-prs? opts)
-           (ui/fetch-prs-with-spinner)))))})
+           (ui/fetch-prs-with-spinner (:system/remote system))))))})
 
 (comment
   (def sys-

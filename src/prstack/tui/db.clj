@@ -8,8 +8,8 @@
     [prstack.cli.commands.sync :as commands.sync]
     [prstack.config :as config]
     [prstack.custom-command :as custom-command]
-    [prstack.github :as github]
     [prstack.pr :as pr]
+    [prstack.remote :as remote]
     [prstack.stack :as stack]
     [prstack.system :as system]
     [prstack.ui :as ui]
@@ -34,7 +34,7 @@
    [:app-state/vcs-graph [:fn #(instance? clojure.lang.Delay %)]]
    [:app-state/current-stacks [:fn #(instance? clojure.lang.Delay %)]]
    [:app-state/all-stacks [:fn #(instance? clojure.lang.Delay %)]]
-   [:app-state/prs (http-request-schema [:sequential github/PR])]
+   [:app-state/prs (http-request-schema [:sequential remote/PR])]
 
    ;; UI
    [:app-state/selected-tab :int]
@@ -47,6 +47,9 @@
 
 (defn vcs [state]
   (get-in state [:app-state/system :system/vcs]))
+
+(defn remote [state]
+  (get-in state [:app-state/system :system/remote]))
 
 (defn global-config [state]
   (get-in state [:app-state/system :system/global-config]))
@@ -182,7 +185,7 @@
   (swap! app-state assoc :app-state/prs
     {:http/status :status/pending})
   (future
-    (let [[result err] (github/list-prs (vcs @app-state))]
+    (let [[result err] (remote/list-prs (remote @app-state) {})]
       (swap! app-state assoc :app-state/prs
         (if err
           {:http/status :status/failed
@@ -247,9 +250,11 @@
         (commands.create-prs/create-pr!
           {:head-change selected-change
            :base-change prev-change
-           :prs (ui/fetch-prs-with-spinner)
+           :prs (ui/fetch-prs-with-spinner (remote @app-state))
            :vcs (vcs @app-state)
-           :branch-statuses (vcs.branch/selected-branches-info (vcs-graph @app-state))})))
+           :remote (remote @app-state)
+           :branch-infos (->> (vcs.branch/selected-branches-info (vcs-graph @app-state))
+                           (u/build-index :branch/branchname))})))
     (tui/close!)))
 
 (defmethod dispatch! :event/merge-pr
@@ -267,7 +272,7 @@
                      (:pr/title current-pr)
                      (ansi/colorize :blue (:change/selected-branchname selected-change))
                      (ansi/colorize :blue (:change/selected-branchname prev-change)))})
-            (github/merge-pr! (:pr/number current-pr))
+            (remote/merge-pr! (remote @app-state) (:pr/number current-pr))
             ;; Clean up feature base if the merged branch was explicitly configured
             (let [merged-branch (:pr/head-branch current-pr)
                   local-config (config/read-local)

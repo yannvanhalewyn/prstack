@@ -3,7 +3,7 @@
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
-    [prstack.github :as github]))
+    [prstack.remote :as remote]))
 
 (defn format-branch [name]
   (ansi/colorize :cyan name))
@@ -68,10 +68,6 @@
     error    (str (ansi/colorize :red "X") " " error)
     :else    (ansi/colorize :gray "  No PR found")))
 
-(defn fetch-prs-with-spinner []
-  (let [res (tty/with-spinner (github/list-prs-cmd)
-              {:title "Fetching PRs..."})]
-    (if (= (:status res) 0)
-      [(github/parse-prs-cmd-output (first (:result res)))]
-      [nil {:error/type :remoterepo/error-fetching-prs
-            :error/message "Error fetching PRs..."}])))
+(defn fetch-prs-with-spinner [remote]
+  (tty/spin #(remote/list-prs remote {})
+    {:title "Fetching PRs..."}))

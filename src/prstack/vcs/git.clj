@@ -63,6 +63,16 @@
     (catch Exception _e
       nil)))
 
+(defn remote-url
+  "Gets the URL of the origin remote. Returns nil if there is no such remote."
+  [vcs]
+  (try
+    (not-empty
+      (u/run-cmd ["git" "remote" "get-url" "origin"]
+        {:dir (:vcs/project-dir vcs)}))
+    (catch Exception _e
+      nil)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Querying commit log
 
@@ -311,6 +321,9 @@
 
   (find-fork-point [this ref]
     (find-fork-point* this ref))
+
+  (remote-url [this]
+    (remote-url this))
 
   (current-user-email [this]
     (current-user-email this))

@@ -91,6 +91,13 @@
     Returns:
       String, the change-id/commit-sha of the fork point")
 
+  (remote-url [this]
+    "Returns the URL of the 'origin' remote, used to determine which remote
+    host (GitHub, Bitbucket, ...) to talk to.
+
+    Returns:
+      String, the remote URL or nil if there is no such remote")
+
   (current-user-email [this]
     "Gets the current user's email from VCS config.
 

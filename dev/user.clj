@@ -3,7 +3,7 @@
     [clojure.tools.namespace.repl :as repl]
     [portal.api :as p]
     [prstack.config :as config]
-    [prstack.github :as github]
+    [prstack.remote.github :as github]
     [prstack.stack :as stack]
     [prstack.system :as system]
     [prstack.vcs :as vcs]

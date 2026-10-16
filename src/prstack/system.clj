@@ -1,6 +1,9 @@
 (ns prstack.system
   (:require
     [prstack.config :as config]
+    [prstack.remote :as remote]
+    [prstack.remote.bitbucket :as remote.bitbucket]
+    [prstack.remote.github :as remote.github]
     [prstack.vcs :as vcs]
     [prstack.vcs.git :as vcs.git]
     [prstack.vcs.jujutsu :as vcs.jj]))
@@ -10,7 +13,8 @@
   [:map
    [:system/global-config config/GlobalConfig]
    [:system/user-config config/UserConfig]
-   [:system/vcs vcs/VCS]])
+   [:system/vcs vcs/VCS]
+   [:system/remote remote/RemoteVCS]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public API
@@ -22,12 +26,22 @@
     (as-> (assoc vcs :vcs/project-dir (:project-dir global-opts)) $
       (assoc $ :vcs/config (vcs/read-vcs-config $)))))
 
+(defn new-remote
+  "Creates the RemoteVCS implementation matching the origin remote URL."
+  [vcs]
+  (let [remote-url (vcs/remote-url vcs)]
+    (case (remote/host-type remote-url)
+      :bitbucket (remote.bitbucket/new-remote remote-url)
+      :github (remote.github/new-remote (:vcs/project-dir vcs)))))
+
 (defn new
   "Creates a new system with the given configuration.
 
   Options:
     :project-dir - Directory of the project to operate on. Defaults to current directory."
   [global-config user-config global-opts]
-  {:system/global-config global-config
-   :system/user-config user-config
-   :system/vcs (new-vcs user-config global-opts)})
+  (let [vcs (new-vcs user-config global-opts)]
+    {:system/global-config global-config
+     :system/user-config user-config
+     :system/vcs vcs
+     :system/remote (new-remote vcs)}))

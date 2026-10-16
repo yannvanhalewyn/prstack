@@ -6,7 +6,7 @@
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
-    [prstack.github :as github]
+    [prstack.remote :as remote]
     [prstack.stack :as stack]
     [prstack.system :as system]
     [prstack.ui :as ui]
@@ -43,7 +43,7 @@
   (let [vcs (:system/vcs system)
         user-config (:system/user-config system)
         vcs-graph (vcs/read-graph vcs user-config)
-        [merged-prs err] (github/list-prs vcs {:state :merged})
+        [merged-prs err] (remote/list-prs (:system/remote system) {:state :merged})
         local-bookmarks (set (vcs.graph/all-selected-branchnames vcs-graph))
         to-delete (filter #(contains? local-bookmarks (:pr/head-branch %)) merged-prs)]
     (cond
@@ -191,7 +191,7 @@
                  (stack/get-all-stacks system vcs-graph)
                  (stack/get-current-stacks system vcs-graph))
         split-stacks (stack/split-feature-base-stacks stacks)
-        [prs _err :as pr-result] (ui/fetch-prs-with-spinner)]
+        [prs _err :as pr-result] (ui/fetch-prs-with-spinner (:system/remote system))]
 
     (cli.ui/print-stacks split-stacks [prs])
 
@@ -209,7 +209,7 @@
         (when has-missing-prs?
           (ui/info "Stack " (ui/format-branch leaf-branch) " has branches without PRs")
           (when (tty/prompt-confirm {:prompt "  Create missing PRs?"})
-            (commands.create-prs/create-prs! vcs
+            (commands.create-prs/create-prs! system
               {:prs pr-result
                :stacks [stack]
                :vcs-graph vcs-graph})))))))

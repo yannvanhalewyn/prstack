@@ -49,6 +49,21 @@
     (catch Exception _e
       nil)))
 
+(defn remote-url
+  "Gets the URL of the origin remote. Returns nil if there is no such remote."
+  [vcs]
+  (try
+    (some
+      (fn [line]
+        (let [[remote-name url] (str/split (str/trim line) #"\s+" 2)]
+          (when (= remote-name "origin")
+            url)))
+      (str/split-lines
+        (u/run-cmd ["jj" "git" "remote" "list" "--ignore-working-copy"]
+          {:dir (:vcs/project-dir vcs)})))
+    (catch Exception _e
+      nil)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Branch Operations
 
@@ -226,6 +241,9 @@
 
   (find-fork-point [this ref]
     (find-fork-point this ref))
+
+  (remote-url [this]
+    (remote-url this))
 
   (current-user-email [this]
     (current-user-email this))

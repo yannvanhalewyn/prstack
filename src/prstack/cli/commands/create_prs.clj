@@ -2,10 +2,11 @@
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
+    [clojure.string :as str]
     [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
-    [prstack.github :as github]
     [prstack.pr :as pr]
+    [prstack.remote :as remote]
     [prstack.stack :as stack]
     [prstack.system :as system]
     [prstack.ui :as ui]
@@ -22,7 +23,7 @@
         true)
       true)))
 
-(defn create-pr! [{:keys [head-change base-change prs vcs branch-infos]}]
+(defn create-pr! [{:keys [head-change base-change prs vcs remote branch-infos]}]
   (let [head-branch (:change/selected-branchname head-change)
         base-branch (:change/selected-branchname base-change)
         [prs err] prs
@@ -57,10 +58,15 @@
           (ui/info (ansi/colorize :yellow "Checking remote branches"))
           (when (ensure-remote-branch! base-branch "Base branch not pushed to remote. " vcs branch-infos)
             (when (ensure-remote-branch! head-branch "Head branch not pushed to remote. " vcs branch-infos)
-              (github/create-pr! head-branch base-branch)
-              (println (ansi/colorize :green "\n✅ Created PR ... \n")))))))))
+              (when (remote/create-pr! remote
+                      {:pr/head-branch head-branch
+                       :pr/base-branch base-branch
+                       :pr/title (some-> (:change/description head-change)
+                                   str/split-lines
+                                   first)})
+                (println (ansi/colorize :green "\n✅ Created PR ... \n"))))))))))
 
-(defn create-prs! [vcs {:keys [prs stacks vcs-graph]}]
+(defn create-prs! [system {:keys [prs stacks vcs-graph]}]
   (if (seq stacks)
     (let [branch-infos (->> (vcs.branch/selected-branches-info vcs-graph)
                          (u/build-index :branch/branchname))]
@@ -71,7 +77,8 @@
             {:head-change head-change
              :base-change base-change
              :prs prs
-             :vcs vcs
+             :vcs (:system/vcs system)
+             :remote (:system/remote system)
              :branch-infos branch-infos}))))
     (println (ansi/colorize :cyan "No PRs to create"))))
 
@@ -91,9 +98,9 @@
              (stack/get-current-stacks system vcs-graph))
            split-stacks
            (stack/split-feature-base-stacks stacks)
-           prs (ui/fetch-prs-with-spinner)]
+           prs (ui/fetch-prs-with-spinner (:system/remote system))]
        (cli.ui/print-stacks split-stacks prs)
-       (create-prs! vcs
+       (create-prs! system
          {:prs prs
           :stacks stacks
           :vcs-graph vcs-graph})))})

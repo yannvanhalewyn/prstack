@@ -14,7 +14,7 @@ PRStack dynamically discovers your PR stacks by tracing from your current branch
 
 Traditional PR stack tools require upfront planning and rigid adherence to predefined structures. PRStack recognizes that development is organic. You use it by using your VCS however you want, make branches and pivot freely, and let the tool adapt to you. It attempts to minimize most common actions of creating and merging PRs to a few keystrokes.
 
-It's designed to work with any Version Control System (VCS) and remote repos via Clojure protocols. It currently works with [Jujutsu](https://github.com/martinvonz/jj) and [Git](https://git-scm.com/), and [Github](https://www.github.com) as host. It is designed primarily for Jujutsu and I recommend using that one. In the future I may add a plugin system for adding more VCS but for now if you want to use it with something else than Git / Github create an [issue](https://www.github.com/yannvanhalewyn/prstack/issues/new).
+It's designed to work with any Version Control System (VCS) and remote repos via Clojure protocols. It currently works with [Jujutsu](https://github.com/martinvonz/jj) and [Git](https://git-scm.com/), and [Github](https://www.github.com) or [Bitbucket Cloud](https://bitbucket.org) as host. The host is detected from the URL of the `origin` remote. It is designed primarily for Jujutsu and I recommend using that one. In the future I may add a plugin system for adding more VCS but for now if you want to use it with something else than Git / Github create an [issue](https://www.github.com/yannvanhalewyn/prstack/issues/new).
 
 ## How it works
 
@@ -40,7 +40,7 @@ Learn more about CLI commands in the [Commands Reference](https://prstack.dev/do
 
 ## Installation
 
-**Requirements**: [Babashka](https://babashka.org/) and [GitHub CLI](https://cli.github.com/)
+**Requirements**: [Babashka](https://babashka.org/), [gum](https://github.com/charmbracelet/gum) and, for GitHub repos, the [GitHub CLI](https://cli.github.com/)
 
 ```bash
 git clone https://github.com/yannvanhalewyn/prstack.git
@@ -48,6 +48,71 @@ cd prstack
 chmod +x bin/prstack
 ln -s $(pwd)/bin/prstack /usr/local/bin/prstack
 ```
+
+### Bitbucket
+
+Bitbucket Cloud repos talk to the Bitbucket REST API directly, so there's no extra CLI to install. Set up credentials using one of:
+
+- `BITBUCKET_EMAIL` and `BITBUCKET_API_TOKEN`: your Atlassian account email (listed under **Email aliases** in Bitbucket's personal settings) and an API token with the `read:pullrequest:bitbucket` and `write:pullrequest:bitbucket` scopes. API tokens are managed on your Atlassian account, not in Bitbucket's settings:
+  1. Go to [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens) (or **Account settings** → **Security** → **Create and manage API tokens**).
+  2. Click **Create API token with scopes**. Classic tokens without scopes don't work with Bitbucket.
+  3. Pick a name and expiry date, select **Bitbucket** as the app, then select both pull request scopes.
+  4. Copy the token right away, it's only shown once.
+- `BITBUCKET_ACCESS_TOKEN`: a repository, project or workspace access token with the `pullrequest:write` scope.
+
+#### Keeping the token secret
+
+Avoid putting the token in a plaintext file (like `.prstack/config.edn`, a `.env` file or your shell config) or exporting it globally, where every program you run can read it. Instead, store it in a secret manager and only pass it to `prstack` when it runs.
+
+On macOS, store your Atlassian email and the API token in the Keychain. Leaving `-w` as the last flag makes `security` prompt for the value, so it doesn't end up in your shell history:
+
+```bash
+security add-generic-password -a "$USER" -s prstack-bitbucket-email -w
+security add-generic-password -a "$USER" -s prstack-bitbucket-api-token -w
+```
+
+Then wrap `prstack` so it reads both from the Keychain on every call.
+
+**fish** (`~/.config/fish/functions/prstack.fish`):
+
+```fish
+function prstack --wraps prstack
+    if set -q BITBUCKET_API_TOKEN
+        command prstack $argv
+        return
+    end
+    set -l email (security find-generic-password -a $USER -s prstack-bitbucket-email -w 2>/dev/null)
+    set -l token (security find-generic-password -a $USER -s prstack-bitbucket-api-token -w 2>/dev/null)
+    if test -z "$email"; or test -z "$token"
+        command prstack $argv
+    else
+        BITBUCKET_EMAIL=$email BITBUCKET_API_TOKEN=$token command prstack $argv
+    end
+end
+```
+
+**bash / zsh** (`~/.bashrc` or `~/.zshrc`):
+
+```bash
+prstack() {
+  if [ -n "$BITBUCKET_API_TOKEN" ]; then
+    command prstack "$@"
+    return
+  fi
+  local email token
+  email=$(security find-generic-password -a "$USER" -s prstack-bitbucket-email -w 2>/dev/null)
+  token=$(security find-generic-password -a "$USER" -s prstack-bitbucket-api-token -w 2>/dev/null)
+  if [ -z "$email" ] || [ -z "$token" ]; then
+    command prstack "$@"
+  else
+    BITBUCKET_EMAIL="$email" BITBUCKET_API_TOKEN="$token" command prstack "$@"
+  fi
+}
+```
+
+The variables are only set for that single `prstack` process. If either Keychain entry is missing (e.g. on a GitHub-only machine), or `BITBUCKET_API_TOKEN` is already set, `prstack` runs unchanged. The first time, macOS may ask whether `security` can access each item; choose "Always Allow" so it doesn't prompt every time.
+
+If you use 1Password, read the token with the [1Password CLI](https://developer.1password.com/docs/cli/) instead, e.g. `op read "op://Private/Bitbucket/credential"`.
 
 ## Documentation
 

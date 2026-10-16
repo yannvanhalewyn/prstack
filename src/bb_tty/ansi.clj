@@ -19,6 +19,7 @@
    :blue "\033[34m"
    :yellow "\033[33m"
    :cyan "\033[36m"
+   :magenta "\033[35m"
    :red "\033[31m"
    :white "\033[37m"
    :gray "\033[90m"
