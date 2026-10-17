@@ -13,10 +13,14 @@
   (atom nil))
 
 (defn- open-terminal ^Terminal []
-  ;; Allowing a dumb terminal avoids JLine warning when there is no TTY
   (-> (TerminalBuilder/builder)
     (.system true)
+    ;; Avoids JLine warning when there is no TTY
     (.dumb true)
+    ;; Skips probing the terminal on build. The probe writes queries to the
+    ;; terminal and reads the responses from stdin, interfering with the
+    ;; event loop.
+    (.graphemeCluster false)
     (.build)))
 
 (defn- dumb? [^Terminal terminal]

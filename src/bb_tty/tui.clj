@@ -2,8 +2,9 @@
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.tty :as tty]
-    [clojure.string :as str]
-    [clojure.tools.logging :as log]))
+    [clojure.string :as str])
+  (:import
+    (java.util.concurrent ExecutionException)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Components
@@ -60,10 +61,11 @@
              (let [max-content-width (- cols left right)]
                (concat
                  (repeat top "")
+                 ;; No trailing padding, writing up to the last column can wrap
+                 ;; the line on terminals that render some glyphs wider
                  (for [line lines]
                    (str (str/join (repeat left " "))
-                        (ansi/truncate line max-content-width)
-                        (str/join (repeat right " "))))
+                        (ansi/truncate line max-content-width)))
                  (repeat bottom "")))
              lines)))))))
 
@@ -92,7 +94,7 @@
   [lines]
   (clear-screen!)
   (doseq [line lines]
-    (print line "\r\n"))
+    (print (str line "\r\n")))
   (flush))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -134,32 +136,41 @@
           (loop []
             (when @running?
               (let [key (.read System/in)]
-                ;; Consume the key without echoing it to terminal
-                ;; As long as we call `close!` synchronously in this handler
-                ;; it will shut down gracefully. If not one more character will
-                ;; be read before shutdown.
-                (f key)
-                (recur)))))]
+                ;; -1 means the end of input, there are no more keys to read
+                (when-not (neg? key)
+                  ;; Consume the key without echoing it to terminal
+                  ;; As long as we call `close!` synchronously in this handler
+                  ;; it will shut down gracefully. If not one more character
+                  ;; will be read before shutdown.
+                  (f key)
+                  (recur))))))]
     [event-loop #(reset! running? false)]))
+
+(declare close!)
 
 (defn with-running-ui
   "Runs function with UI system active"
   [f]
-  (let [[event-loop stop-event-loop]
-        (run-event-loop!
-          (fn [k]
-            (when-let [f (::keydown-handler @running-ui)]
-              (f k))))]
-    (tty/in-raw-mode
+  ;; Only start reading keys in raw mode, setting up the terminal can change
+  ;; its attributes, which could end a read that has already started
+  (tty/in-raw-mode
+    (let [[event-loop stop-event-loop]
+          (run-event-loop!
+            (fn [k]
+              (when-let [f (::keydown-handler @running-ui)]
+                (f k))))]
       (try
         (enter-fullscreen!)
         (reset! running-ui
           {::close-fns [stop-event-loop]})
         (f)
         @event-loop
-        (catch Exception e
-          (log/error "Error running UI" e))
+        (catch ExecutionException e
+          ;; Rethrow errors from the event loop as is
+          (throw (or (ex-cause e) e)))
         (finally
+          ;; Stops rendering when exiting because of an error
+          (close!)
           ;; TODO we shouldn't exit fullscreen when running a command in
           ;; foreground
           (exit-fullscreen!))))))
