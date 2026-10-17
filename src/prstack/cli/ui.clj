@@ -40,7 +40,7 @@
 (defn print-repo-header
   "Prints the header shown above each repository's stacks in a workspace."
   [repo-name]
-  (println (ansi/colorize [:bold :blue] (str "▸ " repo-name)))
+  (println (ui/format-repo-header repo-name))
   (println))
 
 (defn print-stacks

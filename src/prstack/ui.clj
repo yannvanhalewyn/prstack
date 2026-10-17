@@ -5,6 +5,13 @@
     [bb-tty.tty :as tty]
     [prstack.remote :as remote]))
 
+(defn format-repo-header
+  "Formats the header shown above the stacks of each repository when there are
+  multiple repositories. It's the top level of the overview, so it stands out
+  more than the stack headers below it."
+  [repo-name]
+  (ansi/colorize [:bold :bright-white :bg-dark-gray] (str " \uf401 " repo-name " ")))
+
 (defn format-branch [name]
   (ansi/colorize :cyan name))
 
