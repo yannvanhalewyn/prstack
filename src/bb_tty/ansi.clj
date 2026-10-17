@@ -1,6 +1,8 @@
 (ns bb-tty.ansi
   (:require
-    [clojure.string :as str]))
+    [clojure.string :as str])
+  (:import
+    (org.jline.utils AttributedString)))
 
 ;; Terminal control constants
 (def CLEAR_SCREEN "\u001b[2J")
@@ -49,4 +51,13 @@
   "Returns the visual column width of a string, stripping ANSI codes and
    accounting for wide characters (e.g., CJK characters, emoji)."
   [s]
-  (count (strip-ansi s)))
+  (.columnLength (AttributedString/fromAnsi s)))
+
+(defn truncate
+  "Truncates a string to at most `width` visual columns, ignoring ANSI codes
+  in the width calculation and keeping the styling of the visible part."
+  [s width]
+  (let [as (AttributedString/fromAnsi s)]
+    (if (> (.columnLength as) width)
+      (.toAnsi (.columnSubSequence as 0 width))
+      s)))

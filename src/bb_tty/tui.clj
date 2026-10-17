@@ -62,9 +62,7 @@
                  (repeat top "")
                  (for [line lines]
                    (str (str/join (repeat left " "))
-                        (if (> (count line) max-content-width)
-                          (subs line 0 max-content-width)
-                          line)
+                        (ansi/truncate line max-content-width)
                         (str/join (repeat right " "))))
                  (repeat bottom "")))
              lines)))))))
