@@ -3,7 +3,7 @@
 
   This namespace defines the RemoteVCS protocol that all remote hosts must
   implement. The concrete implementation is chosen based on the remote URL of
-  the repository, see `prstack.system/new-remote`.")
+  the repository, see `prstack.repo/new-remote`.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Schemas

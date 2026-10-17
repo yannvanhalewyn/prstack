@@ -75,9 +75,9 @@
 
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
-  ([{:system/keys [vcs user-config] :as system}]
-   (get-all-stacks system (vcs/read-graph vcs user-config)))
-  ([{:system/keys [vcs]} vcs-graph]
+  ([{:repo/keys [vcs local-config] :as repo}]
+   (get-all-stacks repo (vcs/read-graph vcs local-config)))
+  ([{:repo/keys [vcs]} vcs-graph]
    (let [trunk-branch (vcs/trunk-branch vcs)
          bookmarks-graph (vcs.graph/bookmarks-subgraph vcs-graph)
          leaves (->> (vcs.graph/bookmarked-leaf-nodes bookmarks-graph)
@@ -99,9 +99,9 @@
 
   If the current change is a megamerge (multiple parents), returns multiple
   stacks - one for each parent path. Otherwise, returns a single stack."
-  ([{:system/keys [vcs user-config] :as system}]
-   (get-current-stacks system (vcs/read-graph vcs user-config)))
-  ([{:system/keys [vcs]} vcs-graph]
+  ([{:repo/keys [vcs local-config] :as repo}]
+   (get-current-stacks repo (vcs/read-graph vcs local-config)))
+  ([{:repo/keys [vcs]} vcs-graph]
    (let [trunk-branch (vcs/trunk-branch vcs)
          current-id (vcs/current-change-id vcs)
          current-node (vcs.graph/get-node vcs-graph current-id)]
@@ -113,7 +113,7 @@
 
 (comment
   (get-current-stacks user/sys-)
-  (vcs/read-graph (user/vcs) (user/user-config))
+  (vcs/read-graph (user/vcs) (user/local-config))
   ( (vcs/find-fork-point (user/vcs) "@"))
   (vcs/current-change-id (user/vcs)))
 
@@ -126,16 +126,14 @@
 
 (comment
   (do
-    (def sys-
-      (prstack.system/new
-        (prstack.config/read-global)
+    (def repo-
+      (prstack.repo/open "./tmp/parallel-branches"
         (assoc (prstack.config/read-local "./tmp/parallel-branches")
-          :vcs #_:jujutsu :git)
-        {:project-dir "./tmp/parallel-branches"}))
-    (def vcs- (:system/vcs sys-))
-    (def user-config- (:system/user-config sys-))
+          :vcs #_:jujutsu :git)))
+    (def vcs- (:repo/vcs repo-))
+    (def local-config- (:repo/local-config repo-))
 
-    (def vcs-graph- (vcs/read-graph vcs- user-config-))
+    (def vcs-graph- (vcs/read-graph vcs- local-config-))
     (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
     (def current-id- (vcs/current-change-id vcs-))
     (def paths- (vcs.graph/find-all-paths-to-trunk bookmarks-graph- current-id-))
@@ -146,9 +144,9 @@
 
 (defn get-stacks
   "Returns a single stack for the given ref."
-  ([{:system/keys [vcs user-config] :as system} ref]
-   (get-stacks system ref (vcs/read-graph vcs user-config)))
-  ([{:system/keys [vcs]} ref vcs-graph]
+  ([{:repo/keys [vcs local-config] :as repo} ref]
+   (get-stacks repo ref (vcs/read-graph vcs local-config)))
+  ([{:repo/keys [vcs]} ref vcs-graph]
     (let [trunk-branch (vcs/trunk-branch vcs)
           ;; For now, assume ref is a branch name and find the node with that branch
           node (some (fn [[_id node]]
