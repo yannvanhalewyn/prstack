@@ -129,21 +129,22 @@
     (swap! running-ui update ::close-fns conj
       #(remove-watch state ::renderer))))
 
-(defn run-event-loop! [f]
+(defn run-event-loop!
+  "Calls `f` with every key pressed, see `tty/key-reader`."
+  [f]
   (let [running? (atom true)
+        read-key (tty/key-reader)
         event-loop
         (future
           (loop []
             (when @running?
-              (let [key (.read System/in)]
-                ;; -1 means the end of input, there are no more keys to read
-                (when-not (neg? key)
-                  ;; Consume the key without echoing it to terminal
-                  ;; As long as we call `close!` synchronously in this handler
-                  ;; it will shut down gracefully. If not one more character
-                  ;; will be read before shutdown.
-                  (f key)
-                  (recur))))))]
+              ;; nil means the end of input, there are no more keys to read
+              (when-let [key (read-key)]
+                ;; As long as we call `close!` synchronously in this handler
+                ;; it will shut down gracefully. If not one more key will be
+                ;; read before shutdown.
+                (f key)
+                (recur)))))]
     [event-loop #(reset! running? false)]))
 
 (declare close!)

@@ -6,6 +6,7 @@
     [clojure.string :as str]
     [prstack.utils :as u])
   (:import
+    (org.jline.keymap BindingReader KeyMap)
     (org.jline.terminal Terminal TerminalBuilder)))
 
 (def ^:private current-terminal
@@ -50,6 +51,34 @@
 
 (defmacro in-raw-mode [& body]
   `(run-in-raw-mode (fn [] ~@body)))
+
+(def ^:private key-map
+  "Maps escape sequences of special keys to keywords. Arrow keys are sent
+  differently depending on the terminal's cursor key mode, so both are bound."
+  (let [bind (fn [^KeyMap km k & seqs]
+               (.bind km k ^"[Ljava.lang.CharSequence;" (into-array CharSequence seqs)))]
+    (doto (KeyMap.)
+      (bind :up "\u001b[A" "\u001bOA")
+      (bind :down "\u001b[B" "\u001bOB")
+      (bind :right "\u001b[C" "\u001bOC")
+      (bind :left "\u001b[D" "\u001bOD")
+      ;; Any other input is a regular key
+      (.setNomatch ::char)
+      (.setUnicode ::char)
+      ;; How long to wait after an escape to see if it starts a sequence
+      (.setAmbiguousTimeout 50))))
+
+(defn key-reader
+  "Returns a function that blocks until a key is pressed, returning a keyword
+  for special keys (e.g. `:up`), a string for others (e.g. \"j\") or nil when
+  the input has ended. Only works while running in raw mode."
+  []
+  (let [reader (BindingReader. (.reader ^Terminal @current-terminal))]
+    (fn []
+      (let [binding (.readBinding reader key-map)]
+        (if (= ::char binding)
+          (.getLastBinding reader)
+          binding)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Prompts

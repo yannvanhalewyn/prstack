@@ -58,23 +58,20 @@
   (tui/component
     {:on-key-press
      (fn [key]
-       (let [key-str (str (char key))]
-         ;; First check for custom command bindings (allows overriding defaults)
-         (if (config/has-keybinding? (db/global-config @db/app-state) key-str)
-           (db/dispatch! [:event/run-custom-command key-str])
-           ;; Fall back to built-in commands
-           (condp = key
-             ;; Arrow keys are actually the following sequence
-             ;; 27 91 68 (map char [27 91 68])
-             ;; So need to keep a stack of recent keys to check for up/down
-             (int \j) (db/dispatch! [:event/move-down])
-             (int \k) (db/dispatch! [:event/move-up])
-             (int \d) (db/dispatch! [:event/run-diff])
-             (int \o) (db/dispatch! [:event/open-pr])
-             (int \c) (db/dispatch! [:event/create-pr])
-             (int \m) (db/dispatch! [:event/merge-pr])
-             (int \s) (db/dispatch! [:event/sync])
-             nil))))}
+       ;; First check for custom command bindings (allows overriding defaults)
+       (if (and (string? key)
+                (config/has-keybinding? (db/global-config @db/app-state) key))
+         (db/dispatch! [:event/run-custom-command key])
+         ;; Fall back to built-in commands
+         (case key
+           ("j" :down) (db/dispatch! [:event/move-down])
+           ("k" :up) (db/dispatch! [:event/move-up])
+           "d" (db/dispatch! [:event/run-diff])
+           "o" (db/dispatch! [:event/open-pr])
+           "c" (db/dispatch! [:event/create-pr])
+           "m" (db/dispatch! [:event/merge-pr])
+           "s" (db/dispatch! [:event/sync])
+           nil)))}
     (fn [state]
       (let [rows (db/display-rows state)
             selected-key (:row/key (db/selected-row state rows))
@@ -116,9 +113,9 @@
   (let [{:keys [cols]} (tty/get-terminal-size)
         separator (str/join (repeat (or cols 80) "\u2500"))
         keybindings
-        [{:keybind/display "0-9"
+        [{:keybind/display "0-9/←/→"
           :keybind/name "Switch tabs"}
-         {:keybind/display "j/k"
+         {:keybind/display "j/k/↑/↓"
           :keybind/name "Navigate"}
          {:keybind/display "d"
           :keybind/name "Diff"}
@@ -148,14 +145,15 @@
         (tui/component
           {:on-key-press
            (fn [key]
-             (cond
-               (= key (int \q)) (tui/close!)
-               (= key (int \r)) (db/dispatch! [:event/refresh])
-               (= key (int \1)) (db/dispatch! [:event/select-tab 0])
-               (= key (int \2)) (db/dispatch! [:event/select-tab 1])
-               (= key (int \3)) (db/dispatch! [:event/select-tab 2])
-               (= key (int \h)) (db/dispatch! [:event/tab-left])
-               (= key (int \l)) (db/dispatch! [:event/tab-right])))}
+             (case key
+               "q" (tui/close!)
+               "r" (db/dispatch! [:event/refresh])
+               "1" (db/dispatch! [:event/select-tab 0])
+               "2" (db/dispatch! [:event/select-tab 1])
+               "3" (db/dispatch! [:event/select-tab 2])
+               ("h" :left) (db/dispatch! [:event/tab-left])
+               ("l" :right) (db/dispatch! [:event/tab-right])
+               nil))}
           (fn [state]
             (tui/block
               [(render-tabs state)
