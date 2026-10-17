@@ -4,6 +4,7 @@
   and remote clients. Global config is not part of a repo, since it's
   shared by all repos."
   (:require
+    [clojure.java.io :as io]
     [prstack.config :as config]
     [prstack.remote :as remote]
     [prstack.remote.bitbucket :as remote.bitbucket]
@@ -14,6 +15,10 @@
 
 (def Repo
   [:map
+   ;; Canonical path of the repository, unique across repos
+   [:repo/id :string]
+   ;; For display
+   [:repo/name :string]
    [:repo/local-config config/LocalConfig]
    [:repo/vcs vcs/VCS]
    [:repo/remote remote/RemoteVCS]])
@@ -39,6 +44,12 @@
       :bitbucket (remote.bitbucket/new-remote remote-url)
       :github (remote.github/new-remote (:vcs/project-dir vcs)))))
 
+(defn id
+  "Returns the id of the repository at `project-dir`: its canonical path. A nil
+  `project-dir` means the current directory."
+  [project-dir]
+  (.getCanonicalPath (io/file (or project-dir "."))))
+
 (defn project-dir
   "Returns the project dir the repo operates on. Nil means the current
   directory."
@@ -49,7 +60,10 @@
   "Opens the existing repository at `project-dir` as a repo, using the given
   local config. A nil `project-dir` means the current directory."
   [project-dir local-config]
-  (let [vcs (new-vcs project-dir local-config)]
-    {:repo/local-config local-config
+  (let [vcs (new-vcs project-dir local-config)
+        repo-id (id project-dir)]
+    {:repo/id repo-id
+     :repo/name (.getName (io/file repo-id))
+     :repo/local-config local-config
      :repo/vcs vcs
      :repo/remote (new-remote vcs)}))

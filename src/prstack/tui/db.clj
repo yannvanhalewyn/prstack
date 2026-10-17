@@ -12,6 +12,7 @@
     [prstack.remote :as remote]
     [prstack.repo :as repo]
     [prstack.stack :as stack]
+    [prstack.tools.schema :as tools.schema]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]
@@ -25,6 +26,25 @@
     [:map [:error/type :keyword
            [:error/message :string]]]]])
 
+(def ^:lsp/allow-unused RepoState
+  "A repo as held in the app state: the repo and the data read through it."
+  (tools.schema/merge
+    repo/Repo
+    [:map
+     [:repo/vcs-graph [:fn delay?]]
+     [:repo/current-stacks [:fn delay?]]
+     [:repo/all-stacks [:fn delay?]]
+     [:repo/prs (http-request-schema [:sequential remote/PR])]]))
+
+(def ^:lsp/allow-unused RowKey
+  "Identifies a selectable row. A branch can appear in multiple stacks, and
+  stacks of different repos can have the same branches, so all three are
+  needed."
+  [:map
+   [:repo/id :string]
+   [:stack/id [:vector :string]]
+   [:branch :string]])
+
 (def ^:lsp/allow-unused AppState
   [:map
    ;; CLI options the TUI was started with, like `:project-dir`
@@ -33,66 +53,45 @@
    ;; Config shared by all repos
    [:app-state/global-config config/GlobalConfig]
 
-   ;; Repo
-   [:app-state/repo repo/Repo]
-
-   ;; Stacks
-   [:app-state/vcs-graph [:fn delay?]]
-   [:app-state/current-stacks [:fn delay?]]
-   [:app-state/all-stacks [:fn delay?]]
-   [:app-state/prs (http-request-schema [:sequential remote/PR])]
+   ;; Repos keyed by `:repo/id`
+   [:app-state/repos [:map-of :string RepoState]]
 
    ;; UI
    [:app-state/selected-tab :int]
-   [:app-state/selected-item-idx :int]
+   ;; Nil, or no longer displayed, selects a fallback row. See `selected-row`.
+   [:app-state/selection {:optional true} RowKey]
    [:app-state/run-in-fg :fn]])
 
 (defonce app-state
-  (atom {:app-state/selected-item-idx 0
-         :app-state/selected-tab 0}))
-
-(defn vcs [state]
-  (get-in state [:app-state/repo :repo/vcs]))
-
-(defn remote [state]
-  (get-in state [:app-state/repo :repo/remote]))
+  (atom {:app-state/selected-tab 0}))
 
 (defn global-opts [state]
   (:app-state/global-opts state))
 
-(defn project-dir [state]
-  (:project-dir (global-opts state)))
-
 (defn global-config [state]
   (:app-state/global-config state))
 
-(defn vcs-graph [state]
-  @(:app-state/vcs-graph state))
+(defn repos
+  "Returns the repos in display order."
+  [state]
+  (sort-by :repo/name (vals (:app-state/repos state))))
+
+(defn- repo-dirs
+  "Returns the directories of the repositories shown in the TUI."
+  [state]
+  [(:project-dir (global-opts state))])
+
+(defn- repo-opts
+  "Returns the global opts for running a CLI command on `repo`."
+  [state repo]
+  (assoc (global-opts state) :project-dir (repo/project-dir repo)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Displaying Stacks
-
-(defn- assoc-ui-indices
-  "Takes a list of stacks, and assoc's a `:ui/idx` key to every change in each
-  stack in order."
-  [stacks]
-  (second
-    (reduce
-      (fn [[idx ret] stack]
-        (let [[idx stack]
-              (reduce (fn [[idx ret] change]
-                        (if (= change (last stack))
-                          [idx (conj ret change)]
-                          [(inc idx) (conj ret (assoc change :ui/idx idx))]))
-                [idx []]
-                stack)]
-          [idx (conj ret stack)]))
-      [0 []]
-      stacks)))
-
-(defn- largest-ui-index [stacks]
-  (when-let [indexes (seq (keep :ui/idx (stack/leaves stacks)))]
-    (apply max indexes)))
+;; Display rows
+;;
+;; The UI displays and navigates a flat list of rows across all repos. Rows
+;; are derived from the repos and the selected tab, and carry everything needed
+;; to render them and to act on them.
 
 (defn- sort-stacks-by-base
   "Sorts stacks with non-feature-base stacks first, then feature-base stacks
@@ -110,202 +109,299 @@
         sorted-feature-base (sort-by (comp second partition-fn) feature-base)]
     (concat non-feature-base sorted-feature-base)))
 
-(comment
-  (assoc-ui-indices
-    [[{:change/local-branchnames ["main"]}
-      {:change/local-branchnames ["feature-a"]}]
-     [{:change/local-branchnames ["main"]}
-      {:change/local-branchnames ["hotfix"]}]]))
+(defn- tab-stacks
+  "Returns the stacks of `repo` displayed on the selected tab, split into
+  `:regular-stacks` and `:feature-base-stacks`.
 
-(defn displayed-stacks
-  "Returns a map with :regular-stacks and :feature-base-stacks,
-   both with UI indices and reversed for display.
+   For the 'My Stacks' tab, stacks are sorted with non-feature-base stacks
+   first, then feature-base stacks alphabetically."
+  [state repo]
+  (let [tab (:app-state/selected-tab state)
+        stacks (if (= 0 tab)
+                 @(:repo/current-stacks repo)
+                 @(:repo/all-stacks repo))]
+    (stack/split-feature-base-stacks
+      (if (= 1 tab)
+        (sort-stacks-by-base stacks)
+        stacks))))
 
-   UI indices are assigned sequentially across both regular and feature-base stacks
-   to ensure only one item is selected at a time.
+(defn- stack-rows
+  "Returns a row for every change in `stack` from leaf to base, where the base
+  change is not selectable."
+  [repo stack]
+  (let [repo-id (:repo/id repo)
+        stack-id (stack/id stack)
+        prs-request (:repo/prs repo)
+        prs (:http/result prs-request)
+        changes (reverse stack)]
+    (concat
+      (for [[change base] (u/consecutive-pairs changes)]
+        (let [branch (:change/selected-branchname change)
+              base-branch (:change/selected-branchname base)
+              pr (when prs (pr/find-pr prs branch))]
+          {:row/kind :change
+           :row/key {:repo/id repo-id :stack/id stack-id :branch branch}
+           :repo/id repo-id
+           :change change
+           :base base
+           :pr pr
+           :prs-request prs-request
+           ;; Set when the PR has the wrong base branch
+           :wrong-base-branch (when (and pr (not= (:pr/base-branch pr) base-branch))
+                                base-branch)}))
+      [{:row/kind :base
+        :repo/id repo-id
+        :change (last changes)}])))
 
-   For the 'All Stacks' tab, stacks are sorted with non-feature-base stacks first,
-   then feature-base stacks alphabetically."
+(defn- repo-rows [state repo]
+  (let [{:keys [regular-stacks feature-base-stacks]} (tab-stacks state repo)]
+    (concat
+      ;; When every stack has only the trunk node, that means no stacks
+      (if (stack/any-segments? regular-stacks)
+        (mapcat
+          (fn [[i stack]]
+            (concat
+              ;; TODO better detect current stack in megamerges for example
+              [{:row/kind :stack-header
+                :label (if (zero? i) "Current Stack" "Other Stack")
+                :size (dec (count stack))}]
+              (stack-rows repo stack)
+              ;; Add blank line between stacks
+              (when-not (and (= i (dec (count regular-stacks)))
+                             (empty? feature-base-stacks))
+                [{:row/kind :blank}])))
+          (u/indexed regular-stacks))
+        [{:row/kind :text :style :cyan :text "No stacks detetected"}
+         {:row/kind :text :text "Create some branches to see some stacks appear."}
+         {:row/kind :blank}])
+      (when (seq feature-base-stacks)
+        (concat
+          [{:row/kind :section-header :text " Feature Base Branches"}]
+          (mapcat #(concat (stack-rows repo %) [{:row/kind :blank}])
+            feature-base-stacks))))))
+
+(defn display-rows
+  "Returns the rows displayed for all repos. Repo headers are only shown when
+  there are multiple repos."
   [state]
-  (let [raw-stacks (case (:app-state/selected-tab state)
-                     0 @(:app-state/current-stacks state)
-                     1 @(:app-state/all-stacks state)
-                     @(:app-state/all-stacks state))
-        ;; Sort stacks for "All Stacks" tab (tab 1)
-        sorted-raw-stacks (if (= 1 (:app-state/selected-tab state))
-                            (sort-stacks-by-base raw-stacks)
-                            raw-stacks)
-        {:keys [regular-stacks feature-base-stacks]}
-        (stack/split-feature-base-stacks sorted-raw-stacks)
-        ;; Reverse both stack groups, then index them as a single sequence for
-        ;; the UI
-        all-indexed (assoc-ui-indices (concat
-                                        (stack/reverse-stacks regular-stacks)
-                                        (stack/reverse-stacks feature-base-stacks)))
-        [indexed-regular indexed-feature-base] (split-at (count regular-stacks) all-indexed)]
-    {:regular-stacks (vec indexed-regular)
-     :feature-base-stacks (vec indexed-feature-base)}))
-
-(defn all-displayed-stacks
-  "Returns all stacks (regular + feature-base) as a flat sequence for operations
-   that need to work across all stacks (like navigation and PR fetching)."
-  [state]
-  (let [{:keys [regular-stacks feature-base-stacks]} (displayed-stacks state)]
-    (concat regular-stacks feature-base-stacks)))
+  (let [repos (repos state)
+        multiple-repos? (> (count repos) 1)]
+    (into []
+      (mapcat
+        (fn [repo]
+          (concat
+            (when multiple-repos?
+              [{:row/kind :repo-header
+                :repo/id (:repo/id repo)
+                :repo/name (:repo/name repo)}])
+            (repo-rows state repo))))
+      repos)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Pull Requests
+;; Selection
 
-(defn selected-and-prev-change [state]
-  (let [leaves (stack/leaves (all-displayed-stacks state))
-        idx (:app-state/selected-item-idx state)
-        pairs (u/consecutive-pairs leaves)]
-    (when-let [[selected-change prev-change]
-               (u/find-first #(= (:ui/idx (first %)) idx) pairs)]
-      {:selected-change selected-change
-       :prev-change prev-change})))
+(defn- selectable-rows [rows]
+  (filterv #(= :change (:row/kind %)) rows))
 
-(defn find-pr [state head-branch]
-  (pr/find-pr (get-in state [:app-state/prs :http/result])
-    head-branch))
+(defn- resolve-selection
+  "Returns the row of `selectable-rows` matching `selection`. The selected row
+  can disappear after a refresh or a tab switch, so falls back to the same
+  branch in another stack of the same repo, then to the first row of that repo
+  and finally to the first row."
+  [selectable-rows selection]
+  (let [{repo-id :repo/id branch :branch} selection
+        same-repo? #(= (:repo/id %) repo-id)]
+    (or (u/find-first #(= (:row/key %) selection) selectable-rows)
+        (u/find-first #(and (same-repo? %)
+                            (= (get-in % [:row/key :branch]) branch))
+          selectable-rows)
+        (u/find-first same-repo? selectable-rows)
+        (first selectable-rows))))
 
-(defn current-pr [state]
-  (when-let [{:keys [selected-change]}
-             (selected-and-prev-change state)]
-    (find-pr state
-      (:change/selected-branchname selected-change))))
+(defn selected-row
+  "Returns the selected row, or nil when nothing can be selected. Pass `rows`
+  when display rows were already computed."
+  ([state]
+   (selected-row state (display-rows state)))
+  ([state rows]
+   (resolve-selection (selectable-rows rows) (:app-state/selection state))))
+
+(defn- selected-repo [state]
+  (some->> (selected-row state) :repo/id (get (:app-state/repos state))))
+
+(defn- target-repo
+  "Returns the repo to act on for actions that don't need a selected change,
+  like sync: the repo of the selected row, or else the first repo."
+  [state]
+  (or (selected-repo state)
+      (first (repos state))))
+
+(defn- move-selection
+  "Moves the selection `offset` rows down, staying within the rows."
+  [state offset]
+  (let [rows (selectable-rows (display-rows state))]
+    (if-let [current (resolve-selection rows (:app-state/selection state))]
+      (let [idx (u/find-index #(= (:row/key %) (:row/key current)) rows)
+            new-idx (-> (+ idx offset) (max 0) (min (dec (count rows))))]
+        (assoc state :app-state/selection (:row/key (nth rows new-idx))))
+      state)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
 
 (defmulti dispatch! (fn [[evt]] evt))
 
-(defmethod dispatch! :event/read-local-repo
-  [_evt]
-  (let [project-dir (project-dir @app-state)
-        repo (repo/open project-dir (config/read-local project-dir))
+(defn- open-repo-state
+  "Opens the repository at `project-dir` as a repo, which reads its graph and
+  stacks lazily."
+  [project-dir]
+  (let [repo (repo/open project-dir (config/read-local project-dir))
         vcs-graph (delay (vcs/read-graph (:repo/vcs repo)
                            (:repo/local-config repo)))]
-    (swap! app-state merge
-      {:app-state/global-config (config/read-global)
-       :app-state/repo repo
-       :app-state/vcs-graph vcs-graph
-       :app-state/current-stacks (delay (stack/get-current-stacks repo @vcs-graph))
-       :app-state/all-stacks (delay (stack/get-all-stacks repo @vcs-graph))})))
+    (assoc repo
+      :repo/vcs-graph vcs-graph
+      :repo/current-stacks (delay (stack/get-current-stacks repo @vcs-graph))
+      :repo/all-stacks (delay (stack/get-all-stacks repo @vcs-graph)))))
+
+(defn- update-repo
+  "Updates the repo with `repo-id`, ignoring repos that are no longer in the
+  state."
+  [state repo-id f & args]
+  (if (get-in state [:app-state/repos repo-id])
+    (apply update-in state [:app-state/repos repo-id] f args)
+    state))
+
+(defmethod dispatch! :event/read-repos
+  [_evt]
+  (let [repos (u/build-index :repo/id (map open-repo-state (repo-dirs @app-state)))]
+    (swap! app-state
+      (fn [state]
+        (assoc state
+          :app-state/global-config (config/read-global)
+          ;; Keep the PRs until they are fetched again
+          :app-state/repos
+          (into {}
+            (map (fn [[id repo]]
+                   [id (assoc repo :repo/prs
+                         (get-in state [:app-state/repos id :repo/prs]))]))
+            repos))))))
 
 (defmethod dispatch! :event/fetch-prs
   [_evt]
-  (swap! app-state assoc :app-state/prs
-    {:http/status :status/pending})
-  (future
-    (let [[result err] (remote/list-prs (remote @app-state) {})]
-      (swap! app-state assoc :app-state/prs
-        (if err
-          {:http/status :status/failed
-           :http/error err}
-          {:http/status :status/success
-           :http/result result})))))
+  (doseq [{:repo/keys [id remote]} (repos @app-state)]
+    (swap! app-state update-repo id assoc :repo/prs
+      {:http/status :status/pending})
+    (future
+      (let [[result err] (remote/list-prs remote {})]
+        (swap! app-state update-repo id assoc :repo/prs
+          (if err
+            {:http/status :status/failed
+             :http/error err}
+            {:http/status :status/success
+             :http/result result}))))))
 
 (defmethod dispatch! :event/refresh
   [_evt]
-  (dispatch! [:event/read-local-repo])
+  (dispatch! [:event/read-repos])
   (dispatch! [:event/fetch-prs]))
 
 (defn build-command-context
   "Builds the context map for command placeholder substitution.
    Includes SHAs, branches, and PR info for the selected change."
   [state]
-  (when-let [{:keys [selected-change prev-change]}
-             (selected-and-prev-change state)]
-    (let [pr (find-pr state (:change/selected-branchname selected-change))]
-      {:from-sha (or (:change/commit-sha prev-change)
-                     (:change/selected-branchname prev-change))
-       :to-sha (:change/commit-sha selected-change)
-       :from-branch (:change/selected-branchname prev-change)
-       :to-branch (:change/selected-branchname selected-change)
-       :pr-number (:pr/number pr)
-       :pr-url (:pr/url pr)})))
+  (when-let [{:keys [change base pr]} (selected-row state)]
+    {:from-sha (or (:change/commit-sha base)
+                   (:change/selected-branchname base))
+     :to-sha (:change/commit-sha change)
+     :from-branch (:change/selected-branchname base)
+     :to-branch (:change/selected-branchname change)
+     :pr-number (:pr/number pr)
+     :pr-url (:pr/url pr)}))
 
 (defn run-command!
-  "Executes a prepared command (with :strategy and :value).
-   Sets up the app state to run in foreground and closes the TUI."
-  [cmd]
+  "Executes a prepared command (with :strategy and :value) in the directory of
+  `repo`. Sets up the app state to run in foreground and closes the TUI."
+  [repo cmd]
   (swap! app-state assoc :app-state/run-in-fg
-    #(custom-command/eval-command cmd {:dir (project-dir @app-state)}))
+    #(custom-command/eval-command cmd {:dir (repo/project-dir repo)}))
   (tui/close!))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
-  (when-let [context (build-command-context @app-state)]
-    (let [global-config (global-config @app-state)]
-      (run-command!
-        (config/diffview-command global-config context)))))
+  (let [state @app-state]
+    (when-let [context (build-command-context state)]
+      (run-command! (selected-repo state)
+        (config/diffview-command (global-config state) context)))))
 
 (defmethod dispatch! :event/run-custom-command
   [[_evt key-str]]
-  (when-let [context (build-command-context @app-state)]
-    (let [global-config (global-config @app-state)]
-      (when-let [cmd (config/custom-command global-config key-str context)]
-        (run-command! cmd)))))
+  (let [state @app-state]
+    (when-let [context (build-command-context state)]
+      (when-let [cmd (config/custom-command (global-config state) key-str context)]
+        (run-command! (selected-repo state) cmd)))))
 
 (defmethod dispatch! :event/open-pr
   [_evt]
-  (when-let [url (:pr/url (current-pr @app-state))]
+  (when-let [url (:pr/url (:pr (selected-row @app-state)))]
     (browse/browse-url url)))
 
 (defmethod dispatch! :event/create-pr
   [_evt]
-  (when-let [{:keys [selected-change prev-change]}
-             (and (not (:pr/url (current-pr @app-state)))
-                  (selected-and-prev-change @app-state))]
-    (swap! app-state assoc :app-state/run-in-fg
-      (fn []
-        (commands.create-prs/create-pr!
-          {:head-change selected-change
-           :base-change prev-change
-           :prs (ui/fetch-prs-with-spinner (remote @app-state))
-           :vcs (vcs @app-state)
-           :remote (remote @app-state)
-           :branch-infos (->> (vcs.branch/selected-branches-info (vcs-graph @app-state))
-                           (u/build-index :branch/branchname))})))
-    (tui/close!)))
+  (let [state @app-state
+        {:keys [change base pr]} (selected-row state)
+        repo (selected-repo state)]
+    (when (and change (not (:pr/url pr)))
+      (swap! app-state assoc :app-state/run-in-fg
+        (fn []
+          (commands.create-prs/create-pr!
+            {:head-change change
+             :base-change base
+             :prs (ui/fetch-prs-with-spinner (:repo/remote repo))
+             :vcs (:repo/vcs repo)
+             :remote (:repo/remote repo)
+             :branch-infos (->> (vcs.branch/selected-branches-info @(:repo/vcs-graph repo))
+                             (u/build-index :branch/branchname))})))
+      (tui/close!))))
 
 (defmethod dispatch! :event/merge-pr
   [_evt]
-  (let [current-pr (current-pr @app-state)
-        {:keys [selected-change prev-change]}
-        (selected-and-prev-change @app-state)]
-    (when current-pr
+  (let [state @app-state
+        {:keys [change base pr]} (selected-row state)
+        repo (selected-repo state)]
+    (when pr
       (swap! app-state assoc :app-state/run-in-fg
         (fn []
           (when (tty/prompt-confirm
                   {:prompt
                    (format "Would you like to merge PR %s %s?\nThis will merge %s onto %s."
-                     (ansi/colorize :blue (str "#" (:pr/number current-pr)))
-                     (:pr/title current-pr)
-                     (ansi/colorize :blue (:change/selected-branchname selected-change))
-                     (ansi/colorize :blue (:change/selected-branchname prev-change)))})
-            (remote/merge-pr! (remote @app-state) (:pr/number current-pr))
+                     (ansi/colorize :blue (str "#" (:pr/number pr)))
+                     (:pr/title pr)
+                     (ansi/colorize :blue (:change/selected-branchname change))
+                     (ansi/colorize :blue (:change/selected-branchname base)))})
+            (remote/merge-pr! (:repo/remote repo) (:pr/number pr))
             ;; Clean up feature base if the merged branch was explicitly configured
-            (let [merged-branch (:pr/head-branch current-pr)
-                  local-config (config/read-local (project-dir @app-state))
+            (let [merged-branch (:pr/head-branch pr)
+                  project-dir (repo/project-dir repo)
+                  local-config (config/read-local project-dir)
                   feature-bases (:feature-base-branches local-config)]
               (when (contains? feature-bases merged-branch)
                 (let [updated-config (update local-config :feature-base-branches disj merged-branch)]
-                  (config/write-local (project-dir @app-state) updated-config)
+                  (config/write-local project-dir updated-config)
                   (println (ansi/colorize :green "✔")
                     "Removed" (ansi/colorize :cyan merged-branch)
                     "from feature base branches"))))
             (when (tty/prompt-confirm
                     {:prompt (str "Would you like to run " (ansi/colorize :yellow "prstack sync") "?")})
-              ((:exec commands.sync/command) [] (global-opts @app-state))))))
+              ((:exec commands.sync/command) [] (repo-opts state repo))))))
       (tui/close!))))
 
 (defmethod dispatch! :event/sync
   [_evt]
-  (swap! app-state assoc :app-state/run-in-fg
-    #((:exec commands.sync/command) [] (global-opts @app-state)))
-  (tui/close!))
+  (let [state @app-state]
+    (when-let [repo (target-repo state)]
+      (swap! app-state assoc :app-state/run-in-fg
+        #((:exec commands.sync/command) [] (repo-opts state repo)))
+      (tui/close!))))
 
 (defmethod dispatch! :event/select-tab
   [[_ tab-idx]]
@@ -321,28 +417,12 @@
 
 (defmethod dispatch! :event/move-up
   [_evt]
-  (swap! app-state update :app-state/selected-item-idx
-    #(max 0 (dec %))))
+  (swap! app-state move-selection -1))
 
 (defmethod dispatch! :event/move-down
   [_evt]
-  (when-let [largest-idx (largest-ui-index (all-displayed-stacks @app-state))]
-    (swap! app-state update :app-state/selected-item-idx
-      #(min largest-idx (inc %)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Subscriptions
-
-(defn sub-pr [head-branch base-branch]
-  (let [prs (get-in @app-state [:app-state/prs :http/result])
-        ;; Find any PR for this head branch
-        pr (when prs (pr/find-pr prs head-branch))
-        ;; Check if the PR has the wrong base branch
-        wrong-base-branch (when (and pr (not= (:pr/base-branch pr) base-branch))
-                            base-branch)]
-    [pr
-     (:app-state/prs @app-state)
-     wrong-base-branch]))
+  (swap! app-state move-selection 1))
 
 (comment
-  (displayed-stacks @app-state))
+  (display-rows @app-state)
+  (selected-row @app-state))

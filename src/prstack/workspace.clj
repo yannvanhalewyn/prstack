@@ -71,18 +71,19 @@
          (.toPath (io/file path)))))
 
 (defn open-repo
-  "Opens the repository at `repo-dir` as a repo, see `prstack.repo/open`, with
-  `:repo/name` and `:repo/dir` added. When the repository could not be
+  "Opens the repository at `repo-dir` as a repo, see `prstack.repo/open`, named
+  after its path relative to the workspace. When the repository could not be
   read, for example when it has no remote, the repo only has a `:repo/error`
-  besides name and dir."
+  besides its id and name."
   [workspace-dir repo-dir]
-  (let [repo-info {:repo/name (relative-path workspace-dir repo-dir)
-                   :repo/dir repo-dir}]
+  (let [repo-info {:repo/id (repo/id repo-dir)
+                   :repo/name (relative-path workspace-dir repo-dir)}]
     (try
-      (merge repo-info
+      (merge
         (repo/open repo-dir
           (or (config/read-local repo-dir)
-              (default-local-config repo-dir))))
+              (default-local-config repo-dir)))
+        repo-info)
       (catch Exception e
         (assoc repo-info :repo/error (or (some-> (ex-message e) str/trim)
                                          (str (class e))))))))
