@@ -20,6 +20,18 @@
    commands.sync/command
    commands.feature-base/command])
 
+(defn- fail!
+  "Prints an error and exits."
+  [& msg]
+  (apply println (ansi/colorize :red "Error") msg)
+  (System/exit 1))
+
+(def ^:private dir-opts
+  ;; `--project-dir` is the old name of `--repo`
+  {"--repo" :project-dir
+   "--project-dir" :project-dir
+   "--workspace" :workspace-dir})
+
 (defn- parse-global-opts
   "Parses global options from args.
   Returns [global-opts remaining-args]"
@@ -31,11 +43,11 @@
       (nil? arg)
       [opts remaining]
 
-      (= "--project-dir" arg)
-      (recur
-        (assoc opts :project-dir (first more))
-        remaining
-        (rest more))
+      (contains? dir-opts arg)
+      (let [dir (first more)]
+        (when (nil? dir)
+          (fail! "Missing <dir> for" arg))
+        (recur (assoc opts (dir-opts arg) dir) remaining (rest more)))
 
       (#{"--help" "-h"} arg)
       (recur (assoc opts :help? true) remaining more)
@@ -45,7 +57,8 @@
 
 (comment
   (parse-global-opts ["sync" "-h"])
-  (parse-global-opts ["list" "--all" "--project-dir" "foo/bar"]))
+  (parse-global-opts ["list" "--all" "--repo" "foo/bar"])
+  (parse-global-opts ["--workspace" "~/work/client"]))
 
 (defn- print-help
   ([]
@@ -61,8 +74,9 @@
          (println (format "    %-13s %s" (str (:name command) " " (:name subcmd)) (:description subcmd))))))
    (println)
    (println "Global Options:")
-   (println "      --project-dir <dir>  Run as if prstack was started in <dir>")
-   (println "  -h, --help               Show this help message and exit")
+   (println "      --repo <dir>       Run on the repository containing <dir>")
+   (println "      --workspace <dir>  Run on all repositories found in <dir>")
+   (println "  -h, --help             Show this help message and exit")
    (println))
   ([command]
    (println (format "Usage: prstack %s <subcommand> [options]" (:name command)))
@@ -75,27 +89,38 @@
        (println (format "  %-10s %s" (:name subcmd) (:description subcmd))))
      (println))))
 
-(defn- valid-project-dir? [project-dir]
-  (or (nil? project-dir)
-      (.isDirectory (io/file project-dir))))
+(defn- validate-dir-opts! [{:keys [project-dir workspace-dir]}]
+  (when (and project-dir workspace-dir)
+    (fail! "--repo and --workspace can't be used together"))
+  (doseq [dir [project-dir workspace-dir]
+          :when (and dir (not (.isDirectory (io/file dir))))]
+    (fail! "Not a directory:" dir)))
 
 (defn- resolve-dirs
-  "Resolves the directory prstack operates on. Inside a repository, the project
-  dir becomes the repository root, so running from a subfolder uses the
-  repository's config. Outside of one, the directory is a workspace."
-  [global-opts]
-  (let [dir (or (:project-dir global-opts) ".")]
-    (if-let [root (workspace/repo-root dir)]
+  "Resolves the directory prstack operates on. The project dir becomes the root
+  of the repository containing it, so running from a subfolder uses the
+  repository's config. Without `--repo` or `--workspace`, the current directory
+  is a workspace when it's not inside a repository."
+  [{:keys [project-dir workspace-dir] :as global-opts}]
+  (cond
+    workspace-dir
+    (assoc global-opts :workspace-dir (.getCanonicalPath (io/file workspace-dir)))
+
+    project-dir
+    (if-let [root (workspace/repo-root project-dir)]
       (assoc global-opts :project-dir root)
-      (assoc global-opts :workspace-dir (.getCanonicalPath (io/file dir))))))
+      (fail! "Not inside a repository:" project-dir))
+
+    :else
+    (if-let [root (workspace/repo-root ".")]
+      (assoc global-opts :project-dir root)
+      (assoc global-opts :workspace-dir (.getCanonicalPath (io/file "."))))))
 
 (defn- ensure-workspace-repos!
   "Exits when the workspace contains no repositories."
   [workspace-dir]
   (when (empty? (workspace/find-repos workspace-dir))
-    (println (ansi/colorize :red "Error")
-      "Not a repository, and no repositories found in" workspace-dir)
-    (System/exit 1)))
+    (fail! "No repositories found in" workspace-dir)))
 
 (defn- exec-command!
   "Runs `command` on the repository, or on all repositories of the workspace
@@ -103,11 +128,13 @@
   [command-name command args global-opts]
   (if-let [ws-dir (:workspace-dir global-opts)]
     (if-let [workspace-exec (:workspace-exec command)]
-      (workspace-exec args global-opts)
       (do
-        (println (ansi/colorize :red "Error") ws-dir "is not a repository.")
+        (ensure-workspace-repos! ws-dir)
+        (workspace-exec args global-opts))
+      (do
+        (println (ansi/colorize :red "Error") ws-dir "is a workspace.")
         (println (ansi/colorize :yellow (str "prstack " command-name))
-          "must run inside a repository, or use --project-dir.")
+          "runs on a single repository, cd into one or use --repo <dir>.")
         (System/exit 1)))
     (do
       ;; Ensure initialization for all CLI commands
@@ -116,9 +143,7 @@
 
 (defn -main [& args]
   (let [[global-opts remaining-args] (parse-global-opts args)]
-    (when-not (valid-project-dir? (:project-dir global-opts))
-      (println (ansi/colorize :red "Error") "Not a directory:" (:project-dir global-opts))
-      (System/exit 1))
+    (validate-dir-opts! global-opts)
     (let [global-opts (resolve-dirs global-opts)]
       (cond
         (:help? global-opts)

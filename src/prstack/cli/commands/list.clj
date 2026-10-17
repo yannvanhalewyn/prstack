@@ -58,32 +58,28 @@
 
 (defn- list-workspace [args {:keys [workspace-dir]}]
   (let [opts (parse-opts args)
-        repo-dirs (workspace/find-repos workspace-dir)]
-    (when (empty? repo-dirs)
-      (println (ansi/colorize :red "Error")
-        "Not a repository, and no repositories found in" workspace-dir)
-      (System/exit 1))
-    (let [repos (tty/spin
-                  (fn []
-                    (u/pmap-large-stack
-                      #(-> (workspace/open-repo workspace-dir %)
-                         (read-repo opts))
-                      repo-dirs))
-                  {:title (format "Reading %d repositories..." (count repo-dirs))})
-          {with-stacks true without-stacks false}
-          (group-by #(boolean (or (:repo/error %) (has-stacks? (:repo/stacks %))))
-            repos)]
-      (doseq [repo with-stacks]
-        (cli.ui/print-repo-header (:repo/name repo))
-        (if-let [err (:repo/error repo)]
-          (do
-            (println (ansi/colorize :red "Error") err)
-            (println))
-          (cli.ui/print-stacks (:repo/stacks repo) (:repo/prs repo))))
-      (when (seq without-stacks)
-        (println (ansi/colorize :gray
-                   (str "No stacks in: "
-                        (str/join ", " (map :repo/name without-stacks)))))))))
+        repo-dirs (workspace/find-repos workspace-dir)
+        repos (tty/spin
+                (fn []
+                  (u/pmap-large-stack
+                    #(-> (workspace/open-repo workspace-dir %)
+                       (read-repo opts))
+                    repo-dirs))
+                {:title (format "Reading %d repositories..." (count repo-dirs))})
+        {with-stacks true without-stacks false}
+        (group-by #(boolean (or (:repo/error %) (has-stacks? (:repo/stacks %))))
+          repos)]
+    (doseq [repo with-stacks]
+      (cli.ui/print-repo-header (:repo/name repo))
+      (if-let [err (:repo/error repo)]
+        (do
+          (println (ansi/colorize :red "Error") err)
+          (println))
+        (cli.ui/print-stacks (:repo/stacks repo) (:repo/prs repo))))
+    (when (seq without-stacks)
+      (println (ansi/colorize :gray
+                 (str "No stacks in: "
+                      (str/join ", " (map :repo/name without-stacks))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Command
