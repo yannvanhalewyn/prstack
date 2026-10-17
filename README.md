@@ -49,16 +49,16 @@ prstack list      # current stack of every repository
 prstack status    # all stacks of every repository
 ```
 
-Use `--workspace <dir>` to scan a directory from anywhere, even when that directory or the current one is itself a repository, and `--repo <dir>` to work on a single repository:
+Use `--dir <dir>` to run prstack as if it was started in `<dir>`:
 
 ```bash
-prstack --workspace ~/work/client list
-prstack --repo ~/work/client/api sync
+prstack --dir ~/work/client list
+prstack --dir ~/work/client/api sync
 ```
 
 In the interactive app, every repository is loaded in the background and shown under its own header. You navigate across all of them, and actions like diffing, creating or merging PRs and syncing act on the repository of the selected branch.
 
-Repositories without stacks are summarized on one line. Repositories that were never set up with prstack are read with an inferred VCS (Jujutsu when a `.jj` directory exists, Git otherwise). The other commands run on a single repository, so `cd` into it or pass `--repo <dir>`. Running prstack from a subfolder of a repository works on the whole repository.
+Repositories without stacks are summarized on one line. Repositories that were never set up with prstack are read with an inferred VCS (Jujutsu when a `.jj` directory exists, Git otherwise). The other commands run on a single repository, so `cd` into it or pass `--dir <dir>`. Running prstack from a subfolder of a repository works on the whole repository.
 
 ## Installation
 

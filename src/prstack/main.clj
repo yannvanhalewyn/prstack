@@ -26,12 +26,6 @@
   (apply println (ansi/colorize :red "Error") msg)
   (System/exit 1))
 
-(def ^:private dir-opts
-  ;; `--project-dir` is the old name of `--repo`
-  {"--repo" :project-dir
-   "--project-dir" :project-dir
-   "--workspace" :workspace-dir})
-
 (defn- parse-global-opts
   "Parses global options from args.
   Returns [global-opts remaining-args]"
@@ -43,11 +37,11 @@
       (nil? arg)
       [opts remaining]
 
-      (contains? dir-opts arg)
+      (= "--dir" arg)
       (let [dir (first more)]
         (when (nil? dir)
-          (fail! "Missing <dir> for" arg))
-        (recur (assoc opts (dir-opts arg) dir) remaining (rest more)))
+          (fail! "Missing <dir> for --dir"))
+        (recur (assoc opts :dir dir) remaining (rest more)))
 
       (#{"--help" "-h"} arg)
       (recur (assoc opts :help? true) remaining more)
@@ -57,8 +51,7 @@
 
 (comment
   (parse-global-opts ["sync" "-h"])
-  (parse-global-opts ["list" "--all" "--repo" "foo/bar"])
-  (parse-global-opts ["--workspace" "~/work/client"]))
+  (parse-global-opts ["list" "--all" "--dir" "foo/bar"]))
 
 (defn- print-help
   ([]
@@ -74,9 +67,8 @@
          (println (format "    %-13s %s" (str (:name command) " " (:name subcmd)) (:description subcmd))))))
    (println)
    (println "Global Options:")
-   (println "      --repo <dir>       Run on the repository containing <dir>")
-   (println "      --workspace <dir>  Run on all repositories found in <dir>")
-   (println "  -h, --help             Show this help message and exit")
+   (println "      --dir <dir>  Run as if prstack was started in <dir>")
+   (println "  -h, --help       Show this help message and exit")
    (println))
   ([command]
    (println (format "Usage: prstack %s <subcommand> [options]" (:name command)))
@@ -89,32 +81,18 @@
        (println (format "  %-10s %s" (:name subcmd) (:description subcmd))))
      (println))))
 
-(defn- validate-dir-opts! [{:keys [project-dir workspace-dir]}]
-  (when (and project-dir workspace-dir)
-    (fail! "--repo and --workspace can't be used together"))
-  (doseq [dir [project-dir workspace-dir]
-          :when (and dir (not (.isDirectory (io/file dir))))]
-    (fail! "Not a directory:" dir)))
-
 (defn- resolve-dirs
-  "Resolves the directory prstack operates on. The project dir becomes the root
-  of the repository containing it, so running from a subfolder uses the
-  repository's config. Without `--repo` or `--workspace`, the current directory
-  is a workspace when it's not inside a repository."
-  [{:keys [project-dir workspace-dir] :as global-opts}]
-  (cond
-    workspace-dir
-    (assoc global-opts :workspace-dir (.getCanonicalPath (io/file workspace-dir)))
-
-    project-dir
-    (if-let [root (workspace/repo-root project-dir)]
+  "Resolves the directory prstack operates on, `--dir` or else the current
+  directory. Inside a repository, the project dir becomes the repository root,
+  so running from a subfolder uses the repository's config. Outside of one, the
+  directory is a workspace."
+  [global-opts]
+  (let [dir (or (:dir global-opts) ".")]
+    (when-not (.isDirectory (io/file dir))
+      (fail! "Not a directory:" dir))
+    (if-let [root (workspace/repo-root dir)]
       (assoc global-opts :project-dir root)
-      (fail! "Not inside a repository:" project-dir))
-
-    :else
-    (if-let [root (workspace/repo-root ".")]
-      (assoc global-opts :project-dir root)
-      (assoc global-opts :workspace-dir (.getCanonicalPath (io/file "."))))))
+      (assoc global-opts :workspace-dir (.getCanonicalPath (io/file dir))))))
 
 (defn- ensure-workspace-repos!
   "Exits when the workspace contains no repositories."
@@ -132,9 +110,9 @@
         (ensure-workspace-repos! ws-dir)
         (workspace-exec args global-opts))
       (do
-        (println (ansi/colorize :red "Error") ws-dir "is a workspace.")
+        (println (ansi/colorize :red "Error") ws-dir "is not a repository.")
         (println (ansi/colorize :yellow (str "prstack " command-name))
-          "runs on a single repository, cd into one or use --repo <dir>.")
+          "runs on a single repository, cd into one or use --dir <dir>.")
         (System/exit 1)))
     (do
       ;; Ensure initialization for all CLI commands
@@ -142,37 +120,36 @@
       ((:exec command) args global-opts))))
 
 (defn -main [& args]
-  (let [[global-opts remaining-args] (parse-global-opts args)]
-    (validate-dir-opts! global-opts)
-    (let [global-opts (resolve-dirs global-opts)]
-      (cond
-        (:help? global-opts)
-        (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
-          (print-help command)
-          (print-help))
+  (let [[global-opts remaining-args] (parse-global-opts args)
+        global-opts (resolve-dirs global-opts)]
+    (cond
+      (:help? global-opts)
+      (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
+        (print-help command)
+        (print-help))
 
-        (empty? remaining-args)
+      (empty? remaining-args)
+      (do
+        (some-> (:workspace-dir global-opts) ensure-workspace-repos!)
+        (tui.app/run! global-opts))
+
+      :else
+      (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
+        (if-let [subcommands (:subcommands command)]
+          ;; Command has subcommands, check for subcommand
+          (let [subcommand-name (second remaining-args)]
+            (if (nil? subcommand-name)
+              (print-help command)
+              (if-let [subcmd (u/find-first #(= (:name %) subcommand-name) subcommands)]
+                (exec-command! (str (:name command) " " subcommand-name)
+                  subcmd (drop 2 remaining-args) global-opts)
+                (do
+                  (println (ansi/colorize :red "Error") "Unknown subcommand:" subcommand-name "\n")
+                  (print-help command)
+                  (System/exit 1)))))
+          ;; Command has no subcommands, execute directly
+          (exec-command! (:name command) command (rest remaining-args) global-opts))
         (do
-          (some-> (:workspace-dir global-opts) ensure-workspace-repos!)
-          (tui.app/run! global-opts))
-
-        :else
-        (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
-          (if-let [subcommands (:subcommands command)]
-            ;; Command has subcommands, check for subcommand
-            (let [subcommand-name (second remaining-args)]
-              (if (nil? subcommand-name)
-                (print-help command)
-                (if-let [subcmd (u/find-first #(= (:name %) subcommand-name) subcommands)]
-                  (exec-command! (str (:name command) " " subcommand-name)
-                    subcmd (drop 2 remaining-args) global-opts)
-                  (do
-                    (println (ansi/colorize :red "Error") "Unknown subcommand:" subcommand-name "\n")
-                    (print-help command)
-                    (System/exit 1)))))
-            ;; Command has no subcommands, execute directly
-            (exec-command! (:name command) command (rest remaining-args) global-opts))
-          (do
-            (println (ansi/colorize :red "Error") "Unknown command:" (first remaining-args) "\n")
-            (print-help)
-            (System/exit 1)))))))
+          (println (ansi/colorize :red "Error") "Unknown command:" (first remaining-args) "\n")
+          (print-help)
+          (System/exit 1))))))
