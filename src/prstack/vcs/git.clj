@@ -174,12 +174,14 @@
                          (str/trim author-email))}))))
 
 (defn get-all-commits-from-log
-  "Gets all commits reachable from any branch but not from trunk.
+  "Gets all commits reachable from HEAD or any branch but not from trunk.
   Uses git log with --branches --remotes to include remote branches that may be
-  ahead of local branches. Returns a map of commit SHA to parsed commit info."
+  ahead of local branches. HEAD is included because it can be detached on
+  unbranched commits (e.g. in a colocated jj repo). Returns a map of commit SHA
+  to parsed commit info."
   [vcs]
   (let [trunk-branch (vcs/trunk-branch vcs)
-        output (u/run-cmd ["git" "log" "--branches" "--remotes"
+        output (u/run-cmd ["git" "log" "HEAD" "--branches" "--remotes"
                            "--not" trunk-branch
                            "--format=%H+++%P+++%ae"
                            "--topo-order"]
@@ -285,15 +287,19 @@
         branches (get-branches this)
         branch-idx (group-by :branch/commit-sha branches)
         nodes (build-changes-from-log this log-entries trunk-sha branch-idx)
-        ;; Get fork-points for all local branches to ensure get-all-stacks works
-        local-branches (->> branches
-                         (remove remote-branch?)
-                         (map :branch/name))
+        ;; Get fork-points for HEAD and all unmerged local branches to ensure
+        ;; get-current-stacks and get-all-stacks work. Merged branches are
+        ;; skipped, their fork-point is the branch itself which would show up
+        ;; as a stack without a base.
+        unmerged-local-branches (->> branches
+                                  (remove remote-branch?)
+                                  (filter #(contains? log-entries (:branch/commit-sha %)))
+                                  (map :branch/name))
         fork-point-shas (into #{}
                           (comp
                             (map #(find-fork-point* this %))
                             (filter some?))
-                          local-branches)
+                          (cons "HEAD" unmerged-local-branches))
         ;; Include any fork-points that aren't already in the graph
         missing-fork-points (remove #(or (= % trunk-sha)
                                          (contains? log-entries %))
