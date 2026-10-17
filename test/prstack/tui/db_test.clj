@@ -123,9 +123,9 @@
                      (assoc (repo-state "api" [] [])
                        :repo/current-stacks {:load/status :status/failed
                                              :load/error {:error/message "boom"}})))]
-        (is (= [:repo-header :error :blank]
+        (is (= [:repo-header :blank :error :blank]
                (map :row/kind (take-while #(not= "web" (:repo/name %)) rows))))
-        (is (= "boom" (:text (second rows))))))
+        (is (= "boom" (:text (nth rows 2))))))
 
     (testing "keeps showing the previous stacks while reloading"
       (is (= [:stack-header :change :base]
@@ -154,3 +154,19 @@
 
     (testing "drops updates for repos that are gone"
       (is (= state (update-loading-repo state "web" 1 assoc :repo/name "new"))))))
+
+(deftest test-display-rows-collapses-repos-without-stacks
+  (let [rows (db/display-rows
+               (app-state
+                 (repo-state "web" [(stack "main" "feat/x")] [])
+                 (repo-state "docs" [(stack "main")] [])
+                 (repo-state "infra" [] [])
+                 (assoc (repo-state "api" [] [])
+                   :repo/current-stacks {:load/status :status/pending})))]
+    (testing "repos with stacks or still loading get a header"
+      (is (= ["api" "web"]
+             (keep #(when (= :repo-header (:row/kind %)) (:repo/name %)) rows))))
+
+    (testing "repos without stacks are listed on a single line"
+      (is (= {:row/kind :text :style :gray :text "No stacks in: docs, infra"}
+             (last rows))))))

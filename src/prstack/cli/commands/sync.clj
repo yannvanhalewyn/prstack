@@ -227,7 +227,7 @@
    (fn [args global-opts]
      (let [opts (parse-opts args)
            project-dir (:project-dir global-opts)
-           repo (repo/open project-dir (config/read-local project-dir))
+           repo (repo/open project-dir)
            vcs (:repo/vcs repo)]
 
        ;; Step 1: Fetch

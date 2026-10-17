@@ -97,7 +97,7 @@
    (fn list [args global-opts]
      (let [opts (parse-opts args)
            project-dir (:project-dir global-opts)
-           repo (repo/open project-dir (config/read-local project-dir))]
+           repo (repo/open project-dir)]
        (cli.ui/print-stacks (read-stacks repo opts)
          (when-not (:exclude-prs? opts)
            (ui/fetch-prs-with-spinner (:repo/remote repo))))))

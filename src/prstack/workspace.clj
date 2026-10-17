@@ -6,10 +6,8 @@
   (:require
     [clojure.java.io :as io]
     [clojure.string :as str]
-    [prstack.config :as config]
     [prstack.repo :as repo]
-    [prstack.utils :as u]
-    [prstack.vcs.jujutsu :as vcs.jj])
+    [prstack.utils :as u])
   (:import
     (java.io File)))
 
@@ -22,14 +20,15 @@
   (or (.exists (io/file dir ".git"))
       (.exists (io/file dir ".jj"))))
 
-(defn inside-repo?
-  "Returns true when `dir`, or any of its parents, is a repository. A nil `dir`
-  means the current directory."
+(defn repo-root
+  "Returns the canonical path of the repository containing `dir`, which is
+  `dir` itself or one of its parents, or nil when `dir` is not inside a
+  repository. A nil `dir` means the current directory."
   [dir]
   (loop [^File f (.getCanonicalFile (io/file (or dir ".")))]
     (cond
-      (nil? f) false
-      (repo-dir? f) true
+      (nil? f) nil
+      (repo-dir? f) (.getPath f)
       :else (recur (.getParentFile f)))))
 
 (defn- scannable-dir? [^File f]
@@ -56,20 +55,16 @@
        sort
        vec))))
 
-(defn- default-local-config
-  "Config used for repositories that were never initialized with prstack. We
-  don't want to prompt for setup in every nested repository, so infer the VCS
-  instead."
-  [repo-dir]
-  {:vcs (if (and (.exists (io/file repo-dir ".jj")) (vcs.jj/installed?))
-          :jujutsu
-          :git)
-   :ignored-branches #{}
-   :feature-base-branches #{}})
-
 (defn- relative-path [root path]
   (str (.relativize (.toPath (.getCanonicalFile (io/file root)))
          (.toPath (io/file path)))))
+
+(defn repo-info
+  "Returns the id and name of the repository at `repo-dir`, named after its path
+  relative to the workspace."
+  [workspace-dir repo-dir]
+  {:repo/id (repo/id repo-dir)
+   :repo/name (relative-path workspace-dir repo-dir)})
 
 (defn open-repo
   "Opens the repository at `repo-dir` as a repo, see `prstack.repo/open`, named
@@ -77,19 +72,14 @@
   read, for example when it has no remote, the repo only has a `:repo/error`
   besides its id and name."
   [workspace-dir repo-dir]
-  (let [repo-info {:repo/id (repo/id repo-dir)
-                   :repo/name (relative-path workspace-dir repo-dir)}]
+  (let [info (repo-info workspace-dir repo-dir)]
     (try
-      (merge
-        (repo/open repo-dir
-          (or (config/read-local repo-dir)
-              (default-local-config repo-dir)))
-        repo-info)
+      (merge (repo/open repo-dir) info)
       (catch Exception e
-        (assoc repo-info :repo/error (u/exception-message e))))))
+        (assoc info :repo/error (u/exception-message e))))))
 
 (comment
-  (inside-repo? nil)
-  (inside-repo? "/tmp")
+  (repo-root nil)
+  (repo-root "/tmp")
   (find-repos (str (System/getProperty "user.home") "/code"))
   (open-repo ".." "."))
