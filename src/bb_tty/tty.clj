@@ -4,37 +4,45 @@
     [bb-tty.ansi :as ansi]
     [bblgum.core :as b]
     [clojure.string :as str]
-    [prstack.utils :as u]))
+    [prstack.utils :as u])
+  (:import
+    (org.jline.terminal Terminal TerminalBuilder)))
 
-(defn- has-terminal? []
-  (try
-    (u/shell ["stty" "-g"])
-    true
-    (catch Exception _
-      false)))
+(def ^:private current-terminal
+  "The JLine terminal while running in raw mode, see `run-in-raw-mode`."
+  (atom nil))
 
-(defn get-terminal-size []
-  (when (has-terminal?)
-    (try
-      (let [result (u/shell ["stty" "size"])]
-        (when-not (str/blank? result)
-          (when-let [[rows cols] (str/split result #" ")]
-            {:rows (Integer/parseInt rows)
-             :cols (Integer/parseInt cols)})))
-      (catch Exception _
-        nil))))
+(defn- open-terminal ^Terminal []
+  ;; Allowing a dumb terminal avoids JLine warning when there is no TTY
+  (-> (TerminalBuilder/builder)
+    (.system true)
+    (.dumb true)
+    (.build)))
+
+(defn- dumb? [^Terminal terminal]
+  (str/starts-with? (.getType terminal) Terminal/TYPE_DUMB))
+
+(defn get-terminal-size
+  "Returns the size of the terminal while running in raw mode."
+  []
+  (when-let [^Terminal terminal @current-terminal]
+    (let [size (.getSize terminal)]
+      (when (pos? (.getColumns size))
+        {:rows (.getRows size)
+         :cols (.getColumns size)}))))
 
 (defn run-in-raw-mode [f]
-  (if (has-terminal?)
-    (let [original-state (u/shell ["stty" "-g"])]
+  (with-open [terminal (open-terminal)]
+    (when (dumb? terminal)
+      (println "Error: TTY mode requires a terminal. Please run this command in a terminal.")
+      (System/exit 1))
+    (let [original-attrs (.enterRawMode terminal)]
+      (reset! current-terminal terminal)
       (try
-        (u/shell ["stty" "raw" "-echo"])
         (f)
         (finally
-          (u/shell ["stty" original-state]))))
-    (do
-      (println "Error: TTY mode requires a terminal. Please run this command in a terminal.")
-      (System/exit 1))))
+          (reset! current-terminal nil)
+          (.setAttributes terminal original-attrs))))))
 
 (defmacro in-raw-mode [& body]
   `(run-in-raw-mode (fn [] ~@body)))
