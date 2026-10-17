@@ -50,6 +50,12 @@
   [project-dir]
   (.getCanonicalPath (io/file (or project-dir "."))))
 
+(defn default-name
+  "Returns the display name for the repository with `repo-id`: its directory
+  name."
+  [repo-id]
+  (.getName (io/file repo-id)))
+
 (defn project-dir
   "Returns the project dir the repo operates on. Nil means the current
   directory."
@@ -63,7 +69,7 @@
   (let [vcs (new-vcs project-dir local-config)
         repo-id (id project-dir)]
     {:repo/id repo-id
-     :repo/name (.getName (io/file repo-id))
+     :repo/name (default-name repo-id)
      :repo/local-config local-config
      :repo/vcs vcs
      :repo/remote (new-remote vcs)}))

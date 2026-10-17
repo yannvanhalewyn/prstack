@@ -49,8 +49,7 @@
                     (remote/list-prs (:repo/remote repo) {})))
       ;; Throwable so errors like StackOverflowError only affect this repo
       (catch Throwable e
-        (assoc repo :repo/error (or (some-> (ex-message e) str/trim)
-                                    (str (class e))))))
+        (assoc repo :repo/error (u/exception-message e))))
     repo))
 
 (defn- has-stacks? [{:keys [regular-stacks feature-base-stacks]}]

@@ -18,23 +18,31 @@
     [prstack.vcs :as vcs]
     [prstack.vcs.branch :as vcs.branch]))
 
-(defn- http-request-schema [result-schema]
+(defn- load-schema
+  "Data that is loaded in the background. While reloading, the previous result
+  is kept so it can still be displayed."
+  [result-schema]
   [:map
-   [:htt/status [:enum :status/pending :status/failed :status/success]]
-   [:http/result result-schema]
-   [:http/error
-    [:map [:error/type :keyword
-           [:error/message :string]]]]])
+   [:load/status [:enum :status/idle :status/pending :status/failed :status/success]]
+   [:load/result {:optional true} result-schema]
+   [:load/error {:optional true}
+    [:map
+     [:error/type {:optional true} :keyword]
+     [:error/message :string]]]])
 
 (def ^:lsp/allow-unused RepoState
-  "A repo as held in the app state: the repo and the data read through it."
+  "A repo as held in the app state: the repo and the data loaded through it.
+  The repo's clients are only present once it's opened, see `load-repo!`."
   (tools.schema/merge
     repo/Repo
     [:map
-     [:repo/vcs-graph [:fn delay?]]
-     [:repo/current-stacks [:fn delay?]]
-     [:repo/all-stacks [:fn delay?]]
-     [:repo/prs (http-request-schema [:sequential remote/PR])]]))
+     ;; Results of earlier loads are discarded, see `load-repo!`
+     [:repo/load-token :int]
+     [:repo/graph (load-schema :map)]
+     [:repo/current-stacks (load-schema [:sequential stack/Stack])]
+     ;; Only loaded when displayed, see `ensure-all-stacks!`
+     [:repo/all-stacks (load-schema [:sequential stack/Stack])]
+     [:repo/prs (load-schema [:sequential remote/PR])]]))
 
 (def ^:lsp/allow-unused RowKey
   "Identifies a selectable row. A branch can appear in multiple stacks, and
@@ -60,7 +68,11 @@
    [:app-state/selected-tab :int]
    ;; Nil, or no longer displayed, selects a fallback row. See `selected-row`.
    [:app-state/selection {:optional true} RowKey]
-   [:app-state/run-in-fg :fn]])
+   ;; Runs after closing the TUI, then only the repo is refreshed
+   [:app-state/run-in-fg {:optional true}
+    [:map
+     [:fg/run :fn]
+     [:fg/repo-id :string]]]])
 
 (defonce app-state
   (atom {:app-state/selected-tab 0}))
@@ -76,10 +88,12 @@
   [state]
   (sort-by :repo/name (vals (:app-state/repos state))))
 
-(defn- repo-dirs
-  "Returns the directories of the repositories shown in the TUI."
+(defn- repo-specs
+  "Returns the id and name of every repository shown in the TUI."
   [state]
-  [(:project-dir (global-opts state))])
+  (let [repo-id (repo/id (:project-dir (global-opts state)))]
+    [{:repo/id repo-id
+      :repo/name (repo/default-name repo-id)}]))
 
 (defn- repo-opts
   "Returns the global opts for running a CLI command on `repo`."
@@ -109,21 +123,25 @@
         sorted-feature-base (sort-by (comp second partition-fn) feature-base)]
     (concat non-feature-base sorted-feature-base)))
 
-(defn- tab-stacks
-  "Returns the stacks of `repo` displayed on the selected tab, split into
-  `:regular-stacks` and `:feature-base-stacks`.
+(defn- shows-all-stacks? [state]
+  (not= 0 (:app-state/selected-tab state)))
 
-   For the 'My Stacks' tab, stacks are sorted with non-feature-base stacks
-   first, then feature-base stacks alphabetically."
+(defn- tab-stacks-load
+  "Returns the load of the stacks of `repo` displayed on the selected tab."
   [state repo]
-  (let [tab (:app-state/selected-tab state)
-        stacks (if (= 0 tab)
-                 @(:repo/current-stacks repo)
-                 @(:repo/all-stacks repo))]
-    (stack/split-feature-base-stacks
-      (if (= 1 tab)
-        (sort-stacks-by-base stacks)
-        stacks))))
+  (if (shows-all-stacks? state)
+    (:repo/all-stacks repo)
+    (:repo/current-stacks repo)))
+
+(defn- split-tab-stacks
+  "Splits stacks into `:regular-stacks` and `:feature-base-stacks`. For the
+  'My Stacks' tab, stacks are sorted with non-feature-base stacks first, then
+  feature-base stacks alphabetically."
+  [state stacks]
+  (stack/split-feature-base-stacks
+    (if (= 1 (:app-state/selected-tab state))
+      (sort-stacks-by-base stacks)
+      stacks)))
 
 (defn- stack-rows
   "Returns a row for every change in `stack` from leaf to base, where the base
@@ -131,8 +149,8 @@
   [repo stack]
   (let [repo-id (:repo/id repo)
         stack-id (stack/id stack)
-        prs-request (:repo/prs repo)
-        prs (:http/result prs-request)
+        prs-load (:repo/prs repo)
+        prs (:load/result prs-load)
         changes (reverse stack)]
     (concat
       (for [[change base] (u/consecutive-pairs changes)]
@@ -145,7 +163,7 @@
            :change change
            :base base
            :pr pr
-           :prs-request prs-request
+           :prs-load prs-load
            ;; Set when the PR has the wrong base branch
            :wrong-base-branch (when (and pr (not= (:pr/base-branch pr) base-branch))
                                 base-branch)}))
@@ -153,8 +171,8 @@
         :repo/id repo-id
         :change (last changes)}])))
 
-(defn- repo-rows [state repo]
-  (let [{:keys [regular-stacks feature-base-stacks]} (tab-stacks state repo)]
+(defn- stacks-rows [state repo stacks]
+  (let [{:keys [regular-stacks feature-base-stacks]} (split-tab-stacks state stacks)]
     (concat
       ;; When every stack has only the trunk node, that means no stacks
       (if (stack/any-segments? regular-stacks)
@@ -179,6 +197,21 @@
           [{:row/kind :section-header :text " Feature Base Branches"}]
           (mapcat #(concat (stack-rows repo %) [{:row/kind :blank}])
             feature-base-stacks))))))
+
+(defn- repo-rows [state repo]
+  (let [{:load/keys [status result error]} (tab-stacks-load state repo)]
+    (cond
+      ;; Also while reloading, as long as there is a previous result
+      (or (= :status/success status) (some? result))
+      (stacks-rows state repo (or result []))
+
+      (= :status/failed status)
+      [{:row/kind :error :text (:error/message error)}
+       {:row/kind :blank}]
+
+      :else
+      [{:row/kind :loading}
+       {:row/kind :blank}])))
 
 (defn display-rows
   "Returns the rows displayed for all repos. Repo headers are only shown when
@@ -231,10 +264,10 @@
 
 (defn- target-repo
   "Returns the repo to act on for actions that don't need a selected change,
-  like sync: the repo of the selected row, or else the first repo."
+  like sync: the repo of the selected row, or else the first opened repo."
   [state]
   (or (selected-repo state)
-      (first (repos state))))
+      (u/find-first :repo/vcs (repos state))))
 
 (defn- move-selection
   "Moves the selection `offset` rows down, staying within the rows."
@@ -247,63 +280,145 @@
       state)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Loading
+;;
+;; Every repo is loaded on its own thread, see `load-repo!`. Every load gets a
+;; token, and loaders only write to their repo while that token is current, so
+;; results of a load that was superseded by a refresh are dropped.
+
+(defonce ^:private load-counter (atom 0))
+
+(defn- load-status [load-map]
+  (:load/status load-map))
+
+(defn- succeeded [result]
+  {:load/status :status/success :load/result result})
+
+(defn- failed [error]
+  {:load/status :status/failed :load/error error})
+
+(defn- with-status
+  "Sets the status of a load, keeping a previous result."
+  [load-map status]
+  (-> load-map
+    (assoc :load/status status)
+    (dissoc :load/error)))
+
+(defn- run-load
+  "Calls `f` and returns a load map with its result, or with its error when it
+  throws."
+  [f]
+  (try
+    (succeeded (f))
+    (catch Throwable e
+      (failed {:error/message (u/exception-message e)}))))
+
+(defn- update-loading-repo
+  "Updates the repo with `repo-id` if `token` is still its current load token."
+  [state repo-id token f & args]
+  (if (= token (get-in state [:app-state/repos repo-id :repo/load-token]))
+    (apply update-in state [:app-state/repos repo-id] f args)
+    state))
+
+(defn- fetch-prs [repo]
+  (let [[result err] (try
+                       (remote/list-prs (:repo/remote repo) {})
+                       (catch Throwable e
+                         [nil {:error/message (u/exception-message e)}]))]
+    (if err
+      (failed err)
+      (succeeded result))))
+
+(defn- ensure-all-stacks!
+  "Starts loading all stacks of the repo with `repo-id` when the selected tab
+  displays them, its graph is loaded and they are not loaded or loading yet."
+  [repo-id]
+  (let [[old-state new-state]
+        (swap-vals! app-state
+          (fn [state]
+            (let [repo (get-in state [:app-state/repos repo-id])]
+              (if (and (shows-all-stacks? state)
+                       (= :status/success (load-status (:repo/graph repo)))
+                       (= :status/idle (load-status (:repo/all-stacks repo))))
+                (update-in state [:app-state/repos repo-id :repo/all-stacks]
+                  with-status :status/pending)
+                state))))]
+    (when-not (identical? old-state new-state)
+      (let [repo (get-in new-state [:app-state/repos repo-id])
+            token (:repo/load-token repo)
+            vcs-graph (get-in repo [:repo/graph :load/result])]
+        (u/start-large-stack-thread!
+          (fn []
+            (let [all-stacks (run-load #(stack/get-all-stacks repo vcs-graph))]
+              (swap! app-state update-loading-repo repo-id token
+                assoc :repo/all-stacks all-stacks))))))))
+
+(defn- load-repo!
+  "Opens the repo of `spec` and loads its graph, stacks and PRs in the
+  background. PRs are fetched in parallel as soon as the repo is opened. All
+  stacks are only loaded when displayed. Previous stacks are kept while
+  reloading, so they are still displayed."
+  [{:repo/keys [id] :as spec}]
+  (let [token (swap! load-counter inc)
+        update! (fn [f & args]
+                  (apply swap! app-state update-loading-repo id token f args))]
+    (swap! app-state update-in [:app-state/repos id]
+      (fn [repo]
+        (merge repo spec
+          {:repo/load-token token
+           :repo/graph (with-status (:repo/graph repo) :status/pending)
+           :repo/current-stacks (with-status (:repo/current-stacks repo) :status/pending)
+           :repo/all-stacks (with-status (:repo/all-stacks repo) :status/idle)
+           ;; Previous PRs are not kept, so rows show they're being fetched
+           :repo/prs {:load/status :status/pending}})))
+    (u/start-large-stack-thread!
+      (fn []
+        (let [opened (run-load #(repo/open id (config/read-local id)))]
+          (if (= :status/failed (load-status opened))
+            (update! assoc
+              :repo/graph opened
+              :repo/current-stacks opened
+              :repo/all-stacks opened
+              :repo/prs opened)
+            (let [repo (-> (:load/result opened)
+                         ;; Keep the name of the spec
+                         (dissoc :repo/name))]
+              (update! merge repo)
+              (u/start-large-stack-thread!
+                #(update! assoc :repo/prs (fetch-prs repo)))
+              (let [vcs-graph (run-load #(vcs/read-graph (:repo/vcs repo)
+                                           (:repo/local-config repo)))]
+                (if (= :status/failed (load-status vcs-graph))
+                  (update! assoc
+                    :repo/graph vcs-graph
+                    :repo/current-stacks vcs-graph
+                    :repo/all-stacks vcs-graph)
+                  (let [current-stacks (run-load #(stack/get-current-stacks repo
+                                                    (:load/result vcs-graph)))]
+                    (update! assoc
+                      :repo/graph vcs-graph
+                      :repo/current-stacks current-stacks)
+                    (ensure-all-stacks! id)))))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
 
 (defmulti dispatch! (fn [[evt]] evt))
 
-(defn- open-repo-state
-  "Opens the repository at `project-dir` as a repo, which reads its graph and
-  stacks lazily."
-  [project-dir]
-  (let [repo (repo/open project-dir (config/read-local project-dir))
-        vcs-graph (delay (vcs/read-graph (:repo/vcs repo)
-                           (:repo/local-config repo)))]
-    (assoc repo
-      :repo/vcs-graph vcs-graph
-      :repo/current-stacks (delay (stack/get-current-stacks repo @vcs-graph))
-      :repo/all-stacks (delay (stack/get-all-stacks repo @vcs-graph)))))
-
-(defn- update-repo
-  "Updates the repo with `repo-id`, ignoring repos that are no longer in the
-  state."
-  [state repo-id f & args]
-  (if (get-in state [:app-state/repos repo-id])
-    (apply update-in state [:app-state/repos repo-id] f args)
-    state))
-
-(defmethod dispatch! :event/read-repos
-  [_evt]
-  (let [repos (u/build-index :repo/id (map open-repo-state (repo-dirs @app-state)))]
-    (swap! app-state
-      (fn [state]
-        (assoc state
-          :app-state/global-config (config/read-global)
-          ;; Keep the PRs until they are fetched again
-          :app-state/repos
-          (into {}
-            (map (fn [[id repo]]
-                   [id (assoc repo :repo/prs
-                         (get-in state [:app-state/repos id :repo/prs]))]))
-            repos))))))
-
-(defmethod dispatch! :event/fetch-prs
-  [_evt]
-  (doseq [{:repo/keys [id remote]} (repos @app-state)]
-    (swap! app-state update-repo id assoc :repo/prs
-      {:http/status :status/pending})
-    (future
-      (let [[result err] (remote/list-prs remote {})]
-        (swap! app-state update-repo id assoc :repo/prs
-          (if err
-            {:http/status :status/failed
-             :http/error err}
-            {:http/status :status/success
-             :http/result result}))))))
-
 (defmethod dispatch! :event/refresh
   [_evt]
-  (dispatch! [:event/read-repos])
-  (dispatch! [:event/fetch-prs]))
+  (let [specs (repo-specs @app-state)]
+    (swap! app-state
+      (fn [state]
+        (-> state
+          (assoc :app-state/global-config (config/read-global))
+          (update :app-state/repos select-keys (map :repo/id specs)))))
+    (run! load-repo! specs)))
+
+(defmethod dispatch! :event/refresh-repo
+  [[_evt repo-id]]
+  (when-let [repo (get-in @app-state [:app-state/repos repo-id])]
+    (load-repo! (select-keys repo [:repo/id :repo/name]))))
 
 (defn build-command-context
   "Builds the context map for command placeholder substitution.
@@ -318,13 +433,21 @@
      :pr-number (:pr/number pr)
      :pr-url (:pr/url pr)}))
 
+(defn- run-in-fg!
+  "Closes the TUI to run `f` in the foreground. Afterwards the TUI is reopened
+  and `repo` is refreshed."
+  [repo f]
+  (swap! app-state assoc :app-state/run-in-fg
+    {:fg/run f
+     :fg/repo-id (:repo/id repo)})
+  (tui/close!))
+
 (defn run-command!
   "Executes a prepared command (with :strategy and :value) in the directory of
-  `repo`. Sets up the app state to run in foreground and closes the TUI."
+  `repo`, in the foreground."
   [repo cmd]
-  (swap! app-state assoc :app-state/run-in-fg
-    #(custom-command/eval-command cmd {:dir (repo/project-dir repo)}))
-  (tui/close!))
+  (run-in-fg! repo
+    #(custom-command/eval-command cmd {:dir (repo/project-dir repo)})))
 
 (defmethod dispatch! :event/run-diff
   [_evt]
@@ -351,7 +474,7 @@
         {:keys [change base pr]} (selected-row state)
         repo (selected-repo state)]
     (when (and change (not (:pr/url pr)))
-      (swap! app-state assoc :app-state/run-in-fg
+      (run-in-fg! repo
         (fn []
           (commands.create-prs/create-pr!
             {:head-change change
@@ -359,9 +482,9 @@
              :prs (ui/fetch-prs-with-spinner (:repo/remote repo))
              :vcs (:repo/vcs repo)
              :remote (:repo/remote repo)
-             :branch-infos (->> (vcs.branch/selected-branches-info @(:repo/vcs-graph repo))
-                             (u/build-index :branch/branchname))})))
-      (tui/close!))))
+             :branch-infos (->> (vcs.branch/selected-branches-info
+                                  (get-in repo [:repo/graph :load/result]))
+                             (u/build-index :branch/branchname))}))))))
 
 (defmethod dispatch! :event/merge-pr
   [_evt]
@@ -369,7 +492,7 @@
         {:keys [change base pr]} (selected-row state)
         repo (selected-repo state)]
     (when pr
-      (swap! app-state assoc :app-state/run-in-fg
+      (run-in-fg! repo
         (fn []
           (when (tty/prompt-confirm
                   {:prompt
@@ -392,28 +515,30 @@
                     "from feature base branches"))))
             (when (tty/prompt-confirm
                     {:prompt (str "Would you like to run " (ansi/colorize :yellow "prstack sync") "?")})
-              ((:exec commands.sync/command) [] (repo-opts state repo))))))
-      (tui/close!))))
+              ((:exec commands.sync/command) [] (repo-opts state repo)))))))))
 
 (defmethod dispatch! :event/sync
   [_evt]
   (let [state @app-state]
     (when-let [repo (target-repo state)]
-      (swap! app-state assoc :app-state/run-in-fg
-        #((:exec commands.sync/command) [] (repo-opts state repo)))
-      (tui/close!))))
+      (run-in-fg! repo
+        #((:exec commands.sync/command) [] (repo-opts state repo))))))
+
+(defn- select-tab! [f]
+  (swap! app-state update :app-state/selected-tab f)
+  (run! ensure-all-stacks! (keys (:app-state/repos @app-state))))
 
 (defmethod dispatch! :event/select-tab
   [[_ tab-idx]]
-  (swap! app-state assoc :app-state/selected-tab tab-idx))
+  (select-tab! (constantly tab-idx)))
 
 (defmethod dispatch! :event/tab-left
   [_]
-  (swap! app-state update :app-state/selected-tab #(max 0 (dec %))))
+  (select-tab! #(max 0 (dec %))))
 
 (defmethod dispatch! :event/tab-right
   [_]
-  (swap! app-state update :app-state/selected-tab #(min 2 (inc %))))
+  (select-tab! #(min 2 (inc %))))
 
 (defmethod dispatch! :event/move-up
   [_evt]

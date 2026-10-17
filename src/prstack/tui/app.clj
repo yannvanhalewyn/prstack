@@ -16,7 +16,7 @@
   (ansi/visual-length (ui/format-change (:change row))))
 
 (defn- render-change-row
-  [{:keys [change base pr prs-request wrong-base-branch] :as row} selected? max-width]
+  [{:keys [change base pr prs-load wrong-base-branch] :as row} selected? max-width]
   (let [formatted (ui/format-change change)
         padding (apply str (repeat (- max-width (branch-width row)) " "))
         padded-branchname (str formatted padding)
@@ -27,8 +27,8 @@
                          padded-branchname)]
     (str display-branch " "
          (ui/format-pr-info pr
-           {:error (get-in prs-request [:http/error :error/message])
-            :pending? (= (:http/status prs-request) :status/pending)
+           {:error (get-in prs-load [:load/error :error/message])
+            :pending? (= (:load/status prs-load) :status/pending)
             :head-change change
             :base-change base
             :wrong-base-branch wrong-base-branch}))))
@@ -45,6 +45,9 @@
             (ansi/colorize style (:text row))
             (:text row))
     :blank ""
+    :loading (ansi/colorize :gray "Loading...")
+    ;; Same as errors in the PR column, see `ui/format-pr-info`
+    :error (str (ansi/colorize :red "X") " " (:text row))
     :change (render-change-row row (= (:row/key row) selected-key) max-width)
     :base (ui/format-change (:change row))))
 
@@ -135,8 +138,8 @@
                               (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
 
 (defn run-app! []
+  (db/dispatch! [:event/refresh])
   (loop []
-    (db/dispatch! [:event/refresh])
     (tui/run-ui!
       (tui/mount! db/app-state
         (tui/component
@@ -155,9 +158,11 @@
               [(render-tabs state)
                (render-tab-content state)
                (render-keybindings)])))))
-    (when-let [run-in-fg (:app-state/run-in-fg @db/app-state)]
-      (swap! db/app-state dissoc :app-state/run-in-fg nil)
-      (run-in-fg)
+    (when-let [{:fg/keys [run repo-id]} (:app-state/run-in-fg @db/app-state)]
+      (swap! db/app-state dissoc :app-state/run-in-fg)
+      (run)
+      ;; The command could have changed the repo
+      (db/dispatch! [:event/refresh-repo repo-id])
       (recur))))
 
 (defn run! [global-opts]

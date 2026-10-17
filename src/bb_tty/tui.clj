@@ -110,18 +110,22 @@
           (when (and (not (cur k)) (seq others))
             (recur others)))))))
 
+(def ^:private render-lock (Object.))
+
 (defn mount!
-  "Renders current state to screen and adds a watch to the state atom for re-rendering"
+  "Renders current state to screen and adds a watch to the state atom for
+  re-rendering. The state may be updated from multiple threads, so renders
+  are serialized and always render the latest state."
   [state components]
-  (let [state* @state
-        render (render-tree components state*)]
-    (refresh-screen! (::lines render))
-    (register-key-handlers (keep :on-key-press (::handlers render)))
+  (let [render! (fn []
+                  (locking render-lock
+                    (let [render (render-tree components @state)]
+                      (refresh-screen! (::lines render))
+                      (register-key-handlers (keep :on-key-press (::handlers render))))))]
+    (render!)
     (add-watch state ::renderer
-      (fn [_ _ _ new-state]
-        (let [render (render-tree components new-state)]
-          (refresh-screen! (::lines render))
-          (register-key-handlers (keep :on-key-press (::handlers render))))))
+      (fn [_ _ _ _new-state]
+        (render!)))
     (swap! running-ui update ::close-fns conj
       #(remove-watch state ::renderer))))
 

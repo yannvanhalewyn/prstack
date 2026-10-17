@@ -17,12 +17,16 @@
   {:pr/number number :pr/head-branch head :pr/base-branch base
    :pr/url (str "https://example.com/" number)})
 
+(defn- loaded [result]
+  {:load/status :status/success :load/result result})
+
 (defn- repo-state [id stacks prs]
   {:repo/id id
    :repo/name id
-   :repo/current-stacks (delay stacks)
-   :repo/all-stacks (delay stacks)
-   :repo/prs {:http/status :status/success :http/result prs}})
+   :repo/load-token 1
+   :repo/current-stacks (loaded stacks)
+   :repo/all-stacks (loaded stacks)
+   :repo/prs (loaded prs)})
 
 (defn- app-state [& repos]
   {:app-state/selected-tab 0
@@ -101,3 +105,52 @@
         (is (= ["web" "feat/d"]
                ((juxt :repo/id (comp :branch :row/key))
                 (db/selected-row refreshed))))))))
+
+(deftest test-display-rows-while-loading
+  (let [rows-for (fn [stacks-load]
+                   (map :row/kind
+                     (db/display-rows
+                       (app-state
+                         (assoc (repo-state "api" [] [])
+                           :repo/current-stacks stacks-load)))))]
+    (testing "shows that the repo is loading"
+      (is (= [:loading :blank] (rows-for {:load/status :status/pending}))))
+
+    (testing "shows the error when loading failed"
+      (let [rows (db/display-rows
+                   (app-state
+                     (repo-state "web" [(stack "main" "feat/x")] [])
+                     (assoc (repo-state "api" [] [])
+                       :repo/current-stacks {:load/status :status/failed
+                                             :load/error {:error/message "boom"}})))]
+        (is (= [:repo-header :error :blank]
+               (map :row/kind (take-while #(not= "web" (:repo/name %)) rows))))
+        (is (= "boom" (:text (second rows))))))
+
+    (testing "keeps showing the previous stacks while reloading"
+      (is (= [:stack-header :change :base]
+             (rows-for {:load/status :status/pending
+                        :load/result [(stack "main" "feat/a")]}))))
+
+    (testing "shows PRs as being fetched"
+      (let [row (->> (db/display-rows
+                       (app-state
+                         (assoc (repo-state "api" [(stack "main" "feat/a")] [])
+                           :repo/prs {:load/status :status/pending})))
+                  (filter #(= :change (:row/kind %)))
+                  first)]
+        (is (nil? (:pr row)))
+        (is (= :status/pending (get-in row [:prs-load :load/status])))))))
+
+(deftest test-update-loading-repo
+  (let [state (app-state (repo-state "api" [] []))
+        update-loading-repo #'db/update-loading-repo]
+    (testing "applies updates of the current load"
+      (is (= "new" (-> (update-loading-repo state "api" 1 assoc :repo/name "new")
+                     (get-in [:app-state/repos "api" :repo/name])))))
+
+    (testing "drops updates of a superseded load"
+      (is (= state (update-loading-repo state "api" 0 assoc :repo/name "new"))))
+
+    (testing "drops updates for repos that are gone"
+      (is (= state (update-loading-repo state "web" 1 assoc :repo/name "new"))))))
