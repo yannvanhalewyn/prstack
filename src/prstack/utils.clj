@@ -33,6 +33,20 @@
     :else
     (vector x)))
 
+(defn distinct-by
+  "Returns a vector of the elements of coll without duplicates by `(f el)`,
+  keeping the first occurrence and the original order."
+  [f coll]
+  (second
+    (reduce
+      (fn [[seen ret] el]
+        (let [k (f el)]
+          (if (contains? seen k)
+            [seen ret]
+            [(conj seen k) (conj ret el)])))
+      [#{} []]
+      coll)))
+
 (defn consecutive-pairs [coll]
   (map vector coll (rest coll)))
 

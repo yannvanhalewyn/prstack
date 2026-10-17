@@ -21,6 +21,19 @@
   ;; trunk change to each leaf
   [:sequential Change])
 
+(defn id
+  "Returns the identity of a stack: its branch names from trunk to leaf. It
+  doesn't depend on commit ids, so it's stable across rebases and new commits.
+  Stacks with the same id display identically, even when they were found via
+  different paths through the commit graph."
+  [stack]
+  (mapv :change/selected-branchname stack))
+
+(defn- distinct-stacks
+  "Removes stacks with the same id, keeping the first one and the order."
+  [stacks]
+  (u/distinct-by id stacks))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parsing graph nodes
 
@@ -60,7 +73,9 @@
 ;; Public
 
 (defn- node->stacks
-  "Converts a leaf node to a stack by finding the path to trunk.
+  "Converts a leaf node to stacks by finding the paths to trunk. Paths that
+  only differ in unbranched commits result in the same stack, so these are
+  deduplicated.
 
   Optionally accepts a fork-point-id to use as the trunk anchor for this
   specific stack. This is useful when trunk has advanced and the stack is
@@ -71,7 +86,8 @@
    (let [paths (if fork-point-id
                  (vcs.graph/find-all-paths-to-trunk vcs-graph (:change/change-id node) fork-point-id)
                  (vcs.graph/find-all-paths-to-trunk vcs-graph (:change/change-id node)))]
-     (map #(path->stack % vcs-graph trunk-branch) paths))))
+     (distinct-stacks
+       (map #(path->stack % vcs-graph trunk-branch) paths)))))
 
 (defn get-all-stacks
   "Returns all stacks in the repository from a graph."
@@ -184,12 +200,6 @@
        (subvec (vec stack) feature-base-idx)]
       [nil stack])))
 
-(defn- stack-branch-signature
-  "Returns a unique signature for a stack based on its branch names.
-  Used for deduplication."
-  [stack]
-  (mapv :change/selected-branchname stack))
-
 (defn- feature-base-branch-name
   "Returns the feature-base branch name from a feature-base stack.
   The feature-base is the last element (top of stack before reversal)."
@@ -217,11 +227,10 @@
           (group-by feature-base-branch-name)
           vals
           (map #(apply min-key count %)))
-        ;; Deduplicate regular stacks by branch signature.
-        ;; After partitioning, different paths through the graph may result
-        ;; in the same regular stack (same branches from feature-base to leaf).
-        unique-regular-stacks
-        (vals (into {} (map (juxt stack-branch-signature identity) regular-stacks)))]
+        ;; After partitioning, stacks that differed only before the feature
+        ;; base may result in the same regular stack (same branches from
+        ;; feature-base to leaf).
+        unique-regular-stacks (distinct-stacks regular-stacks)]
     {:regular-stacks unique-regular-stacks
      :feature-base-stacks unique-feature-base-stacks}))
 

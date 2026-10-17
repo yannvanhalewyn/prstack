@@ -103,3 +103,55 @@
       ;; Only the trunk node remains
       (is (= 1 (count result)))
       (is (= "main" (:change/selected-branchname (first result)))))))
+
+(defn- change [id parents branch]
+  {:change/change-id id
+   :change/parent-ids parents
+   :change/local-branchnames (if branch [branch] [])
+   :change/remote-branchnames []
+   :change/selected-branchname branch})
+
+(deftest test-stack-id
+  (testing "a stack is identified by its branch names from trunk to leaf"
+    (is (= ["main" "feature-a" "feature-b"]
+           (stack/id [(change "trunk" [] "main")
+                      (change "a" ["trunk"] "feature-a")
+                      (change "b" ["a"] "feature-b")])))))
+
+(deftest test-node->stacks-dedupes-identical-stacks
+  (testing "paths through unbranched merge commits yield a single stack"
+    ;; feature-a -> x, y -> merge -> feature-b, where x, y and the merge have
+    ;; no branches. Both paths through the merge have the same branches.
+    (let [g (graph/build-graph
+              [(change "trunk" [] "main")
+               (change "a" ["trunk"] "feature-a")
+               (change "x" ["a"] nil)
+               (change "y" ["a"] nil)
+               (change "m" ["x" "y"] nil)
+               (change "b" ["m"] "feature-b")]
+              "trunk"
+              {})
+          stacks (#'stack/node->stacks (graph/get-node g "b") g "main")]
+      (is (= [["main" "feature-a" "feature-b"]]
+             (map stack/id stacks)))))
+
+  (testing "a megamerge yields a stack per parent, sharing the same leaf"
+    (let [g (graph/build-graph
+              [(change "trunk" [] "main")
+               (change "a" ["trunk"] "feature-a")
+               (change "c" ["trunk"] "feature-c")
+               (change "wip" ["a" "c"] "wip")]
+              "trunk"
+              {})
+          stacks (#'stack/node->stacks (graph/get-node g "wip") g "main")]
+      (is (= [["main" "feature-a" "wip"]
+              ["main" "feature-c" "wip"]]
+             (map stack/id stacks))))))
+
+(deftest test-split-feature-base-stacks-keeps-order
+  (testing "deduplicating stacks keeps their order, so the current stack stays first"
+    (let [stacks (for [i (range 20)]
+                   [(change "trunk" [] "main")
+                    (change (str "c" i) ["trunk"] (str "feature-" i))])]
+      (is (= (map stack/id stacks)
+             (map stack/id (:regular-stacks (stack/split-feature-base-stacks stacks))))))))
