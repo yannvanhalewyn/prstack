@@ -47,6 +47,13 @@
       [#{} []]
       coll)))
 
+(defn exception-message
+  "Returns the trimmed message of exception `e`, or its class name when it has
+  no message, like a StackOverflowError."
+  [e]
+  (or (some-> (ex-message e) str/trim not-empty)
+      (str (class e))))
+
 (defn consecutive-pairs [coll]
   (map vector coll (rest coll)))
 
@@ -136,26 +143,30 @@
       p/check)))
 
 (def ^:private worker-stack-size
-  "Stack size in bytes for threads started by `pmap-large-stack`. Larger than
-  the main thread's stack."
+  "Stack size in bytes for threads started by `start-large-stack-thread!`.
+  Larger than the main thread's stack."
   (* 64 1024 1024))
+
+(defn start-large-stack-thread!
+  "Runs `f` on a new thread with a large stack. Babashka's default thread stack
+  is much smaller than the main thread's, so deeply recursive code that works
+  on the main thread can overflow in a `future`."
+  [f]
+  (doto (Thread. nil f "prstack-worker" worker-stack-size)
+    (.start)))
 
 (defn pmap-large-stack
   "Like `pmap`, but runs `f` on a separate thread with a large stack for every
-  item, returning a vector of the results. Babashka's default thread stack is
-  much smaller than the main thread's, so deeply recursive code that works on
-  the main thread can overflow in a `future`. Exceptions thrown by `f` are
-  rethrown."
+  item, see `start-large-stack-thread!`, returning a vector of the results.
+  Exceptions thrown by `f` are rethrown."
   [f coll]
   (->> coll
     (mapv (fn [x]
             (let [result (promise)]
-              (.start (Thread. nil
-                        #(deliver result
-                           (try [(f x)]
-                             (catch Throwable e [nil e])))
-                        "prstack-worker"
-                        worker-stack-size))
+              (start-large-stack-thread!
+                #(deliver result
+                   (try [(f x)]
+                     (catch Throwable e [nil e]))))
               result)))
     (mapv (fn [result]
             (let [[v e] @result]

@@ -8,6 +8,7 @@
     [clojure.string :as str]
     [prstack.config :as config]
     [prstack.repo :as repo]
+    [prstack.utils :as u]
     [prstack.vcs.jujutsu :as vcs.jj])
   (:import
     (java.io File)))
@@ -85,8 +86,7 @@
               (default-local-config repo-dir)))
         repo-info)
       (catch Exception e
-        (assoc repo-info :repo/error (or (some-> (ex-message e) str/trim)
-                                         (str (class e))))))))
+        (assoc repo-info :repo/error (u/exception-message e))))))
 
 (comment
   (inside-repo? nil)
