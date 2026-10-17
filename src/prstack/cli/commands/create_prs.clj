@@ -7,8 +7,8 @@
     [prstack.config :as config]
     [prstack.pr :as pr]
     [prstack.remote :as remote]
+    [prstack.repo :as repo]
     [prstack.stack :as stack]
-    [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]
@@ -66,7 +66,7 @@
                                    first)})
                 (println (ansi/colorize :green "\n✅ Created PR ... \n"))))))))))
 
-(defn create-prs! [system {:keys [prs stacks vcs-graph]}]
+(defn create-prs! [repo {:keys [prs stacks vcs-graph]}]
   (if (seq stacks)
     (let [branch-infos (->> (vcs.branch/selected-branches-info vcs-graph)
                          (u/build-index :branch/branchname))]
@@ -77,8 +77,8 @@
             {:head-change head-change
              :base-change base-change
              :prs prs
-             :vcs (:system/vcs system)
-             :remote (:system/remote system)
+             :vcs (:repo/vcs repo)
+             :remote (:repo/remote repo)
              :branch-infos branch-infos}))))
     (println (ansi/colorize :cyan "No PRs to create"))))
 
@@ -89,20 +89,18 @@
    :exec
    (fn create-prs-cmd [args global-opts]
      (let [ref (first args)
-           system (system/new (config/read-global)
-                    (config/read-local (:project-dir global-opts))
-                    global-opts)
-           vcs (:system/vcs system)
-           vcs-graph (vcs/read-graph vcs (:system/user-config system))
+           project-dir (:project-dir global-opts)
+           repo (repo/open project-dir (config/read-local project-dir))
+           vcs-graph (vcs/read-graph (:repo/vcs repo) (:repo/local-config repo))
            stacks
            (if ref
-             (stack/get-stacks system ref vcs-graph)
-             (stack/get-current-stacks system vcs-graph))
+             (stack/get-stacks repo ref vcs-graph)
+             (stack/get-current-stacks repo vcs-graph))
            split-stacks
            (stack/split-feature-base-stacks stacks)
-           prs (ui/fetch-prs-with-spinner (:system/remote system))]
+           prs (ui/fetch-prs-with-spinner (:repo/remote repo))]
        (cli.ui/print-stacks split-stacks prs)
-       (create-prs! system
+       (create-prs! repo
          {:prs prs
           :stacks stacks
           :vcs-graph vcs-graph})))})

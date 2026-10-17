@@ -110,7 +110,7 @@
           paths (graph/find-all-paths-to-trunk g "merge")]
       (is (= [["merge" "branch-a" "trunk"]
               ["merge" "branch-b" "trunk"]]
-            paths)
+             paths)
         "Paths through the first parent come first"))))
 
 (deftest test-find-all-paths-in-deep-history

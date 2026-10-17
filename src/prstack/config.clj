@@ -8,7 +8,7 @@
   (:import
     (java.io PushbackReader)))
 
-(def UserConfig
+(def LocalConfig
   [:map
    [:vcs :keyword]
    [:ignored-branches :set :string]

@@ -6,8 +6,8 @@
     [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
     [prstack.remote :as remote]
+    [prstack.repo :as repo]
     [prstack.stack :as stack]
-    [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.workspace :as workspace]))
@@ -28,11 +28,11 @@
 (comment
   (parse-opts ["--all" "--exclude-prs"]))
 
-(defn- read-stacks [system opts]
+(defn- read-stacks [repo opts]
   (stack/split-feature-base-stacks
     (if (:all? opts)
-      (stack/get-all-stacks system)
-      (stack/get-current-stacks system))))
+      (stack/get-all-stacks repo)
+      (stack/get-current-stacks repo))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Workspace
@@ -41,12 +41,12 @@
   "Reads the stacks and PRs of a workspace repo. Errors are captured in
   `:repo/error` so one broken repo doesn't prevent listing the others."
   [repo opts]
-  (if-let [system (:repo/system repo)]
+  (if-not (:repo/error repo)
     (try
       (assoc repo
-        :repo/stacks (read-stacks system opts)
+        :repo/stacks (read-stacks repo opts)
         :repo/prs (when-not (:exclude-prs? opts)
-                    (remote/list-prs (:system/remote system) {})))
+                    (remote/list-prs (:repo/remote repo) {})))
       ;; Throwable so errors like StackOverflowError only affect this repo
       (catch Throwable e
         (assoc repo :repo/error (or (some-> (ex-message e) str/trim)
@@ -59,8 +59,7 @@
 
 (defn- list-workspace [args {:keys [workspace-dir]}]
   (let [opts (parse-opts args)
-        repo-dirs (workspace/find-repos workspace-dir)
-        global-config (config/read-global)]
+        repo-dirs (workspace/find-repos workspace-dir)]
     (when (empty? repo-dirs)
       (println (ansi/colorize :red "Error")
         "Not a repository, and no repositories found in" workspace-dir)
@@ -68,7 +67,7 @@
     (let [repos (tty/spin
                   (fn []
                     (u/pmap-large-stack
-                      #(-> (workspace/new-repo workspace-dir global-config %)
+                      #(-> (workspace/open-repo workspace-dir %)
                          (read-repo opts))
                       repo-dirs))
                   {:title (format "Reading %d repositories..." (count repo-dirs))})
@@ -98,20 +97,17 @@
    :exec
    (fn list [args global-opts]
      (let [opts (parse-opts args)
-           system (system/new (config/read-global)
-                    (config/read-local (:project-dir global-opts))
-                    global-opts)]
-       (cli.ui/print-stacks (read-stacks system opts)
+           project-dir (:project-dir global-opts)
+           repo (repo/open project-dir (config/read-local project-dir))]
+       (cli.ui/print-stacks (read-stacks repo opts)
          (when-not (:exclude-prs? opts)
-           (ui/fetch-prs-with-spinner (:system/remote system))))))
+           (ui/fetch-prs-with-spinner (:repo/remote repo))))))
    :workspace-exec list-workspace})
 
 (comment
-  (def sys-
-    (system/new
-      (config/read-global)
-      (assoc (prstack.config/read-local "./tmp/parallel-branches") :vcs :jujutsu)
-      {:project-dir "./tmp/parallel-branches"}))
+  (def repo-
+    (repo/open "./tmp/parallel-branches"
+      (assoc (prstack.config/read-local "./tmp/parallel-branches") :vcs :jujutsu)))
 
-  (stack/get-current-stacks sys-)
-  (stack/get-all-stacks sys-))
+  (stack/get-current-stacks repo-)
+  (stack/get-all-stacks repo-))

@@ -4,27 +4,27 @@
     [portal.api :as p]
     [prstack.config :as config]
     [prstack.remote.github :as github]
+    [prstack.repo :as repo]
     [prstack.stack :as stack]
-    [prstack.system :as system]
     [prstack.vcs :as vcs]
     [prstack.vcs.graph :as vcs.graph]))
 
 (set! *print-namespace-maps* false)
 (require 'hashp.preload)
 
-(def sys-
-  (system/new
-    (config/read-global)
-    (config/read-local)
-    #_ {:project-dir "./tmp/log-read-test"}
-    #_ {:project-dir "./tmp/parallel-branches"}
-    {:project-dir "/Users/yannvanhalewyn/spronq/arqiver"}))
+(def project-dir-
+  #_"./tmp/log-read-test"
+  #_"./tmp/parallel-branches"
+  "/Users/yannvanhalewyn/spronq/arqiver")
+
+(def repo-
+  (repo/open project-dir- (config/read-local project-dir-)))
 
 (defn vcs []
-  (:system/vcs sys-))
+  (:repo/vcs repo-))
 
-(defn user-config []
-  (:system/user-config sys-))
+(defn local-config []
+  (:repo/local-config repo-))
 
 (def portal-instance (atom nil))
 
@@ -41,15 +41,15 @@
 
 (comment
   (do
-    (def vcs-graph- (vcs/read-graph (vcs) (user-config)))
+    (def vcs-graph- (vcs/read-graph (vcs) (local-config)))
     (def bookmarks-graph- (vcs.graph/bookmarks-subgraph vcs-graph-))
     (def current-id- (vcs/current-change-id (vcs)))
     (vcs.graph/get-node vcs-graph- current-id-)
     (def paths- (vcs.graph/find-all-paths-to-trunk vcs-graph- current-id-)))
 
   (count (:nodes (vcs/read-relevant-changes (vcs))))
-  (stack/get-all-stacks sys-)
-  (stack/get-current-stacks sys-)
+  (stack/get-all-stacks repo-)
+  (stack/get-current-stacks repo-)
   (map #(stack/path->stack % vcs-graph- "main") paths-)
   (stack/path->stack (first paths-) vcs-graph- (vcs/trunk-branch (vcs)))
   (vcs.graph/bookmarked-leaf-nodes bookmarks-graph-)
@@ -57,6 +57,6 @@
   (vcs.graph/get-node vcs-graph- (last (first paths-)))
   ;;"vrsqkszuzpvlowuvvormsqxzvxswsypy"
 
-  (github/list-prs (:system/vcs sys-))
-  (map #(map :change/selected-branchname %) (stack/get-current-stacks sys-))
+  (github/list-prs (:repo/remote repo-) {})
+  (map #(map :change/selected-branchname %) (stack/get-current-stacks repo-))
   )

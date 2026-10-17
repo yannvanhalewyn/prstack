@@ -7,7 +7,7 @@
     [clojure.java.io :as io]
     [clojure.string :as str]
     [prstack.config :as config]
-    [prstack.system :as system]
+    [prstack.repo :as repo]
     [prstack.vcs.jujutsu :as vcs.jj])
   (:import
     (java.io File)))
@@ -70,25 +70,25 @@
   (str (.relativize (.toPath (.getCanonicalFile (io/file root)))
          (.toPath (io/file path)))))
 
-(defn new-repo
-  "Creates a system for the repository at `repo-dir`. Returns a map with
-  `:repo/name`, `:repo/dir` and either `:repo/system` or `:repo/error` when the
-  repository could not be read, for example when it has no remote."
-  [workspace-dir global-config repo-dir]
-  (let [repo {:repo/name (relative-path workspace-dir repo-dir)
-              :repo/dir repo-dir}]
+(defn open-repo
+  "Opens the repository at `repo-dir` as a repo, see `prstack.repo/open`, with
+  `:repo/name` and `:repo/dir` added. When the repository could not be
+  read, for example when it has no remote, the repo only has a `:repo/error`
+  besides name and dir."
+  [workspace-dir repo-dir]
+  (let [repo-info {:repo/name (relative-path workspace-dir repo-dir)
+                   :repo/dir repo-dir}]
     (try
-      (assoc repo :repo/system
-        (system/new global-config
+      (merge repo-info
+        (repo/open repo-dir
           (or (config/read-local repo-dir)
-              (default-local-config repo-dir))
-          {:project-dir repo-dir}))
+              (default-local-config repo-dir))))
       (catch Exception e
-        (assoc repo :repo/error (or (some-> (ex-message e) str/trim)
-                                    (str (class e))))))))
+        (assoc repo-info :repo/error (or (some-> (ex-message e) str/trim)
+                                         (str (class e))))))))
 
 (comment
   (inside-repo? nil)
   (inside-repo? "/tmp")
   (find-repos (str (System/getProperty "user.home") "/code"))
-  (new-repo ".." (config/read-global) "."))
+  (open-repo ".." "."))

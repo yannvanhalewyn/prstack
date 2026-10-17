@@ -10,8 +10,8 @@
     [prstack.custom-command :as custom-command]
     [prstack.pr :as pr]
     [prstack.remote :as remote]
+    [prstack.repo :as repo]
     [prstack.stack :as stack]
-    [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]
@@ -30,8 +30,11 @@
    ;; CLI options the TUI was started with, like `:project-dir`
    [:app-state/global-opts :map]
 
-   ;; System
-   [:app-state/system system/SystemSchema]
+   ;; Config shared by all repos
+   [:app-state/global-config config/GlobalConfig]
+
+   ;; Repo
+   [:app-state/repo repo/Repo]
 
    ;; Stacks
    [:app-state/vcs-graph [:fn delay?]]
@@ -49,10 +52,10 @@
          :app-state/selected-tab 0}))
 
 (defn vcs [state]
-  (get-in state [:app-state/system :system/vcs]))
+  (get-in state [:app-state/repo :repo/vcs]))
 
 (defn remote [state]
-  (get-in state [:app-state/system :system/remote]))
+  (get-in state [:app-state/repo :repo/remote]))
 
 (defn global-opts [state]
   (:app-state/global-opts state))
@@ -61,7 +64,7 @@
   (:project-dir (global-opts state)))
 
 (defn global-config [state]
-  (get-in state [:app-state/system :system/global-config]))
+  (:app-state/global-config state))
 
 (defn vcs-graph [state]
   @(:app-state/vcs-graph state))
@@ -179,17 +182,16 @@
 
 (defmethod dispatch! :event/read-local-repo
   [_evt]
-  (let [global-opts (global-opts @app-state)
-        system (system/new (config/read-global)
-                 (config/read-local (:project-dir global-opts))
-                 global-opts)
-        vcs-graph (delay (vcs/read-graph (:system/vcs system)
-                           (:system/user-config system)))]
+  (let [project-dir (project-dir @app-state)
+        repo (repo/open project-dir (config/read-local project-dir))
+        vcs-graph (delay (vcs/read-graph (:repo/vcs repo)
+                           (:repo/local-config repo)))]
     (swap! app-state merge
-      {:app-state/system system
+      {:app-state/global-config (config/read-global)
+       :app-state/repo repo
        :app-state/vcs-graph vcs-graph
-       :app-state/current-stacks (delay (stack/get-current-stacks system @vcs-graph))
-       :app-state/all-stacks (delay (stack/get-all-stacks system @vcs-graph))})))
+       :app-state/current-stacks (delay (stack/get-current-stacks repo @vcs-graph))
+       :app-state/all-stacks (delay (stack/get-all-stacks repo @vcs-graph))})))
 
 (defmethod dispatch! :event/fetch-prs
   [_evt]

@@ -5,7 +5,7 @@
   work correctly with the project-dir option."
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
-    [prstack.system :as system]
+    [prstack.repo :as repo]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]
     [prstack.vcs.graph :as graph]
@@ -82,11 +82,7 @@
 
 (deftest jujutsu-read-commit-log-test
   (testing "reads all nodes from a jujutsu repository using project-dir"
-    (let [vcs (system/new-vcs
-                ;; user config
-                {:vcs :jujutsu}
-                ;; global opts (--project-dir)
-                {:project-dir *test-repo-dir*})
+    (let [vcs (repo/new-vcs *test-repo-dir* {:vcs :jujutsu})
           g (vcs/read-graph vcs {})]
 
       (is (some? (:graph/trunk-id g)) "Should have a trunk change id")
@@ -102,9 +98,7 @@
 
 (deftest jujutsu-build-graph-test
   (testing "builds a graph from jujutsu nodes"
-    (let [vcs (system/new-vcs
-                {:vcs :jujutsu}
-                {:project-dir *test-repo-dir*})
+    (let [vcs (repo/new-vcs *test-repo-dir* {:vcs :jujutsu})
           g (vcs/read-graph vcs {})]
 
       (is (some? (:graph/trunk-id g)) "Graph trunk should exist")
@@ -117,9 +111,7 @@
 
 (deftest jujutsu-graph-traversal-test
   (testing "can traverse from leaf to trunk"
-    (let [vcs (system/new-vcs
-                {:vcs :jujutsu}
-                {:project-dir *test-repo-dir*})
+    (let [vcs (repo/new-vcs *test-repo-dir* {:vcs :jujutsu})
           g (vcs/read-graph vcs {})
 
           ;; Find feature-step-2 node
@@ -137,9 +129,7 @@
 
 (deftest jujutsu-current-change-id-test
   (testing "gets current change id using project-dir"
-    (let [vcs (system/new-vcs
-                {:vcs :jujutsu}
-                {:project-dir *test-repo-dir*})
+    (let [vcs (repo/new-vcs *test-repo-dir* {:vcs :jujutsu})
           change-id (vcs/current-change-id vcs)]
       (is (string? change-id) "Should return a string")
       (is (not-empty change-id) "Should not be empty"))))

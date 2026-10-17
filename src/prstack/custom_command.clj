@@ -240,7 +240,7 @@
     (throw (ex-info "Invalid command form" {:cmd cmd}))))
 
 (comment
-  (def user-config- (prstack.config/read-local nil))
+  (def local-config- (prstack.config/read-local nil))
   (def glocal-config- (prstack.config/read-global))
 
   (prepare-command "git diff $from-sha..$to-sha | less"

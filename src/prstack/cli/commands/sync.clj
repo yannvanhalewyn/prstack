@@ -7,15 +7,15 @@
     [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
     [prstack.remote :as remote]
+    [prstack.repo :as repo]
     [prstack.stack :as stack]
-    [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.vcs :as vcs]
     [prstack.vcs.branch :as vcs.branch]
     [prstack.vcs.graph :as vcs.graph]))
 
-(defn- read-vcs-graph [system]
-  (vcs/read-graph (:system/vcs system) (:system/user-config system)))
+(defn- read-vcs-graph [repo]
+  (vcs/read-graph (:repo/vcs repo) (:repo/local-config repo)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI Helpers (TODO move to some UI namespace)
@@ -38,12 +38,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 2: Cleanup merged branches
 
-(defn- cleanup-merged-branches! [system _opts]
+(defn- cleanup-merged-branches! [repo _opts]
   (ui-header "Checking for merged PRs")
-  (let [vcs (:system/vcs system)
-        user-config (:system/user-config system)
-        vcs-graph (vcs/read-graph vcs user-config)
-        [merged-prs err] (remote/list-prs (:system/remote system) {:state :merged})
+  (let [vcs (:repo/vcs repo)
+        local-config (:repo/local-config repo)
+        vcs-graph (vcs/read-graph vcs local-config)
+        [merged-prs err] (remote/list-prs (:repo/remote repo) {:state :merged})
         local-bookmarks (set (vcs.graph/all-selected-branchnames vcs-graph))
         to-delete (filter #(contains? local-bookmarks (:pr/head-branch %)) merged-prs)]
     (cond
@@ -62,14 +62,14 @@
 
         ;; Clean up feature bases that were merged
         (let [merged-branch-names (set (map :pr/head-branch to-delete))
-              feature-bases (:feature-base-branches user-config)
+              feature-bases (:feature-base-branches local-config)
               merged-feature-bases (filter #(contains? merged-branch-names %) feature-bases)]
           (when (seq merged-feature-bases)
             (doseq [fb merged-feature-bases]
               (ui/info "Removing merged feature base " (ui/format-branch fb) " from config..."))
-            (let [updated-config (update user-config :feature-base-branches
+            (let [updated-config (update local-config :feature-base-branches
                                    #(apply disj % merged-feature-bases))]
-              (config/write-local (system/project-dir system) updated-config)
+              (config/write-local (repo/project-dir repo) updated-config)
               (ui/success (format "Removed %d merged feature base(s) from config"
                             (count merged-feature-bases))))
             (println)))
@@ -86,10 +86,10 @@
 (defn- sync-branches!
   "Syncs branches by either pushing or pulling them, according to their status.
   Returns the set of branches that were pulled."
-  [system]
+  [repo]
   (ui-header "Syncing branches")
-  (let [vcs (:system/vcs system)
-        vcs-graph (read-vcs-graph system)
+  (let [vcs (:repo/vcs repo)
+        vcs-graph (read-vcs-graph repo)
         all-branches (vcs.branch/selected-branches-info vcs-graph)
         ;; Get current user email from VCS config
         current-user-email (vcs/current-user-email vcs)
@@ -182,16 +182,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Step 5: Show status & create PRs
 
-(defn- show-status-and-create-prs! [system opts]
+(defn- show-status-and-create-prs! [repo opts]
   (ui-header "Stack status")
   (println)
-  (let [vcs (:system/vcs system)
-        vcs-graph (vcs/read-graph vcs (:system/user-config system))
+  (let [vcs-graph (read-vcs-graph repo)
         stacks (if (:all? opts)
-                 (stack/get-all-stacks system vcs-graph)
-                 (stack/get-current-stacks system vcs-graph))
+                 (stack/get-all-stacks repo vcs-graph)
+                 (stack/get-current-stacks repo vcs-graph))
         split-stacks (stack/split-feature-base-stacks stacks)
-        [prs _err :as pr-result] (ui/fetch-prs-with-spinner (:system/remote system))]
+        [prs _err :as pr-result] (ui/fetch-prs-with-spinner (:repo/remote repo))]
 
     (cli.ui/print-stacks split-stacks [prs])
 
@@ -209,7 +208,7 @@
         (when has-missing-prs?
           (ui/info "Stack " (ui/format-branch leaf-branch) " has branches without PRs")
           (when (tty/prompt-confirm {:prompt "  Create missing PRs?"})
-            (commands.create-prs/create-prs! system
+            (commands.create-prs/create-prs! repo
               {:prs pr-result
                :stacks [stack]
                :vcs-graph vcs-graph})))))))
@@ -227,24 +226,24 @@
    :exec
    (fn [args global-opts]
      (let [opts (parse-opts args)
-           local-config (config/read-local (:project-dir global-opts))
-           system (system/new (config/read-global) local-config global-opts)
-           vcs (:system/vcs system)]
+           project-dir (:project-dir global-opts)
+           repo (repo/open project-dir (config/read-local project-dir))
+           vcs (:repo/vcs repo)]
 
        ;; Step 1: Fetch
        (fetch! vcs)
 
        ;; Step 2: Cleanup merged branches
-       (cleanup-merged-branches! system opts)
+       (cleanup-merged-branches! repo opts)
 
        ;; Step 3: Sync base branches
-       (let [pulled-branches (sync-branches! system)
-             current-stacks (stack/get-current-stacks system)]
+       (let [pulled-branches (sync-branches! repo)
+             current-stacks (stack/get-current-stacks repo)]
          ;; Step 4: Offer rebase if base was pulled
          (offer-rebase! vcs pulled-branches current-stacks))
 
        ;; Step 5: Show status & create PRs
-       (show-status-and-create-prs! system opts)
+       (show-status-and-create-prs! repo opts)
 
        (println)
        (println (ansi/colorize :green "✓ Sync complete"))))})
