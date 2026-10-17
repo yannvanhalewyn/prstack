@@ -37,7 +37,7 @@
   "Renders a display row, see `db/display-rows`, as a line."
   [row selected-key max-width]
   (case (:row/kind row)
-    :repo-header (ansi/colorize [:bold :blue] (str "▸ " (:repo/name row)))
+    :repo-header (ui/format-repo-header (:repo/name row))
     :stack-header (ansi/colorize :cyan
                     (str "\uf51e " (:label row) " (" (:size row) ")"))
     :section-header (ansi/colorize :cyan (:text row))

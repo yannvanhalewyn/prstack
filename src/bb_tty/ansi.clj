@@ -22,20 +22,22 @@
    :magenta "\033[35m"
    :red "\033[31m"
    :white "\033[37m"
+   :bright-white "\033[97m"
    :gray "\033[90m"
    :orange "\033[38;5;208m"        ; 256-color true orange
    :bright-orange "\033[38;5;214m"  ; 256-color bright orange
    :bright-yellow "\033[93m"        ; Standard ANSI bright yellow (orange-ish)
    :bg-light-gray "\033[47m"
    :bg-gray "\033[100m"
-   :bg-blue "\033[44m"})
+   :bg-blue "\033[44m"
+   :bg-dark-gray "\033[48;5;237m"})  ; 256-color, darker than :bg-gray
 
 (def colorize
   (if (System/getenv "NO_COLORS")
     (fn [_ text]
       text)
     (fn [color-keys text]
-      (let [color-codes (str/join "" (map colors (cond-> color-keys keyword? vector)))]
+      (let [color-codes (str/join "" (map colors (cond-> color-keys (keyword? color-keys) vector)))]
         (str color-codes text (colors :reset))))))
 
 (defn strip-ansi
