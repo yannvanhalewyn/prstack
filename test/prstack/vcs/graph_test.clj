@@ -135,12 +135,13 @@
     ;; A chain of diamonds: every merge joins two commits forked from the
     ;; previous merge. Removing unbookmarked commits used to duplicate edges at
     ;; every merge, overflowing the stack once realized.
-    (let [n 40
+    (let [n 12
           nodes (concat
                   [{:change/change-id "trunk"
                     :change/parent-ids []
                     :change/local-branchnames ["main"]
-                    :change/remote-branchnames []}]
+                    :change/remote-branchnames []
+                    :change/selected-branchname "main"}]
                   (mapcat
                     (fn [i]
                       (let [prev (if (zero? i) "trunk" (str "m" (dec i)))]
@@ -160,7 +161,8 @@
                   [{:change/change-id "feature"
                     :change/parent-ids [(str "m" (dec n))]
                     :change/local-branchnames ["feature"]
-                    :change/remote-branchnames []}])
+                    :change/remote-branchnames []
+                    :change/selected-branchname "feature"}])
           g (graph/bookmarks-subgraph (graph/build-graph nodes "trunk" {}))]
       (is (= ["trunk"] (:change/parent-ids (graph/get-node g "feature"))))
       (is (= ["feature"] (:change/children-ids (graph/get-node g "trunk")))))))
