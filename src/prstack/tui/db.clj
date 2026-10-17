@@ -14,8 +14,8 @@
     [prstack.system :as system]
     [prstack.ui :as ui]
     [prstack.utils :as u]
-    [prstack.vcs.branch :as vcs.branch]
-    [prstack.vcs :as vcs]))
+    [prstack.vcs :as vcs]
+    [prstack.vcs.branch :as vcs.branch]))
 
 (defn- http-request-schema [result-schema]
   [:map
@@ -34,9 +34,9 @@
    [:app-state/system system/SystemSchema]
 
    ;; Stacks
-   [:app-state/vcs-graph [:fn #(instance? clojure.lang.Delay %)]]
-   [:app-state/current-stacks [:fn #(instance? clojure.lang.Delay %)]]
-   [:app-state/all-stacks [:fn #(instance? clojure.lang.Delay %)]]
+   [:app-state/vcs-graph [:fn delay?]]
+   [:app-state/current-stacks [:fn delay?]]
+   [:app-state/all-stacks [:fn delay?]]
    [:app-state/prs (http-request-schema [:sequential remote/PR])]
 
    ;; UI
