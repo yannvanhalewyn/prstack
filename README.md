@@ -40,15 +40,18 @@ Learn more about CLI commands in the [Commands Reference](https://prstack.dev/do
 
 ## Workspaces
 
-When you run `prstack` from a directory that contains several repositories but isn't one itself, like `~/work/client/`, it finds the nested repositories (up to 3 levels deep) and lists the stacks and PRs of each:
+When you run `prstack` from a directory that contains several repositories but isn't one itself, like `~/work/client/`, it finds the nested repositories (up to 3 levels deep) and works with all of them:
 
 ```bash
 cd ~/work/client
+prstack           # interactive app with the stacks of every repository
 prstack list      # current stack of every repository
 prstack status    # all stacks of every repository
 ```
 
-Repositories without stacks are summarized on one line. Repositories that were never set up with prstack are read with an inferred VCS (Jujutsu when a `.jj` directory exists, Git otherwise). Other commands still run on a single repository, so `cd` into it or pass `--project-dir`.
+In the interactive app, every repository is loaded in the background and shown under its own header. You navigate across all of them, and actions like diffing, creating or merging PRs and syncing act on the repository of the selected branch.
+
+Repositories without stacks are summarized on one line. Repositories that were never set up with prstack are read with an inferred VCS (Jujutsu when a `.jj` directory exists, Git otherwise). The other commands run on a single repository, so `cd` into it or pass `--project-dir`. Running prstack from a subfolder of a repository works on the whole repository.
 
 ## Installation
 

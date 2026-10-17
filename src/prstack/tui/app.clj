@@ -165,8 +165,13 @@
       (db/dispatch! [:event/refresh-repo repo-id])
       (recur))))
 
-(defn run! [global-opts]
-  (init/ensure-initialized! (:project-dir global-opts))
+(defn run!
+  "Runs the TUI on the repository at `:project-dir`, or on all repositories in
+  `:workspace-dir`."
+  [global-opts]
+  ;; Repositories in a workspace use an inferred config when they have none
+  (when-not (:workspace-dir global-opts)
+    (init/ensure-initialized! (:project-dir global-opts)))
   (swap! db/app-state assoc :app-state/global-opts global-opts)
   (try
     (run-app!)

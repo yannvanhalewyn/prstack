@@ -4,7 +4,6 @@
     [bb-tty.tty :as tty]
     [clojure.string :as str]
     [prstack.cli.ui :as cli.ui]
-    [prstack.config :as config]
     [prstack.pr :as pr]
     [prstack.remote :as remote]
     [prstack.repo :as repo]
@@ -90,7 +89,7 @@
    (fn create-prs-cmd [args global-opts]
      (let [ref (first args)
            project-dir (:project-dir global-opts)
-           repo (repo/open project-dir (config/read-local project-dir))
+           repo (repo/open project-dir)
            vcs-graph (vcs/read-graph (:repo/vcs repo) (:repo/local-config repo))
            stacks
            (if ref

@@ -79,21 +79,31 @@
   (or (nil? project-dir)
       (.isDirectory (io/file project-dir))))
 
-(defn- workspace-dir
-  "Returns the canonical path of the directory to treat as a workspace, or nil
-  when prstack runs inside a repository."
+(defn- resolve-dirs
+  "Resolves the directory prstack operates on. Inside a repository, the project
+  dir becomes the repository root, so running from a subfolder uses the
+  repository's config. Outside of one, the directory is a workspace."
   [global-opts]
   (let [dir (or (:project-dir global-opts) ".")]
-    (when-not (workspace/inside-repo? dir)
-      (.getCanonicalPath (io/file dir)))))
+    (if-let [root (workspace/repo-root dir)]
+      (assoc global-opts :project-dir root)
+      (assoc global-opts :workspace-dir (.getCanonicalPath (io/file dir))))))
+
+(defn- ensure-workspace-repos!
+  "Exits when the workspace contains no repositories."
+  [workspace-dir]
+  (when (empty? (workspace/find-repos workspace-dir))
+    (println (ansi/colorize :red "Error")
+      "Not a repository, and no repositories found in" workspace-dir)
+    (System/exit 1)))
 
 (defn- exec-command!
   "Runs `command` on the repository, or on all repositories of the workspace
   when not inside a repository and the command supports it."
   [command-name command args global-opts]
-  (if-let [ws-dir (workspace-dir global-opts)]
+  (if-let [ws-dir (:workspace-dir global-opts)]
     (if-let [workspace-exec (:workspace-exec command)]
-      (workspace-exec args (assoc global-opts :workspace-dir ws-dir))
+      (workspace-exec args global-opts)
       (do
         (println (ansi/colorize :red "Error") ws-dir "is not a repository.")
         (println (ansi/colorize :yellow (str "prstack " command-name))
@@ -106,43 +116,38 @@
 
 (defn -main [& args]
   (let [[global-opts remaining-args] (parse-global-opts args)]
-    (cond
-      (not (valid-project-dir? (:project-dir global-opts)))
-      (do
-        (println (ansi/colorize :red "Error") "Not a directory:" (:project-dir global-opts))
-        (System/exit 1))
+    (when-not (valid-project-dir? (:project-dir global-opts))
+      (println (ansi/colorize :red "Error") "Not a directory:" (:project-dir global-opts))
+      (System/exit 1))
+    (let [global-opts (resolve-dirs global-opts)]
+      (cond
+        (:help? global-opts)
+        (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
+          (print-help command)
+          (print-help))
 
-      (:help? global-opts)
-      (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
-        (print-help command)
-        (print-help))
-
-      (and (empty? remaining-args) (workspace-dir global-opts))
-      (do
-        (println (ansi/colorize :gray "The interactive app doesn't support workspaces yet, showing status instead."))
-        (println)
-        (exec-command! "status" commands.status/command [] global-opts))
-
-      (empty? remaining-args)
-      (tui.app/run! global-opts)
-
-      :else
-      (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
-        (if-let [subcommands (:subcommands command)]
-          ;; Command has subcommands, check for subcommand
-          (let [subcommand-name (second remaining-args)]
-            (if (nil? subcommand-name)
-              (print-help command)
-              (if-let [subcmd (u/find-first #(= (:name %) subcommand-name) subcommands)]
-                (exec-command! (str (:name command) " " subcommand-name)
-                  subcmd (drop 2 remaining-args) global-opts)
-                (do
-                  (println (ansi/colorize :red "Error") "Unknown subcommand:" subcommand-name "\n")
-                  (print-help command)
-                  (System/exit 1)))))
-          ;; Command has no subcommands, execute directly
-          (exec-command! (:name command) command (rest remaining-args) global-opts))
+        (empty? remaining-args)
         (do
-          (println (ansi/colorize :red "Error") "Unknown command:" (first remaining-args) "\n")
-          (print-help)
-          (System/exit 1))))))
+          (some-> (:workspace-dir global-opts) ensure-workspace-repos!)
+          (tui.app/run! global-opts))
+
+        :else
+        (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
+          (if-let [subcommands (:subcommands command)]
+            ;; Command has subcommands, check for subcommand
+            (let [subcommand-name (second remaining-args)]
+              (if (nil? subcommand-name)
+                (print-help command)
+                (if-let [subcmd (u/find-first #(= (:name %) subcommand-name) subcommands)]
+                  (exec-command! (str (:name command) " " subcommand-name)
+                    subcmd (drop 2 remaining-args) global-opts)
+                  (do
+                    (println (ansi/colorize :red "Error") "Unknown subcommand:" subcommand-name "\n")
+                    (print-help command)
+                    (System/exit 1)))))
+            ;; Command has no subcommands, execute directly
+            (exec-command! (:name command) command (rest remaining-args) global-opts))
+          (do
+            (println (ansi/colorize :red "Error") "Unknown command:" (first remaining-args) "\n")
+            (print-help)
+            (System/exit 1)))))))

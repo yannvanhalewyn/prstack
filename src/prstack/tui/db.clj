@@ -4,6 +4,7 @@
     [bb-tty.tty :as tty]
     [bb-tty.tui :as tui]
     [clojure.java.browse :as browse]
+    [clojure.string :as str]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.sync :as commands.sync]
     [prstack.config :as config]
@@ -16,7 +17,8 @@
     [prstack.ui :as ui]
     [prstack.utils :as u]
     [prstack.vcs :as vcs]
-    [prstack.vcs.branch :as vcs.branch]))
+    [prstack.vcs.branch :as vcs.branch]
+    [prstack.workspace :as workspace]))
 
 (defn- load-schema
   "Data that is loaded in the background. While reloading, the previous result
@@ -89,11 +91,16 @@
   (sort-by :repo/name (vals (:app-state/repos state))))
 
 (defn- repo-specs
-  "Returns the id and name of every repository shown in the TUI."
+  "Returns the id and name of every repository shown in the TUI: all
+  repositories in the workspace, or else the one at the project dir."
   [state]
-  (let [repo-id (repo/id (:project-dir (global-opts state)))]
-    [{:repo/id repo-id
-      :repo/name (repo/default-name repo-id)}]))
+  (let [{:keys [workspace-dir project-dir]} (global-opts state)]
+    (if workspace-dir
+      (mapv #(workspace/repo-info workspace-dir %)
+        (workspace/find-repos workspace-dir))
+      (let [repo-id (repo/id project-dir)]
+        [{:repo/id repo-id
+          :repo/name (repo/default-name repo-id)}]))))
 
 (defn- repo-opts
   "Returns the global opts for running a CLI command on `repo`."
@@ -213,22 +220,51 @@
       [{:row/kind :loading}
        {:row/kind :blank}])))
 
+(defn- without-stacks?
+  "Returns true when the stacks of `repo` displayed on the selected tab are
+  loaded and there are none."
+  [state repo]
+  (let [{:load/keys [status result]} (tab-stacks-load state repo)
+        {:keys [regular-stacks feature-base-stacks]} (split-tab-stacks state result)]
+    (and (= :status/success status)
+         (not (stack/any-segments? regular-stacks))
+         (empty? feature-base-stacks))))
+
+(defn- multiple-repo-rows
+  "Returns the rows for multiple repos, each under a header. Repos without
+  stacks are listed together on a single line instead, but repos that are
+  loading or failed to load are still shown."
+  [state repos]
+  (let [{empty-repos true shown-repos false}
+        (group-by #(without-stacks? state %) repos)]
+    (concat
+      (mapcat
+        (fn [repo]
+          (let [rows (repo-rows state repo)]
+            (concat
+              [{:row/kind :repo-header
+                :repo/id (:repo/id repo)
+                :repo/name (:repo/name repo)}
+               {:row/kind :blank}]
+              rows
+              ;; Separate repos with a blank line
+              (when-not (= :blank (:row/kind (last rows)))
+                [{:row/kind :blank}]))))
+        shown-repos)
+      (when (seq empty-repos)
+        [{:row/kind :text
+          :style :gray
+          :text (str "No stacks in: " (str/join ", " (map :repo/name empty-repos)))}]))))
+
 (defn display-rows
   "Returns the rows displayed for all repos. Repo headers are only shown when
   there are multiple repos."
   [state]
-  (let [repos (repos state)
-        multiple-repos? (> (count repos) 1)]
-    (into []
-      (mapcat
-        (fn [repo]
-          (concat
-            (when multiple-repos?
-              [{:row/kind :repo-header
-                :repo/id (:repo/id repo)
-                :repo/name (:repo/name repo)}])
-            (repo-rows state repo))))
-      repos)))
+  (let [repos (repos state)]
+    (vec
+      (if (> (count repos) 1)
+        (multiple-repo-rows state repos)
+        (mapcat #(repo-rows state %) repos)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Selection
@@ -373,7 +409,7 @@
            :repo/prs {:load/status :status/pending}})))
     (u/start-large-stack-thread!
       (fn []
-        (let [opened (run-load #(repo/open id (config/read-local id)))]
+        (let [opened (run-load #(repo/open id))]
           (if (= :status/failed (load-status opened))
             (update! assoc
               :repo/graph opened

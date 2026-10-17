@@ -62,14 +62,30 @@
   [repo]
   (:vcs/project-dir (:repo/vcs repo)))
 
+(defn read-local-config
+  "Reads the local config of the repository at `project-dir`. Repositories that
+  were never set up with prstack, like the ones in a workspace, don't have one.
+  For those the VCS is inferred instead of prompting for setup in every
+  repository: jj when it has a `.jj` directory and jj is installed, else git."
+  [project-dir]
+  (or (config/read-local project-dir)
+      {:vcs (if (and (.exists (io/file project-dir ".jj")) (vcs.jj/installed?))
+              :jujutsu
+              :git)
+       :ignored-branches #{}
+       :feature-base-branches #{}}))
+
 (defn open
   "Opens the existing repository at `project-dir` as a repo, using the given
-  local config. A nil `project-dir` means the current directory."
-  [project-dir local-config]
-  (let [vcs (new-vcs project-dir local-config)
-        repo-id (id project-dir)]
-    {:repo/id repo-id
-     :repo/name (default-name repo-id)
-     :repo/local-config local-config
-     :repo/vcs vcs
-     :repo/remote (new-remote vcs)}))
+  local config, or else its own, see `read-local-config`. A nil `project-dir`
+  means the current directory."
+  ([project-dir]
+   (open project-dir (read-local-config project-dir)))
+  ([project-dir local-config]
+   (let [vcs (new-vcs project-dir local-config)
+         repo-id (id project-dir)]
+     {:repo/id repo-id
+      :repo/name (default-name repo-id)
+      :repo/local-config local-config
+      :repo/vcs vcs
+      :repo/remote (new-remote vcs)})))
