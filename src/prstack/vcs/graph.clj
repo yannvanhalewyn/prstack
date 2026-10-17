@@ -125,7 +125,8 @@
               ;; repeatedly, and nesting lazy seqs over thousands of removals
               ;; blows the stack when finally realized.
               (update-in graph* [:graph/nodes parent-id relation-key]
-                #(->> % (remove #{remove-id}) (concat add-ids))))
+                #(into [] (distinct)
+                   (concat add-ids (remove #{remove-id} %)))))
             graph
             target-ids)) ]
     (-> vcs-graph
