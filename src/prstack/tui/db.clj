@@ -34,11 +34,11 @@
 
 (def ^:lsp/allow-unused RepoState
   "A repo as held in the app state: the repo and the data loaded through it.
-  The repo's clients are only present once it's opened, see `load-repo!`."
+  The repo's clients are only present once it's opened, see `start-loader!`."
   (tools.schema/merge
     repo/Repo
     [:map
-     ;; Results of earlier loads are discarded, see `load-repo!`
+     ;; Results of earlier loads are discarded, see `update-loading-repo`
      [:repo/load-token :int]
      [:repo/graph (load-schema :map)]
      [:repo/current-stacks (load-schema [:sequential stack/Stack])]
@@ -220,23 +220,40 @@
       [{:row/kind :loading}
        {:row/kind :blank}])))
 
-(defn- without-stacks?
-  "Returns true when the stacks of `repo` displayed on the selected tab are
-  loaded and there are none."
+(defn- repo-display
+  "Returns how `repo` is displayed among multiple repos, based on the stacks
+  displayed on the selected tab:
+    :repo.display/stacks  - under a header with its stacks
+    :repo.display/failed  - under a header with the error
+    :repo.display/empty   - listed with the other repos without stacks
+    :repo.display/loading - listed with the other repos that are loading
+
+  While reloading, the previous result decides, so repos don't move around."
   [state repo]
-  (let [{:load/keys [status result]} (tab-stacks-load state repo)
-        {:keys [regular-stacks feature-base-stacks]} (split-tab-stacks state result)]
-    (and (= :status/success status)
-         (not (stack/any-segments? regular-stacks))
-         (empty? feature-base-stacks))))
+  (let [{:load/keys [status result]} (tab-stacks-load state repo)]
+    (cond
+      (or (= :status/success status) (some? result))
+      (let [{:keys [regular-stacks feature-base-stacks]}
+            (split-tab-stacks state (or result []))]
+        (if (or (stack/any-segments? regular-stacks) (seq feature-base-stacks))
+          :repo.display/stacks
+          :repo.display/empty))
+
+      (= :status/failed status) :repo.display/failed
+      :else :repo.display/loading)))
 
 (defn- multiple-repo-rows
-  "Returns the rows for multiple repos, each under a header. Repos without
-  stacks are listed together on a single line instead, but repos that are
-  loading or failed to load are still shown."
+  "Returns the rows for multiple repos. Repos with stacks or that failed to load
+  are shown under a header. Repos without stacks and repos that are still
+  loading are each listed on a single line at the bottom, so repos only get a
+  header once there is something to show."
   [state repos]
-  (let [{empty-repos true shown-repos false}
-        (group-by #(without-stacks? state %) repos)]
+  (let [{stacks-repos :repo.display/stacks
+         failed-repos :repo.display/failed
+         empty-repos :repo.display/empty
+         loading-repos :repo.display/loading}
+        (group-by #(repo-display state %) repos)
+        names #(str/join ", " (map :repo/name %))]
     (concat
       (mapcat
         (fn [repo]
@@ -250,11 +267,15 @@
               ;; Separate repos with a blank line
               (when-not (= :blank (:row/kind (last rows)))
                 [{:row/kind :blank}]))))
-        shown-repos)
+        ;; Keep the display order
+        (filter (set (concat stacks-repos failed-repos)) repos))
       (when (seq empty-repos)
         [{:row/kind :text
           :style :gray
-          :text (str "No stacks in: " (str/join ", " (map :repo/name empty-repos)))}]))))
+          :text (str "No stacks in: " (names empty-repos))}])
+      (when (seq loading-repos)
+        [{:row/kind :loading
+          :repo-names (map :repo/name loading-repos)}]))))
 
 (defn display-rows
   "Returns the rows displayed for all repos. Repo headers are only shown when
@@ -318,7 +339,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Loading
 ;;
-;; Every repo is loaded on its own thread, see `load-repo!`. Every load gets a
+;; Every repo is loaded on its own thread, see `load-repos!`. Every load gets a
 ;; token, and loaders only write to their repo while that token is current, so
 ;; results of a load that was superseded by a refresh are dropped.
 
@@ -389,24 +410,27 @@
               (swap! app-state update-loading-repo repo-id token
                 assoc :repo/all-stacks all-stacks))))))))
 
-(defn- load-repo!
+(defn- mark-loading
+  "Marks the repo of `spec` as loading with `token`. Previous stacks are kept
+  while reloading, so they are still displayed."
+  [state {:repo/keys [id] :as spec} token]
+  (update-in state [:app-state/repos id]
+    (fn [repo]
+      (merge repo spec
+        {:repo/load-token token
+         :repo/graph (with-status (:repo/graph repo) :status/pending)
+         :repo/current-stacks (with-status (:repo/current-stacks repo) :status/pending)
+         :repo/all-stacks (with-status (:repo/all-stacks repo) :status/idle)
+         ;; Previous PRs are not kept, so rows show they're being fetched
+         :repo/prs {:load/status :status/pending}}))))
+
+(defn- start-loader!
   "Opens the repo of `spec` and loads its graph, stacks and PRs in the
-  background. PRs are fetched in parallel as soon as the repo is opened. All
-  stacks are only loaded when displayed. Previous stacks are kept while
-  reloading, so they are still displayed."
-  [{:repo/keys [id] :as spec}]
-  (let [token (swap! load-counter inc)
-        update! (fn [f & args]
+  background, for the load with `token`. PRs are fetched in parallel as soon
+  as the repo is opened. All stacks are only loaded when displayed."
+  [{:repo/keys [id]} token]
+  (let [update! (fn [f & args]
                   (apply swap! app-state update-loading-repo id token f args))]
-    (swap! app-state update-in [:app-state/repos id]
-      (fn [repo]
-        (merge repo spec
-          {:repo/load-token token
-           :repo/graph (with-status (:repo/graph repo) :status/pending)
-           :repo/current-stacks (with-status (:repo/current-stacks repo) :status/pending)
-           :repo/all-stacks (with-status (:repo/all-stacks repo) :status/idle)
-           ;; Previous PRs are not kept, so rows show they're being fetched
-           :repo/prs {:load/status :status/pending}})))
     (u/start-large-stack-thread!
       (fn []
         (let [opened (run-load #(repo/open id))]
@@ -436,6 +460,20 @@
                       :repo/current-stacks current-stacks)
                     (ensure-all-stacks! id)))))))))))
 
+(defn- load-repos!
+  "Loads the repos of `specs`, see `start-loader!`. All repos are marked as
+  loading at once, together with applying `f` to the state, so they appear
+  together instead of one by one."
+  [specs f]
+  (let [loads (map vector specs (repeatedly #(swap! load-counter inc)))]
+    (swap! app-state
+      (fn [state]
+        (reduce (fn [state [spec token]] (mark-loading state spec token))
+          (f state)
+          loads)))
+    (doseq [[spec token] loads]
+      (start-loader! spec token))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
 
@@ -443,18 +481,18 @@
 
 (defmethod dispatch! :event/refresh
   [_evt]
-  (let [specs (repo-specs @app-state)]
-    (swap! app-state
+  (let [specs (repo-specs @app-state)
+        global-config (config/read-global)]
+    (load-repos! specs
       (fn [state]
         (-> state
-          (assoc :app-state/global-config (config/read-global))
-          (update :app-state/repos select-keys (map :repo/id specs)))))
-    (run! load-repo! specs)))
+          (assoc :app-state/global-config global-config)
+          (update :app-state/repos select-keys (map :repo/id specs)))))))
 
 (defmethod dispatch! :event/refresh-repo
   [[_evt repo-id]]
   (when-let [repo (get-in @app-state [:app-state/repos repo-id])]
-    (load-repo! (select-keys repo [:repo/id :repo/name]))))
+    (load-repos! [(select-keys repo [:repo/id :repo/name])] identity)))
 
 (defn build-command-context
   "Builds the context map for command placeholder substitution.

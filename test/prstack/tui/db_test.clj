@@ -163,10 +163,23 @@
                  (repo-state "infra" [] [])
                  (assoc (repo-state "api" [] [])
                    :repo/current-stacks {:load/status :status/pending})))]
-    (testing "repos with stacks or still loading get a header"
-      (is (= ["api" "web"]
+    (testing "only repos with stacks get a header"
+      (is (= ["web"]
              (keep #(when (= :repo-header (:row/kind %)) (:repo/name %)) rows))))
 
-    (testing "repos without stacks are listed on a single line"
-      (is (= {:row/kind :text :style :gray :text "No stacks in: docs, infra"}
+    (testing "repos without stacks and loading repos are each listed on a single line"
+      (is (= [{:row/kind :text :style :gray :text "No stacks in: docs, infra"}
+              {:row/kind :loading :repo-names ["api"]}]
+             (take-last 2 rows))))))
+
+(deftest test-display-rows-while-reloading
+  (testing "repos stay where their previous result put them"
+    (let [reloading #(assoc-in % [:repo/current-stacks :load/status] :status/pending)
+          rows (db/display-rows
+                 (app-state
+                   (reloading (repo-state "web" [(stack "main" "feat/x")] []))
+                   (reloading (repo-state "docs" [] []))))]
+      (is (= ["web"]
+             (keep #(when (= :repo-header (:row/kind %)) (:repo/name %)) rows)))
+      (is (= {:row/kind :text :style :gray :text "No stacks in: docs"}
              (last rows))))))
