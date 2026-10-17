@@ -45,7 +45,10 @@
             (ansi/colorize style (:text row))
             (:text row))
     :blank ""
-    :loading (ansi/colorize :gray "Loading...")
+    :loading (ansi/colorize :gray
+               (if-let [repo-names (seq (:repo-names row))]
+                 (str "Loading " (str/join ", " repo-names) "...")
+                 "Loading..."))
     ;; Same as errors in the PR column, see `ui/format-pr-info`
     :error (str (ansi/colorize :red "X") " " (:text row))
     :change (render-change-row row (= (:row/key row) selected-key) max-width)
