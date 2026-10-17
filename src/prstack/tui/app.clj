@@ -7,50 +7,48 @@
     [clojure.string :as str]
     [prstack.config :as config]
     [prstack.init :as init]
-    [prstack.stack :as stack]
     [prstack.tui.db :as db]
-    [prstack.ui :as ui]
-    [prstack.utils :as u]))
+    [prstack.ui :as ui]))
 
-(defn- render-stack-section
-  "Renders a single stack with PR information.
-   Returns a sequence of lines to display."
-  [state stack max-width]
-  (concat
-    ;; Render each branch in the stack (except the last one which is the base)
-    (for [[cur-change prev-change]
-          (u/consecutive-pairs
-            (for [change stack]
-              (let [is-selected? (= (:ui/idx change) (:app-state/selected-item-idx state))
-                    formatted-change (ui/format-change change)]
-                (assoc change
-                  :ui/formatted formatted-change
-                  :ui/visual-length (ansi/visual-length formatted-change)
-                  :ui/is-selected? is-selected?))))]
-      (let [[pr http-request wrong-base-branch] (db/sub-pr
-                                                  (:change/selected-branchname cur-change)
-                                                  (:change/selected-branchname prev-change))
-            visual-len (:ui/visual-length cur-change)
-            padding-needed (- max-width visual-len)
-            padding (apply str (repeat padding-needed " "))
-            padded-branchname (str (:ui/formatted cur-change) padding)
-            display-branch (if (:ui/is-selected? cur-change)
-                             (->> padded-branchname
-                               (ansi/strip-ansi)
-                               (ansi/colorize :bg-gray))
-                             padded-branchname)]
-        (str display-branch " "
-             (ui/format-pr-info pr
-               {:error (get-in http-request [:http/error :error/message])
-                :pending? (= (:http/status http-request) :status/pending)
-                :head-change cur-change
-                :base-change prev-change
-                :wrong-base-branch wrong-base-branch}))))
-    ;; Render the base branch at the bottom
-    [(ui/format-change (last stack))]))
+(defn- branch-width
+  "Returns the visual width of the branch column for a change or base row."
+  [row]
+  (ansi/visual-length (ui/format-change (:change row))))
 
-(defn- render-stacks
-  [_vcs]
+(defn- render-change-row
+  [{:keys [change base pr prs-request wrong-base-branch] :as row} selected? max-width]
+  (let [formatted (ui/format-change change)
+        padding (apply str (repeat (- max-width (branch-width row)) " "))
+        padded-branchname (str formatted padding)
+        display-branch (if selected?
+                         (->> padded-branchname
+                           (ansi/strip-ansi)
+                           (ansi/colorize :bg-gray))
+                         padded-branchname)]
+    (str display-branch " "
+         (ui/format-pr-info pr
+           {:error (get-in prs-request [:http/error :error/message])
+            :pending? (= (:http/status prs-request) :status/pending)
+            :head-change change
+            :base-change base
+            :wrong-base-branch wrong-base-branch}))))
+
+(defn- render-row
+  "Renders a display row, see `db/display-rows`, as a line."
+  [row selected-key max-width]
+  (case (:row/kind row)
+    :repo-header (ansi/colorize [:bold :blue] (str "▸ " (:repo/name row)))
+    :stack-header (ansi/colorize :cyan
+                    (str "\uf51e " (:label row) " (" (:size row) ")"))
+    :section-header (ansi/colorize :cyan (:text row))
+    :text (if-let [style (:style row)]
+            (ansi/colorize style (:text row))
+            (:text row))
+    :blank ""
+    :change (render-change-row row (= (:row/key row) selected-key) max-width)
+    :base (ui/format-change (:change row))))
+
+(defn- render-stacks []
   (tui/component
     {:on-key-press
      (fn [key]
@@ -72,54 +70,13 @@
              (int \s) (db/dispatch! [:event/sync])
              nil))))}
     (fn [state]
-      (let [{:keys [regular-stacks feature-base-stacks]} (db/displayed-stacks state)
-            all-stacks (concat regular-stacks feature-base-stacks)
-            max-width
-            (when (seq all-stacks)
-              (when-let [counts
-                         (seq
-                           (mapcat
-                             (fn [stack]
-                               ;; Calculate visual width using JLine
-                               (map (fn [change]
-                                      (ansi/visual-length (ui/format-change change)))
-                                 stack))
-                             all-stacks))]
-                (apply max counts)))]
-        (cond->
-          ;; When every stack has only the trunk node, that means no stacks
-          (if (stack/any-segments? regular-stacks)
-            (when (and (seq regular-stacks)
-                       (not (every? #(<= (count %) 1) regular-stacks)))
-              (mapcat
-                (fn [[i stack]]
-                  (concat
-                    [(ansi/colorize :cyan
-                       ;; TODO better detect current stack in megamerges for example
-                       (str "\uf51e "
-                            (if (zero? i) "Current Stack" "Other Stack")
-                            " (" (dec (count stack)) ")"))]
-                    (render-stack-section state stack max-width)
-                    ;; Add blank line between stacks
-                    (when-not (and (= i (dec (count regular-stacks)))
-                                   (empty? feature-base-stacks))
-                      [""])))
-                (u/indexed regular-stacks)))
-            [(ansi/colorize :cyan "No stacks detetected")
-             "Create some branches to see some stacks appear."
-             ""])
-          (seq feature-base-stacks)
-          ;; Render feature base stacks
-          (concat
-            [(ansi/colorize :cyan "\uf126 Feature Base Branches")]
-            (mapcat
-              (fn [stack]
-                (concat
-                  (render-stack-section state stack max-width)
-                  [""]))
-              feature-base-stacks))
-          #_
-            [(ansi/colorize :cyan "No feature base branches found")])))))
+      (let [rows (db/display-rows state)
+            selected-key (:row/key (db/selected-row state rows))
+            max-width (->> rows
+                        (filter #(#{:change :base} (:row/kind %)))
+                        (map branch-width)
+                        (apply max 0))]
+        (map #(render-row % selected-key max-width) rows)))))
 
 (defn- render-tabs
   [{:app-state/keys [selected-tab]}]
@@ -144,10 +101,10 @@
 (defn- render-tab-content
   [state]
   (case (:app-state/selected-tab state)
-    0 (render-stacks (db/vcs state))
-    1 (render-stacks (db/vcs state))
+    0 (render-stacks)
+    1 (render-stacks)
     2 (render-all-stacks-tab)
-    (render-stacks (db/vcs state))))
+    (render-stacks)))
 
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)
