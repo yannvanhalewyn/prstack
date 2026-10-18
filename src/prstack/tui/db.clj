@@ -12,39 +12,22 @@
     [prstack.pr :as pr]
     [prstack.remote :as remote]
     [prstack.repo :as repo]
+    [prstack.repo.loader :as loader]
     [prstack.stack :as stack]
     [prstack.tools.schema :as tools.schema]
     [prstack.ui :as ui]
     [prstack.utils :as u]
-    [prstack.vcs :as vcs]
     [prstack.vcs.branch :as vcs.branch]
     [prstack.workspace :as workspace]))
 
-(defn- load-schema
-  "Data that is loaded in the background. While reloading, the previous result
-  is kept so it can still be displayed."
-  [result-schema]
-  [:map
-   [:load/status [:enum :status/idle :status/pending :status/failed :status/success]]
-   [:load/result {:optional true} result-schema]
-   [:load/error {:optional true}
-    [:map
-     [:error/type {:optional true} :keyword]
-     [:error/message :string]]]])
-
 (def ^:lsp/allow-unused RepoState
   "A repo as held in the app state: the repo and the data loaded through it.
-  The repo's clients are only present once it's opened, see `start-loader!`."
+  The repo's clients are only present once it's opened, see `loader/load!`."
   (tools.schema/merge
-    repo/Repo
+    (tools.schema/merge repo/Repo loader/RepoLoad)
     [:map
      ;; Results of earlier loads are discarded, see `update-loading-repo`
-     [:repo/load-token :int]
-     [:repo/graph (load-schema :map)]
-     [:repo/current-stacks (load-schema [:sequential stack/Stack])]
-     ;; Only loaded when displayed, see `ensure-all-stacks!`
-     [:repo/all-stacks (load-schema [:sequential stack/Stack])]
-     [:repo/prs (load-schema [:sequential remote/PR])]]))
+     [:repo/load-token :int]]))
 
 (def ^:lsp/allow-unused RowKey
   "Identifies a selectable row. A branch can appear in multiple stacks, and
@@ -339,36 +322,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Loading
 ;;
-;; Every repo is loaded on its own thread, see `load-repos!`. Every load gets a
+;; Every repo is loaded on its own thread, see `loader/load!`. Every load gets a
 ;; token, and loaders only write to their repo while that token is current, so
 ;; results of a load that was superseded by a refresh are dropped.
 
 (defonce ^:private load-counter (atom 0))
-
-(defn- load-status [load-map]
-  (:load/status load-map))
-
-(defn- succeeded [result]
-  {:load/status :status/success :load/result result})
-
-(defn- failed [error]
-  {:load/status :status/failed :load/error error})
-
-(defn- with-status
-  "Sets the status of a load, keeping a previous result."
-  [load-map status]
-  (-> load-map
-    (assoc :load/status status)
-    (dissoc :load/error)))
-
-(defn- run-load
-  "Calls `f` and returns a load map with its result, or with its error when it
-  throws."
-  [f]
-  (try
-    (succeeded (f))
-    (catch Throwable e
-      (failed {:error/message (u/exception-message e)}))))
 
 (defn- update-loading-repo
   "Updates the repo with `repo-id` if `token` is still its current load token."
@@ -377,14 +335,12 @@
     (apply update-in state [:app-state/repos repo-id] f args)
     state))
 
-(defn- fetch-prs [repo]
-  (let [[result err] (try
-                       (remote/list-prs (:repo/remote repo) {})
-                       (catch Throwable e
-                         [nil {:error/message (u/exception-message e)}]))]
-    (if err
-      (failed err)
-      (succeeded result))))
+(defn- repo-updater
+  "Returns the `update!` function for loading the repo with `repo-id`, see
+  `loader/load!`, which only writes while `token` is current."
+  [repo-id token]
+  (fn [f & args]
+    (apply swap! app-state update-loading-repo repo-id token f args)))
 
 (defn- ensure-all-stacks!
   "Starts loading all stacks of the repo with `repo-id` when the selected tab
@@ -393,75 +349,25 @@
   (let [[old-state new-state]
         (swap-vals! app-state
           (fn [state]
-            (let [repo (get-in state [:app-state/repos repo-id])]
-              (if (and (shows-all-stacks? state)
-                       (= :status/success (load-status (:repo/graph repo)))
-                       (= :status/idle (load-status (:repo/all-stacks repo))))
-                (update-in state [:app-state/repos repo-id :repo/all-stacks]
-                  with-status :status/pending)
-                state))))]
+            (if (and (shows-all-stacks? state)
+                     (loader/needs-all-stacks? (get-in state [:app-state/repos repo-id])))
+              (update-in state [:app-state/repos repo-id] loader/mark-loading-all-stacks)
+              state)))]
     (when-not (identical? old-state new-state)
-      (let [repo (get-in new-state [:app-state/repos repo-id])
-            token (:repo/load-token repo)
-            vcs-graph (get-in repo [:repo/graph :load/result])]
-        (u/start-large-stack-thread!
-          (fn []
-            (let [all-stacks (run-load #(stack/get-all-stacks repo vcs-graph))]
-              (swap! app-state update-loading-repo repo-id token
-                assoc :repo/all-stacks all-stacks))))))))
+      (let [repo (get-in new-state [:app-state/repos repo-id])]
+        (loader/load-all-stacks! repo
+          (repo-updater repo-id (:repo/load-token repo)))))))
 
 (defn- mark-loading
-  "Marks the repo of `spec` as loading with `token`. Previous stacks are kept
-  while reloading, so they are still displayed."
+  "Marks the repo of `spec` as loading with `token`, see `loader/mark-loading`."
   [state {:repo/keys [id] :as spec} token]
   (update-in state [:app-state/repos id]
-    (fn [repo]
-      (merge repo spec
-        {:repo/load-token token
-         :repo/graph (with-status (:repo/graph repo) :status/pending)
-         :repo/current-stacks (with-status (:repo/current-stacks repo) :status/pending)
-         :repo/all-stacks (with-status (:repo/all-stacks repo) :status/idle)
-         ;; Previous PRs are not kept, so rows show they're being fetched
-         :repo/prs {:load/status :status/pending}}))))
-
-(defn- start-loader!
-  "Opens the repo of `spec` and loads its graph, stacks and PRs in the
-  background, for the load with `token`. PRs are fetched in parallel as soon
-  as the repo is opened. All stacks are only loaded when displayed."
-  [{:repo/keys [id]} token]
-  (let [update! (fn [f & args]
-                  (apply swap! app-state update-loading-repo id token f args))]
-    (u/start-large-stack-thread!
-      (fn []
-        (let [opened (run-load #(repo/open id))]
-          (if (= :status/failed (load-status opened))
-            (update! assoc
-              :repo/graph opened
-              :repo/current-stacks opened
-              :repo/all-stacks opened
-              :repo/prs opened)
-            (let [repo (-> (:load/result opened)
-                         ;; Keep the name of the spec
-                         (dissoc :repo/name))]
-              (update! merge repo)
-              (u/start-large-stack-thread!
-                #(update! assoc :repo/prs (fetch-prs repo)))
-              (let [vcs-graph (run-load #(vcs/read-graph (:repo/vcs repo)
-                                           (:repo/local-config repo)))]
-                (if (= :status/failed (load-status vcs-graph))
-                  (update! assoc
-                    :repo/graph vcs-graph
-                    :repo/current-stacks vcs-graph
-                    :repo/all-stacks vcs-graph)
-                  (let [current-stacks (run-load #(stack/get-current-stacks repo
-                                                    (:load/result vcs-graph)))]
-                    (update! assoc
-                      :repo/graph vcs-graph
-                      :repo/current-stacks current-stacks)
-                    (ensure-all-stacks! id)))))))))))
+    #(-> (merge % spec)
+       (loader/mark-loading)
+       (assoc :repo/load-token token))))
 
 (defn- load-repos!
-  "Loads the repos of `specs`, see `start-loader!`. All repos are marked as
+  "Loads the repos of `specs`, see `loader/load!`. All repos are marked as
   loading at once, together with applying `f` to the state, so they appear
   together instead of one by one."
   [specs f]
@@ -471,8 +377,10 @@
         (reduce (fn [state [spec token]] (mark-loading state spec token))
           (f state)
           loads)))
-    (doseq [[spec token] loads]
-      (start-loader! spec token))))
+    (doseq [[{:repo/keys [id]} token] loads]
+      (loader/load! id
+        {:update! (repo-updater id token)
+         :on-graph-loaded #(ensure-all-stacks! id)}))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Events
