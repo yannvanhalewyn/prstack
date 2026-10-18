@@ -3,6 +3,7 @@
     [bb-tty.ansi :as ansi]
     [bb-tty.inline :as inline]
     [bb-tty.prompt :as prompt]
+    [bb-tty.text-input :as text-input]
     [clojure.test :refer [deftest is testing]]))
 
 (defn- press
@@ -107,3 +108,65 @@
     (is (= "✔ Pick one opt 1" (record (choose-state 3 :index 1) :submitted)))
     (is (= "✗ Pick one skipped" (record (choose-state 3) :skipped)))
     (is (= "✗ Pick one aborted" (record (choose-state 3) :aborted)))))
+
+(defn- filter-state [options & {:as opts}]
+  (merge {:prompt "Pick a branch"
+          :options options
+          :labels options
+          :render-option str
+          :input (text-input/init "")
+          :focused? true
+          :matches (#'prompt/filter-matches options "")
+          :cursor 0
+          :offset 0
+          ::inline/size {:rows 10 :cols 80}}
+    opts))
+
+(def ^:private branches ["main" "feature-base-api" "feat/login" "my-feature" "trunk"])
+
+(deftest test-filter-update
+  (let [press (partial press #'prompt/filter-update)
+        labels (fn [state] (map #(nth branches (:index %)) (:matches state)))]
+    (testing "typing filters and ranks the options"
+      (is (= ["feat/login" "my-feature" "feature-base-api"]
+             (labels (press (filter-state branches) "f" "e" "a" "t")))))
+    (testing "j and k are typed while searching, navigate otherwise"
+      (is (= "j" (get-in (press (filter-state branches) "j") [:input :value])))
+      (is (= 1 (:cursor (press (filter-state branches) :esc "j")))))
+    (testing "enter submits the option under the cursor"
+      (is (= "feat/login" (answer (press (filter-state branches) "l" "o" "g" :enter))))
+      (is (= "feature-base-api" (answer (press (filter-state branches) :down :enter)))))
+    (testing "enter does nothing without matches"
+      (is (nil? (::inline/outcome (press (filter-state branches) "z" "z" :enter)))))
+    (testing "esc leaves the search, then skips"
+      (is (false? (:focused? (press (filter-state branches) :esc))))
+      (is (= :skipped (::inline/outcome (press (filter-state branches) :esc :esc))))
+      (is (true? (:focused? (press (filter-state branches) :esc "/")))))
+    (testing "scrolls to keep the cursor in view"
+      (let [many (mapv #(str "branch-" %) (range 20))
+            ;; 10 rows minus prompt, input, blank, help and spare leave 5
+            state (press (filter-state many) :down :down :down :down :down)]
+        (is (= [5 1] [(:cursor state) (:offset state)]))
+        (is (= [19 15] ((juxt :cursor :offset) (press (filter-state many) :up))))
+        (is (= [0 0] ((juxt :cursor :offset) (press (filter-state many) :up :down))))))))
+
+(deftest test-filter-view
+  (is (= ["Pick a branch"
+          "> feat "
+          "• feat/login"
+          "  my-feature"
+          "  feature-base-api"
+          ""
+          ""
+          ""
+          "↓↑ navigate • esc blur search • enter submit"]
+         (map ansi/strip-ansi
+           (#'prompt/filter-view
+             (press #'prompt/filter-update (filter-state branches) "f" "e" "a" "t")
+             {:rows 10 :cols 80})))))
+
+(deftest test-filter-record
+  (let [record (comp ansi/strip-ansi #'prompt/filter-record)]
+    (is (= "✔ Pick a branch feat/login"
+           (record (filter-state branches :chosen 2) :submitted)))
+    (is (= "✗ Pick a branch skipped" (record (filter-state branches) :skipped)))))

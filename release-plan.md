@@ -294,7 +294,16 @@ handling whatever isn't ported yet.
 4. **`choose`**: port it with pagination and dots.
 5. **`fuzzy` + `filter`**: fullscreen in the alt screen with a scrolling list,
    then print the inline record after leaving it.
-6. **`input`**: build the shared line editor.
+   - The fuzzy port is checked against the Go library's output
+     (`test/bb_tty/fuzzy_reference.edn`).
+   - The shared line editor (`bb-tty.text-input`) is built here already,
+     since `filter` needs it.
+   - **Typing resets the cursor to the best match.** gum keeps the cursor
+     index, only clamping it to the number of matches.
+   - **`ctrl+j/k/n/p` always navigate.** In gum they also reach the text
+     input, so `ctrl+k` deleted the rest of the query and moved up at the
+     same time.
+6. **`input`**: wire up the line editor from task 5.
 7. **`write`**: build the textarea on top of the line editor, with
    `ctrl+e` → `$EDITOR` (write a temp file, run the editor in the foreground,
    read the file back). If the textarea gets hairy, ship `$EDITOR` only first;

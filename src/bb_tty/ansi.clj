@@ -67,11 +67,12 @@
 
 (defn style
   "Styles `text` with `:fg` and `:bg` colors, each a 256-color index or a
-  \"#rrggbb\" string, and `:bold`. Parts of `text` that are styled already
-  keep their style, the rest gets this one."
-  [{:keys [fg bg bold]} text]
+  \"#rrggbb\" string, `:bold` and `:reverse` (swapping the colors). Parts of
+  `text` that are styled already keep their style, the rest gets this one."
+  [{:keys [fg bg bold reverse]} text]
   (let [params (cond-> []
                  bold (conj "1")
+                 reverse (conj "7")
                  fg (conj (color-params 38 fg))
                  bg (conj (color-params 48 bg)))]
     (if (or no-colors? (empty? params))

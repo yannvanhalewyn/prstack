@@ -1,8 +1,11 @@
 (ns bb-tty.prompt
   "Interactive prompts modeled on gum, see `bb-tty.inline`."
+  (:refer-clojure :exclude [filter])
   (:require
     [bb-tty.ansi :as ansi]
+    [bb-tty.fuzzy :as fuzzy]
     [bb-tty.inline :as inline]
+    [bb-tty.text-input :as text-input]
     [bb-tty.tty :as tty]
     [clojure.string :as str])
   (:import
@@ -207,3 +210,161 @@
        :update choose-update
        :view choose-view
        :record choose-record})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Filter
+
+(defn- filter-height
+  "Returns the number of options shown, filling the screen below the prompt
+  and input, above the help."
+  [prompt rows]
+  (-> (or rows (:rows inline/default-size))
+    ;; Input, blank line, help and a spare line, as in gum
+    (- (count (prompt-lines prompt)) 4)
+    (max 1)))
+
+(defn- filter-matches
+  "Returns the options matching `query` as `{:index :indexes}`, best first.
+  An empty query matches all options in their order."
+  [labels query]
+  (if (empty? query)
+    (map (fn [i] {:index i}) (range (count labels)))
+    (fuzzy/find-matches query labels)))
+
+(defn- filter-cursor-down [{:keys [cursor offset matches] :as state} height]
+  (let [n (count matches)]
+    (if (zero? n)
+      state
+      (let [cursor (mod (inc cursor) n)]
+        (assoc state
+          :cursor cursor
+          :offset (cond
+                    ;; Wrapped around to the top
+                    (< cursor offset) 0
+                    (>= cursor (+ offset height)) (inc offset)
+                    :else offset))))))
+
+(defn- filter-cursor-up [{:keys [cursor offset matches] :as state} height]
+  (let [n (count matches)]
+    (if (zero? n)
+      state
+      (let [cursor (mod (dec cursor) n)]
+        (assoc state
+          :cursor cursor
+          :offset (cond
+                    (< cursor offset) (dec offset)
+                    ;; Wrapped around to the bottom
+                    (>= cursor (+ offset height)) (max 0 (- n height))
+                    :else offset))))))
+
+(defn- filter-update
+  [{:keys [prompt options labels input matches cursor focused?] ::inline/keys [size] :as state} key]
+  (let [height (filter-height prompt (:rows size))
+        n (count matches)]
+    (cond
+      (= :enter key)
+      (if (seq matches)
+        (let [index (:index (nth matches cursor))]
+          (inline/submit (assoc state :chosen index) (nth options index)))
+        state)
+
+      (= :esc key)
+      (if focused?
+        (assoc state :focused? false)
+        (inline/skip state))
+
+      (or (#{:down :ctrl-j :ctrl-n} key) (and (not focused?) (= "j" key)))
+      (filter-cursor-down state height)
+
+      (or (#{:up :ctrl-k :ctrl-p} key) (and (not focused?) (= "k" key)))
+      (filter-cursor-up state height)
+
+      focused?
+      (if-let [input' (text-input/handle-key input key)]
+        (cond-> (assoc state :input input')
+          (not= (:value input) (:value input'))
+          ;; Starts at the best match
+          (assoc :matches (filter-matches labels (:value input'))
+            :cursor 0
+            :offset 0))
+        state)
+
+      :else
+      (case key
+        "/" (assoc state :focused? true)
+        ("g" :home) (assoc state :cursor 0 :offset 0)
+        ("G" :end) (assoc state :cursor (max 0 (dec n)) :offset (max 0 (- n height)))
+        state))))
+
+(defn- highlight
+  "Styles the characters of `s` at `indexes`."
+  [s indexes style]
+  (->> (map-indexed vector s)
+    (partition-by #(contains? indexes (first %)))
+    (map (fn [chars]
+           (let [text (apply str (map second chars))]
+             (if (contains? indexes (ffirst chars))
+               (ansi/style style text)
+               text))))
+    (apply str)))
+
+(defn- filter-view
+  [{:keys [prompt options labels render-option input focused? matches cursor offset]}
+   {:keys [rows cols]}]
+  (let [p (palette)
+        height (filter-height prompt rows)
+        lines (map-indexed
+                (fn [i {:keys [index indexes]}]
+                  (str (if (= cursor (+ offset i)) (ansi/style (:accent p) "•") " ")
+                       " "
+                       (if (seq indexes)
+                         (highlight (nth labels index) (set indexes) (:accent p))
+                         (render-option (nth options index)))))
+                (->> matches (drop offset) (take height)))]
+    (concat
+      (map #(ansi/style (:prompt p) %) (prompt-lines prompt))
+      [(text-input/view input
+         {:prompt (ansi/style (:muted p) "> ")
+          :placeholder "Filter..."
+          :focused? focused?
+          :width cols
+          :cursor-style (:accent p)
+          :placeholder-style (:muted p)})]
+      lines
+      (repeat (- height (count lines)) "")
+      [""
+       (help-bar (if focused?
+                   [["↓↑" "navigate"] ["esc" "blur search"] ["enter" "submit"]]
+                   [["↓↑" "navigate"] ["/" "search"] ["enter" "submit"]]))])))
+
+(defn- filter-record [{:keys [prompt labels chosen]} outcome]
+  (if (= :submitted outcome)
+    (record-line true prompt (nth labels chosen))
+    (skipped-record prompt outcome)))
+
+(defn filter
+  "Lets the user pick one of `options` by fuzzy searching them, fullscreen.
+  Returns the picked option. Options are shown with `render-option`, `str` by
+  default. Esc leaves the search, pressing it again returns nil. Ctrl+c
+  throws, see `inline/run!`."
+  [{:keys [prompt options render-option] :or {render-option str}}]
+  (when (seq options)
+    (let [render-option (comp str render-option)
+          options (vec options)
+          labels (mapv (comp ansi/strip-ansi render-option) options)]
+      (inline/run!
+        {:init {:prompt prompt
+                :options options
+                :labels labels
+                :render-option render-option
+                :input (text-input/init "")
+                :focused? true
+                :matches (filter-matches labels "")
+                :cursor 0
+                :offset 0}
+         :update filter-update
+         :view filter-view
+         :record filter-record
+         :tick {:ms text-input/blink-ms
+                :f #(update % :input text-input/blink)}
+         :fullscreen? true}))))

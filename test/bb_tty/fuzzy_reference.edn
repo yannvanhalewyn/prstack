@@ -1,0 +1,84 @@
+;; Results of sahilm/fuzzy (Go) for `fuzzy/find-matches`, generated with
+;; fuzzy.Find(pattern, strings) and kept to check the port stays faithful.
+{:strings
+ ["main"
+  "feature-base-api"
+  "feat/login"
+  "my-feature"
+  "The Black Knight"
+  "fixFeatureBase"
+  "release/2024.10"
+  "yann/fb-auth-flow"
+  "FEAT_UPPER"
+  "trunk"
+  "feature/f-e-a-t"
+  "aaa"
+  "abcabc"
+  "x/y/z"
+  "fooBarBaz"],
+ :results
+ {"aa"
+  [{:index 11, :score 14, :indexes [0 1]}
+   {:index 12, :score 6, :indexes [0 3]}
+   {:index 7, :score 0, :indexes [1 8]}
+   {:index 10, :score -3, :indexes [2 12]}
+   {:index 1, :score -4, :indexes [2 13]}
+   {:index 14, :score -22, :indexes [4 7]}
+   {:index 5, :score -27, :indexes [5 11]}],
+  "f"
+  [{:index 14, :score 2, :indexes [0]}
+   {:index 2, :score 1, :indexes [0]}
+   {:index 8, :score 1, :indexes [0]}
+   {:index 3, :score -4, :indexes [3]}
+   {:index 1, :score -5, :indexes [0]}
+   {:index 5, :score -8, :indexes [3]}
+   {:index 10, :score -9, :indexes [8]}
+   {:index 7, :score -11, :indexes [5]}],
+  "fb"
+  [{:index 14, :score 23, :indexes [0 3]}
+   {:index 1, :score 16, :indexes [0 8]}
+   {:index 5, :score 13, :indexes [3 10]}
+   {:index 7, :score -5, :indexes [5 6]}],
+  "fea"
+  [{:index 2, :score 23, :indexes [0 1 2]}
+   {:index 8, :score 23, :indexes [0 1 2]}
+   {:index 10, :score 23, :indexes [0 1 12]}
+   {:index 1, :score 22, :indexes [0 1 13]}
+   {:index 3, :score 18, :indexes [3 4 5]}
+   {:index 5, :score 14, :indexes [3 4 5]}],
+  "fbz" [{:index 14, :score 24, :indexes [0 3 8]}],
+  "abc" [{:index 12, :score 27, :indexes [0 1 2]}],
+  "eat"
+  [{:index 2, :score 8, :indexes [1 2 3]}
+   {:index 8, :score 8, :indexes [1 2 3]}
+   {:index 10, :score 8, :indexes [1 2 14]}
+   {:index 1, :score 2, :indexes [1 2 3]}
+   {:index 3, :score -2, :indexes [4 5 6]}
+   {:index 5, :score -6, :indexes [4 5 6]}
+   {:index 4, :score -23, :indexes [2 6 15]}],
+  "tk"
+  [{:index 4, :score 16, :indexes [0 10]}
+   {:index 9, :score 7, :indexes [0 4]}],
+  "zz" [],
+  "ra"
+  [{:index 6, :score -3, :indexes [0 4]}
+   {:index 10, :score -8, :indexes [5 12]}
+   {:index 1, :score -9, :indexes [5 13]}
+   {:index 14, :score -22, :indexes [5 7]}
+   {:index 5, :score -27, :indexes [8 11]}],
+  "mn" [{:index 0, :score 8, :indexes [0 3]}],
+  "login" [{:index 2, :score 200, :indexes [5 6 7 8 9]}],
+  "xyz" [{:index 13, :score 48, :indexes [0 2 4]}],
+  "feat"
+  [{:index 2, :score 69, :indexes [0 1 2 3]}
+   {:index 8, :score 69, :indexes [0 1 2 3]}
+   {:index 3, :score 64, :indexes [3 4 5 6]}
+   {:index 10, :score 64, :indexes [0 1 2 3]}
+   {:index 1, :score 63, :indexes [0 1 2 3]}
+   {:index 5, :score 60, :indexes [3 4 5 6]}],
+  "rel10" [{:index 6, :score 85, :indexes [0 1 2 13 14]}],
+  "FbA"
+  [{:index 1, :score 37, :indexes [0 8 13]}
+   {:index 14, :score 29, :indexes [0 3 4]}
+   {:index 5, :score 19, :indexes [3 10 11]}
+   {:index 7, :score 16, :indexes [5 6 8]}]}}

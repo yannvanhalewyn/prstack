@@ -216,11 +216,3 @@
             placeholder (conj (str "--placeholder=" placeholder))))]
     (when (zero? exit)
       (not-empty (str/trim out)))))
-
-(defn prompt-filter
-  [{:keys [prompt options render-option limit]}]
-  (cond->>
-    (:result
-      (apply b/gum :filter (map (or render-option identity) options)
-        (gum-args (when limit {:limit limit}) {:prompt prompt})))
-    (= limit 1) (first)))
