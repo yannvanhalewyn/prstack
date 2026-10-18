@@ -67,7 +67,8 @@
 
 (defn style
   "Styles `text` with `:fg` and `:bg` colors, each a 256-color index or a
-  \"#rrggbb\" string, and `:bold`."
+  \"#rrggbb\" string, and `:bold`. Parts of `text` that are styled already
+  keep their style, the rest gets this one."
   [{:keys [fg bg bold]} text]
   (let [params (cond-> []
                  bold (conj "1")
@@ -75,7 +76,10 @@
                  bg (conj (color-params 48 bg)))]
     (if (or no-colors? (empty? params))
       text
-      (str "\u001b[" (str/join ";" params) "m" text (colors :reset)))))
+      (let [start (str "\u001b[" (str/join ";" params) "m")
+            reset (colors :reset)]
+        ;; Restarts the style after every reset of an inner style
+        (str start (str/replace text reset (str reset start)) reset)))))
 
 (defn palette
   "Returns the styles of prompts, taken from gum, for a terminal with a `:light`

@@ -3,12 +3,32 @@
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.inline :as inline]
-    [bb-tty.tty :as tty])
+    [bb-tty.tty :as tty]
+    [clojure.string :as str])
   (:import
     (java.util.concurrent ExecutionException)))
 
 (defn- palette []
   (ansi/palette (tty/background)))
+
+(defn- help-bar
+  "Renders key bindings, a list of `[key description]`, like gum's help line."
+  [bindings]
+  (let [p (palette)]
+    (str/join (ansi/style (:help-separator p) " • ")
+      (for [[k desc] bindings]
+        (str (ansi/style (:help-key p) k) " " (ansi/style (:help-desc p) desc))))))
+
+(defn- record-line
+  "Renders the line that remains once a prompt finished. Only the first line
+  of `prompt` is shown. When `ok?` the answer is highlighted, otherwise it's
+  dimmed, e.g. for a cancelled prompt."
+  [ok? prompt answer]
+  (let [p (palette)
+        style (if ok? (:accent p) (:muted p))]
+    (str (ansi/style style (if ok? "✔" "✗")) " "
+         (str/triml (first (str/split-lines prompt))) " "
+         (ansi/style style answer))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Spinner
@@ -55,3 +75,47 @@
         @task
         (catch ExecutionException e
           (throw (or (ex-cause e) e)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Confirm
+
+(defn- confirm-answer [state yes?]
+  (inline/submit (assoc state :yes? yes?) yes?))
+
+(defn- confirm-update [state key]
+  (case key
+    ("y" "Y") (confirm-answer state true)
+    ("n" "N" "q" :esc) (confirm-answer state false)
+    (:left :right "h" "l" :tab :shift-tab :ctrl-n :ctrl-p) (update state :yes? not)
+    :enter (confirm-answer state (:yes? state))
+    state))
+
+(defn- confirm-view [{:keys [prompt yes?]} _size]
+  (let [p (palette)
+        button (fn [label selected?]
+                 (str " "
+                      (ansi/style (if selected? (:button-selected p) (:button-unselected p))
+                        (str "   " label "   "))
+                      " "))]
+    (concat
+      (for [line (str/split-lines prompt)]
+        (str " " (ansi/style (:confirm-prompt p) line)))
+      [""
+       (str (button "Yes" yes?) (button "No" (not yes?)))
+       ""
+       (help-bar [["←→" "toggle"] ["enter" "submit"] ["y" "Yes"] ["n" "No"]])])))
+
+(defn- confirm-record [{:keys [prompt yes?]} outcome]
+  (if (= :aborted outcome)
+    (record-line false prompt "aborted")
+    (record-line yes? prompt (if yes? "Yes" "No"))))
+
+(defn confirm
+  "Asks a yes or no question, returning true for yes. Starts on yes, unless
+  `:default` is false. Esc answers no, ctrl+c throws, see `inline/run!`."
+  [{:keys [prompt default] :or {default true}}]
+  (inline/run!
+    {:init {:prompt prompt :yes? default}
+     :update confirm-update
+     :view confirm-view
+     :record confirm-record}))

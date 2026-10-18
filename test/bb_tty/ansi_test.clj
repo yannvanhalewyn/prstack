@@ -11,7 +11,10 @@
   (testing "hex colors"
     (is (= "\u001b[38;2;117;113;249mhi\u001b[0m" (ansi/style {:fg "#7571F9"} "hi"))))
   (testing "no style"
-    (is (= "hi" (ansi/style {} "hi")))))
+    (is (= "hi" (ansi/style {} "hi"))))
+  (testing "restarts the style after styled parts"
+    (is (= "\u001b[38;5;99mPush \u001b[34mmain\u001b[0m\u001b[38;5;99m?\u001b[0m"
+           (ansi/style {:fg 99} (str "Push " (ansi/colorize :blue "main") "?"))))))
 
 (deftest test-palette
   (is (= {:fg 254 :bg 235} (:button-unselected (ansi/palette :dark))))

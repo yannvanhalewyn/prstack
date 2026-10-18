@@ -193,9 +193,6 @@
    (cond-> (into [] (mapcat identity base))
      prompt (concat [:header (str (ansi/colorize :white prompt))]))))
 
-(defn prompt-confirm [{:keys [prompt]}]
-  (:result (b/gum :confirm [(str (ansi/colorize :reset "") prompt)] :as :bool)))
-
 (defn prompt-input
   "Prompts for a single line of text. Returns nil when cancelled or empty."
   [{:keys [value placeholder] :as opts}]
