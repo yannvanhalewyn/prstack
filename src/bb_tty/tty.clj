@@ -7,7 +7,8 @@
     [prstack.utils :as u])
   (:import
     (org.jline.keymap BindingReader KeyMap)
-    (org.jline.terminal Terminal TerminalBuilder)))
+    (org.jline.terminal Terminal TerminalBuilder)
+    (sun.misc Signal SignalHandler)))
 
 (def ^:private current-terminal
   "The JLine terminal while running in raw mode, see `run-in-raw-mode`."
@@ -35,6 +36,17 @@
       (when (pos? (.getColumns size))
         {:rows (.getRows size)
          :cols (.getColumns size)}))))
+
+(defn on-resize
+  "Calls `f` whenever the terminal is resized. Returns a function that removes
+  the handler. Uses `sun.misc.Signal` as JLine's `Terminal$Signal` isn't
+  available in Babashka."
+  [f]
+  (let [signal (Signal. "WINCH")
+        previous (Signal/handle signal
+                   (reify SignalHandler
+                     (handle [_ _] (f))))]
+    #(Signal/handle signal previous)))
 
 (defn run-in-raw-mode [f]
   (with-open [terminal (open-terminal)]

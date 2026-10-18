@@ -30,9 +30,10 @@
      (let [result (comp state)]
        (if (and (map? result) (contains? result ::lines))
           ;; Function returned a render result map with lines and handlers
+         ;; Using `into`, `concat` returns a seq where `conj` would prepend
          (-> acc
-           (update ::lines concat (::lines result))
-           (update ::handlers concat (::handlers result)))
+           (update ::lines into (::lines result))
+           (update ::handlers into (::handlers result)))
           ;; Function returned normal content, process it normally
          (render-tree result state acc)))
 
@@ -69,6 +70,66 @@
                  (repeat bottom "")))
              lines)))))))
 
+(def ^:private scroll-offsets
+  "The scroll offset of every scroll view by id. Rendering shouldn't change the
+  state, as that triggers another render, so offsets are kept here."
+  (atom {}))
+
+(defn- clamp [x lo hi]
+  (-> x (max lo) (min hi)))
+
+(defn- scroll-offset
+  "Returns the offset of a view of `height` lines that keeps the line at index
+  `focus` at least `margin` lines away from its edges, scrolling as little as
+  possible from `offset`."
+  [offset {:keys [height focus margin line-count]}]
+  (let [margin (min margin (quot (dec height) 2))
+        offset (if focus
+                 (clamp offset (+ (- focus height) 1 margin) (- focus margin))
+                 offset)]
+    (clamp offset 0 (- line-count height))))
+
+(defn- scroll-indicator [arrow n]
+  (if (pos? n)
+    (ansi/colorize :gray (str arrow " " n " more"))
+    ""))
+
+(defn scroll-view
+  "Renders the lines of `children` in a view of `height` lines, scrolled to keep
+  the line at index `focus` in view. Indicators show how many lines are hidden
+  above and below. Pads the lines to `height`, so that what comes after stays
+  in place. Every view needs a unique `id` to remember its scroll offset."
+  [{:keys [id height focus margin] :or {margin 2}} children]
+  (fn [state]
+    (let [result (render-tree children state)
+          lines (vec (::lines result))
+          line-count (count lines)]
+      (cond
+        (nil? height)
+        result
+
+        (<= line-count height)
+        (assoc result ::lines (into lines (repeat (- height line-count) "")))
+
+        :else
+        ;; Always reserves a line above and below for the indicators, so the
+        ;; lines don't shift when one appears
+        (let [indicators? (>= height 3)
+              view-height (if indicators? (- height 2) (max height 0))
+              offset (scroll-offset (get @scroll-offsets id 0)
+                       {:height view-height
+                        :focus focus
+                        :margin margin
+                        :line-count line-count})
+              visible (subvec lines offset (+ offset view-height))]
+          (swap! scroll-offsets assoc id offset)
+          (assoc result ::lines
+            (if indicators?
+              (concat [(scroll-indicator "↑" offset)]
+                visible
+                [(scroll-indicator "↓" (- line-count offset view-height))])
+              visible)))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Screen Management
 
@@ -93,8 +154,9 @@
   "Renders lines to terminal"
   [lines]
   (clear-screen!)
-  (doseq [line lines]
-    (print (str line "\r\n")))
+  ;; No newline after the last line, on the last row it would scroll the
+  ;; screen up
+  (print (str/join "\r\n" lines))
   (flush))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -127,7 +189,8 @@
       (fn [_ _ _ _new-state]
         (render!)))
     (swap! running-ui update ::close-fns conj
-      #(remove-watch state ::renderer))))
+      #(remove-watch state ::renderer)
+      (tty/on-resize render!))))
 
 (defn run-event-loop!
   "Calls `f` with every key pressed, see `tty/key-reader`."

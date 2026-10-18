@@ -8,7 +8,8 @@
     [prstack.config :as config]
     [prstack.init :as init]
     [prstack.tui.db :as db]
-    [prstack.ui :as ui]))
+    [prstack.ui :as ui]
+    [prstack.utils :as u]))
 
 (defn- branch-width
   "Returns the visual width of the branch column for a change or base row."
@@ -54,7 +55,7 @@
     :change (render-change-row row (= (:row/key row) selected-key) max-width)
     :base (ui/format-change (:change row))))
 
-(defn- render-stacks []
+(defn- render-stacks [height]
   (tui/component
     {:on-key-press
      (fn [key]
@@ -79,7 +80,12 @@
                         (filter #(#{:change :base} (:row/kind %)))
                         (map branch-width)
                         (apply max 0))]
-        (map #(render-row % selected-key max-width) rows)))))
+        (tui/scroll-view
+          {:id ::stacks
+           :height height
+           :focus (when selected-key
+                    (u/find-index #(= (:row/key %) selected-key) rows))}
+          (map #(render-row % selected-key max-width) rows))))))
 
 (defn- render-tabs
   [{:app-state/keys [selected-tab]}]
@@ -92,22 +98,23 @@
      ""]))
 
 (defn- render-all-stacks-tab
-  []
-  (tui/component
-    {}
-    (fn [_state]
-      ["All Stacks View"
-       ""
-       (ansi/colorize :cyan "This shows all stacks in the repository")
-       (ansi/colorize :gray "Feature coming soon...")])))
+  [height]
+  (tui/scroll-view
+    {:id ::all-stacks
+     :height height}
+    ["All Stacks View"
+     ""
+     (ansi/colorize :cyan "This shows all stacks in the repository")
+     (ansi/colorize :gray "Feature coming soon...")]))
 
 (defn- render-tab-content
-  [state]
+  "Renders the content of the selected tab in `height` lines."
+  [state height]
   (case (:app-state/selected-tab state)
-    0 (render-stacks)
-    1 (render-stacks)
-    2 (render-all-stacks-tab)
-    (render-stacks)))
+    0 (render-stacks height)
+    1 (render-stacks height)
+    2 (render-all-stacks-tab height)
+    (render-stacks height)))
 
 (defn- render-keybindings []
   (let [{:keys [cols]} (tty/get-terminal-size)
@@ -155,10 +162,15 @@
                ("l" :right) (db/dispatch! [:event/tab-right])
                nil))}
           (fn [state]
-            (tui/block
-              [(render-tabs state)
-               (render-tab-content state)
-               (render-keybindings)])))))
+            (let [header (render-tabs state)
+                  footer (render-keybindings)
+                  ;; The block adds a blank line above and below
+                  height (some-> (tty/get-terminal-size) :rows
+                           (- 2 (count header) (count footer)))]
+              (tui/block
+                [header
+                 (render-tab-content state height)
+                 footer]))))))
     (when-let [{:fg/keys [run repo-id]} (:app-state/run-in-fg @db/app-state)]
       (swap! db/app-state dissoc :app-state/run-in-fg)
       (run)
