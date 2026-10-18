@@ -88,9 +88,10 @@
   (let [light? (= :light background)
         pick (fn [light dark] (if light? light dark))]
     {:accent {:fg 212}
-     :header {:fg 99}
+     ;; The terminal's default foreground, instead of gum's purple, as
+     ;; prstack overrode it while using gum
+     :prompt {}
      :muted {:fg 240}
-     :confirm-prompt {:fg "#7571F9" :bold true}
      :button-selected {:fg 230 :bg 212}
      :button-unselected (pick {:fg 235 :bg 254} {:fg 254 :bg 235})
      :help-key {:fg (pick "#909090" "#626262")}

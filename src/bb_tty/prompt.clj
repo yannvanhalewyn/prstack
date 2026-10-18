@@ -99,7 +99,7 @@
                       " "))]
     (concat
       (for [line (str/split-lines prompt)]
-        (str " " (ansi/style (:confirm-prompt p) line)))
+        (str " " (ansi/style (:prompt p) line)))
       [""
        (str (button "Yes" yes?) (button "No" (not yes?)))
        ""

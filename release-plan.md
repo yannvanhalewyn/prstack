@@ -70,7 +70,9 @@ Dark-background colors: key `#626262`, description `#4A4A4A`, separator
 - `99` (purple): headers of `choose` and `filter`
 - `240` (gray): placeholder text, the `> ` filter prompt, headers of
   `input` and `write`
-- `#7571F9` (bold): the confirm prompt
+- `#7571F9` (bold): the confirm prompt. **prstack doesn't use this or the
+  purple 99 headers.** It overrode them while using gum, so prompts and
+  headers use the terminal's default foreground.
 - Confirm buttons: selected = bg `212` / fg `230`, unselected = bg `235` /
   fg `254`, both with padding `0 3` and margin `0 1`
 
@@ -84,7 +86,7 @@ Dark-background colors: key `#626262`, description `#4A4A4A`, separator
 
 #### `confirm`
 ```
- Push feature-x?            ← prompt, bold #7571F9, margin-left 1
+ Push feature-x?            ← prompt, default foreground in prstack, margin-left 1
 
    Yes      No              ← buttons; the selected one has the pink background
 
@@ -97,7 +99,7 @@ Dark-background colors: key `#626262`, description `#4A4A4A`, separator
 
 #### `choose`
 ```
-Which VCS would you like to use?    ← header, color 99
+Which VCS would you like to use?    ← header, default foreground in prstack
 > Jujutsu (recommended)             ← cursor "> " plus the text, both 212
   Git
 
@@ -114,7 +116,7 @@ Which VCS would you like to use?    ← header, color 99
 
 #### `filter`
 ```
-Select feature base branch          ← header, color 99
+Select feature base branch          ← header, default foreground in prstack
 > feat█                             ← prompt "> " 240, placeholder "Filter..." 240
 • feature-base-api                  ← indicator "•" 212 on the cursor line,
   feat/login                           matched characters in 212
@@ -190,7 +192,7 @@ The prompts need a separate **inline** mode. Proposed layout:
      - active page dot `#847A85`/`#979797`, inactive `#DDDADA`/`#3C3C3C`
    - **Confirm buttons.** gum keeps them dark-only. We use unselected bg `254` /
      fg `235` on light terminals.
-   - **Colors that stay the same:** 212, 99 and 240 read fine on both
+   - **Colors that stay the same:** 212 and 240 read fine on both
      backgrounds.
    - The main TUI can use the same detection later. That's out of scope here.
 3. **`filter` runs fullscreen, like gum.** It switches to the alt screen and

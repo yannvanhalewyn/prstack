@@ -33,11 +33,11 @@
   (let [p (ansi/palette (tty/background))
         s (fn [k text] (ansi/style (p k) text))]
     (concat
-      [(str (s :accent (nth spinner-frames frame)) (s :header "Inline renderer demo"))
+      [(str (s :accent (nth spinner-frames frame)) (s :prompt "Inline renderer demo"))
        (s :muted (format "background %s, terminal %dx%d, last key %s"
                    (name (tty/background)) cols rows (pr-str last-key)))
        ""
-       (str (s :confirm-prompt "Palette") " "
+       (str (s :prompt "Palette") " "
             (s :button-selected "  Yes  ") " "
             (s :button-unselected "  No  ") " "
             (s :dot-active "•") (s :dot-inactive "••"))]
