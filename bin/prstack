@@ -21,8 +21,6 @@
     (when (:deps bb-edn-content)
       (deps/add-deps {:deps (:deps bb-edn-content)}))))
 
-(require
-  '[prstack.utils :as utils]
-  '[prstack.main :as main])
+(require '[prstack.launch :as launch])
 
-(apply main/-main *command-line-args*)
+(apply launch/-main *command-line-args*)
