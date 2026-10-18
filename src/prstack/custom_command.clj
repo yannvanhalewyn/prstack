@@ -153,6 +153,18 @@
     pr-number   (assoc "$pr-number" (str pr-number))
     pr-url      (assoc "$pr-url" pr-url)))
 
+(defn context
+  "Returns the context for running a command on `change`, which is on top of
+  `base` and has `pr`, see `build-placeholders`."
+  [{:keys [change base pr]}]
+  {:from-sha (or (:change/commit-sha base)
+                 (:change/selected-branchname base))
+   :to-sha (:change/commit-sha change)
+   :from-branch (:change/selected-branchname base)
+   :to-branch (:change/selected-branchname change)
+   :pr-number (:pr/number pr)
+   :pr-url (:pr/url pr)})
+
 (comment
   (substitute-placeholders ["git" "diff" "$from-sha..$to-sha"]
     (build-placeholders {:from-sha "abc123" :to-sha "def456"}))

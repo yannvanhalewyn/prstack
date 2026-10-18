@@ -15,7 +15,6 @@
     [prstack.tui.rows :as rows]
     [prstack.ui :as ui]
     [prstack.utils :as u]
-    [prstack.vcs.branch :as vcs.branch]
     [prstack.workspace :as workspace]))
 
 (def ^:lsp/allow-unused RepoState
@@ -177,18 +176,11 @@
   (when-let [repo (get-in @app-state [:app-state/repos repo-id])]
     (load-repos! [(select-keys repo [:repo/id :repo/name])] identity)))
 
-(defn build-command-context
-  "Builds the context map for command placeholder substitution.
-   Includes SHAs, branches, and PR info for the selected change."
+(defn- command-context
+  "Returns the context for running a command on the selected change, see
+  `custom-command/context`."
   [state]
-  (when-let [{:keys [change base pr]} (rows/selected-row state)]
-    {:from-sha (or (:change/commit-sha base)
-                   (:change/selected-branchname base))
-     :to-sha (:change/commit-sha change)
-     :from-branch (:change/selected-branchname base)
-     :to-branch (:change/selected-branchname change)
-     :pr-number (:pr/number pr)
-     :pr-url (:pr/url pr)}))
+  (some-> (rows/selected-row state) custom-command/context))
 
 (defn- run-in-fg!
   "Closes the TUI to run `f` in the foreground. Afterwards the TUI is reopened
@@ -209,14 +201,14 @@
 (defmethod dispatch! :event/run-diff
   [_evt]
   (let [state @app-state]
-    (when-let [context (build-command-context state)]
+    (when-let [context (command-context state)]
       (run-command! (selected-repo state)
         (config/diffview-command (global-config state) context)))))
 
 (defmethod dispatch! :event/run-custom-command
   [[_evt key-str]]
   (let [state @app-state]
-    (when-let [context (build-command-context state)]
+    (when-let [context (command-context state)]
       (when-let [cmd (config/custom-command (global-config state) key-str context)]
         (run-command! (selected-repo state) cmd)))))
 
@@ -239,9 +231,8 @@
              :prs (ui/fetch-prs-with-spinner (:repo/remote repo))
              :vcs (:repo/vcs repo)
              :remote (:repo/remote repo)
-             :branch-infos (->> (vcs.branch/selected-branches-info
-                                  (get-in repo [:repo/graph :load/result]))
-                             (u/build-index :branch/branchname))}))))))
+             :branch-infos (commands.create-prs/branch-infos
+                             (get-in repo [:repo/graph :load/result]))}))))))
 
 (defmethod dispatch! :event/merge-pr
   [_evt]
@@ -260,16 +251,11 @@
                      (ansi/colorize :blue (:change/selected-branchname base)))})
             (remote/merge-pr! (:repo/remote repo) (:pr/number pr))
             ;; Clean up feature base if the merged branch was explicitly configured
-            (let [merged-branch (:pr/head-branch pr)
-                  project-dir (repo/project-dir repo)
-                  local-config (config/read-local project-dir)
-                  feature-bases (:feature-base-branches local-config)]
-              (when (contains? feature-bases merged-branch)
-                (let [updated-config (update local-config :feature-base-branches disj merged-branch)]
-                  (config/write-local project-dir updated-config)
-                  (println (ansi/colorize :green "✔")
-                    "Removed" (ansi/colorize :cyan merged-branch)
-                    "from feature base branches"))))
+            (doseq [branch (config/remove-feature-base-branches! (repo/project-dir repo)
+                             [(:pr/head-branch pr)])]
+              (println (ansi/colorize :green "✔")
+                "Removed" (ansi/colorize :cyan branch)
+                "from feature base branches"))
             (when (tty/prompt-confirm
                     {:prompt (str "Would you like to run " (ansi/colorize :yellow "prstack sync") "?")})
               ((:exec commands.sync/command) [] (repo-opts state repo)))))))))

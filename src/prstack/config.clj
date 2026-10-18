@@ -63,6 +63,18 @@
       (with-open [wtr (io/writer file)]
         (pp/pprint config-to-write wtr)))))
 
+(defn remove-feature-base-branches!
+  "Removes `branches` from the feature base branches in the local config of the
+  project at `project-dir`. Returns the removed branches: the ones that were
+  configured as feature base branches."
+  [project-dir branches]
+  (let [local-config (read-local project-dir)
+        removed (filter (set branches) (:feature-base-branches local-config))]
+    (when (seq removed)
+      (write-local project-dir
+        (update local-config :feature-base-branches #(apply disj % removed))))
+    removed))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Accessors
 

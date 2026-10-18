@@ -61,17 +61,13 @@
         (println)
 
         ;; Clean up feature bases that were merged
-        (let [merged-branch-names (set (map :pr/head-branch to-delete))
-              feature-bases (:feature-base-branches local-config)
-              merged-feature-bases (filter #(contains? merged-branch-names %) feature-bases)]
-          (when (seq merged-feature-bases)
-            (doseq [fb merged-feature-bases]
+        (let [removed (config/remove-feature-base-branches! (repo/project-dir repo)
+                        (map :pr/head-branch to-delete))]
+          (when (seq removed)
+            (doseq [fb removed]
               (ui/info "Removing merged feature base " (ui/format-branch fb) " from config..."))
-            (let [updated-config (update local-config :feature-base-branches
-                                   #(apply disj % merged-feature-bases))]
-              (config/write-local (repo/project-dir repo) updated-config)
-              (ui/success (format "Removed %d merged feature base(s) from config"
-                            (count merged-feature-bases))))
+            (ui/success (format "Removed %d merged feature base(s) from config"
+                          (count removed)))
             (println)))
 
         (doseq [pr to-delete]

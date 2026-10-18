@@ -65,10 +65,16 @@
                                    first)})
                 (println (ansi/colorize :green "\n✅ Created PR ... \n"))))))))))
 
+(defn branch-infos
+  "Returns the info of every selected branch in `vcs-graph`, keyed by branch
+  name, as needed by `create-pr!`."
+  [vcs-graph]
+  (->> (vcs.branch/selected-branches-info vcs-graph)
+    (u/build-index :branch/branchname)))
+
 (defn create-prs! [repo {:keys [prs stacks vcs-graph]}]
   (if (seq stacks)
-    (let [branch-infos (->> (vcs.branch/selected-branches-info vcs-graph)
-                         (u/build-index :branch/branchname))]
+    (let [branch-infos (branch-infos vcs-graph)]
       (println (ansi/colorize :cyan "Let's create the PRs!\n"))
       (doseq [stack stacks]
         (doseq [[base-change head-change] (u/consecutive-pairs stack)]
