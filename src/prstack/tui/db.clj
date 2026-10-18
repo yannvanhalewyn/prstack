@@ -73,18 +73,6 @@
   [state]
   (sort-by :repo/name (vals (:app-state/repos state))))
 
-(defn- repo-specs
-  "Returns the id and name of every repository shown in the TUI: all
-  repositories in the workspace, or else the one at the project dir."
-  [state]
-  (let [{:keys [workspace-dir project-dir]} (global-opts state)]
-    (if workspace-dir
-      (mapv #(workspace/repo-info workspace-dir %)
-        (workspace/find-repos workspace-dir))
-      (let [repo-id (repo/id project-dir)]
-        [{:repo/id repo-id
-          :repo/name (repo/default-name repo-id)}]))))
-
 (defn- repo-opts
   "Returns the global opts for running a CLI command on `repo`."
   [state repo]
@@ -389,7 +377,7 @@
 
 (defmethod dispatch! :event/refresh
   [_evt]
-  (let [specs (repo-specs @app-state)
+  (let [specs (workspace/repo-infos (global-opts @app-state))
         global-config (config/read-global)]
     (load-repos! specs
       (fn [state]

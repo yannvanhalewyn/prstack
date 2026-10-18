@@ -66,6 +66,16 @@
   {:repo/id (repo/id repo-dir)
    :repo/name (relative-path workspace-dir repo-dir)})
 
+(defn repo-infos
+  "Returns the id and name of every repository prstack operates on: all
+  repositories in `:workspace-dir`, or else the one at `:project-dir`."
+  [{:keys [workspace-dir project-dir]}]
+  (if workspace-dir
+    (mapv #(repo-info workspace-dir %) (find-repos workspace-dir))
+    (let [repo-id (repo/id project-dir)]
+      [{:repo/id repo-id
+        :repo/name (repo/default-name repo-id)}])))
+
 (defn open-repo
   "Opens the repository at `repo-dir` as a repo, see `prstack.repo/open`, named
   after its path relative to the workspace. When the repository could not be
