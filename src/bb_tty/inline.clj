@@ -24,6 +24,13 @@
   [e]
   (= ::interrupted (:type (ex-data e))))
 
+(defn suspend
+  "Leaves the prompt to call `f` with the state, e.g. to run an editor, and
+  continues with the state it returns. The terminal is as it was before the
+  prompt while `f` runs."
+  [state f]
+  (assoc state ::suspend f))
+
 (defn- abort [state]
   (assoc state ::outcome :aborted))
 
@@ -63,6 +70,23 @@
               (str/join "\r\n" lines)))
        ansi/SYNC_END))
 
+(def ^:private BRACKETED_PASTE_ON
+  "Makes the terminal mark pasted text, so that it's a single key rather than
+  a key per character, see `bb-tty.keys`."
+  "\u001b[?2004h")
+
+(def ^:private BRACKETED_PASTE_OFF "\u001b[?2004l")
+
+(defn- enter-screen [fullscreen?]
+  (str ansi/HIDE_CURSOR BRACKETED_PASTE_ON (when fullscreen? ansi/ALT_SCREEN)))
+
+(defn- leave-screen
+  "Erases the prompt's `frame` or leaves the alternate screen."
+  [frame cols fullscreen?]
+  (str (if fullscreen? ansi/NORMAL_SCREEN (erase frame cols))
+       BRACKETED_PASTE_OFF
+       ansi/SHOW_CURSOR))
+
 (def default-size
   "The size assumed when the terminal doesn't report one."
   {:rows 24 :cols 80})
@@ -75,14 +99,24 @@
   "Renders the prompt and handles keys until it finishes. Keeps the last
   state in `current` so that it can be cleaned up when an error is thrown."
   [{:keys [init view tick fullscreen?] update-fn :update} current]
-  (let [read-key (tty/key-reader)
-        now #(System/currentTimeMillis)]
+  (let [now #(System/currentTimeMillis)]
     (loop [state init
            frame nil
            next-tick (some->> (:ms tick) (+ (now)))]
       (vreset! current {:state state :frame frame})
-      (if (::outcome state)
+      (cond
+        (::outcome state)
         state
+
+        (::suspend state)
+        (let [cols (:cols (or (tty/get-terminal-size) default-size))]
+          (tty/write! (leave-screen frame cols fullscreen?))
+          (let [state (tty/outside-raw-mode #((::suspend state) (dissoc state ::suspend)))]
+            (tty/write! (enter-screen fullscreen?))
+            ;; Without a frame on screen, the prompt is painted anew
+            (recur state nil next-tick)))
+
+        :else
         (let [size (or (tty/get-terminal-size) default-size)
               lines (fit-lines (view state size) size)
               frame (if (= {:lines lines :size size} frame)
@@ -91,13 +125,10 @@
                         (tty/write! (paint frame lines size fullscreen?))
                         {:lines lines :size size}))
               _ (vreset! current {:state state :frame frame})
-              ;; At least 1ms, as JLine waits forever on a timeout of 0
-              key (read-key (cond-> max-wait-ms
-                              next-tick (min (max 1 (- next-tick (now))))))
+              key (tty/read-key (cond-> max-wait-ms
+                                  next-tick (min (max 1 (- next-tick (now))))))
               state (cond
                       (= ::tty/timeout key) state
-                      ;; The input has ended
-                      (nil? key) (skip state)
                       (= :ctrl-c key) (abort state)
                       :else (update-fn (assoc state ::size size) key))
               ;; Also ticks while keys are pressed, e.g. when holding one
@@ -113,7 +144,7 @@
 
   - `:init`        the initial state
   - `:update`      `(fn [state key])` returning the next state, finish the
-                   prompt with `submit` or `skip`. See `tty/key-reader` for keys.
+                   prompt with `submit` or `skip`. See `bb-tty.keys` for keys.
                    The state has the terminal's size under `::size`.
   - `:view`        `(fn [state size])` returning the lines of the prompt, where
                    size is the terminal's `{:rows :cols}`
@@ -133,7 +164,7 @@
         (tty/run-in-raw-mode {:signals? false}
           (fn []
             (tty/detect-background!)
-            (tty/write! ansi/HIDE_CURSOR (when fullscreen? ansi/ALT_SCREEN))
+            (tty/write! (enter-screen fullscreen?))
             (try
               (run-loop prompt current)
               (finally
@@ -141,12 +172,9 @@
                       outcome (::outcome state)
                       cols (:cols (or (tty/get-terminal-size) default-size))]
                   (tty/write!
-                    (if fullscreen?
-                      ansi/NORMAL_SCREEN
-                      (erase frame cols))
+                    (leave-screen frame cols fullscreen?)
                     (when-let [line (and outcome record (record state outcome))]
-                      (str (ansi/truncate line (dec cols)) "\r\n"))
-                    ansi/SHOW_CURSOR))))))]
+                      (str (ansi/truncate line (dec cols)) "\r\n"))))))))]
     (case (::outcome state)
       :submitted (::value state)
       :skipped nil

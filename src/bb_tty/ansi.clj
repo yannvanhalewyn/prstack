@@ -93,6 +93,8 @@
      ;; prstack overrode it while using gum
      :prompt {}
      :muted {:fg 240}
+     ;; The bar before every line of a text area
+     :text-area-prompt {:fg (pick 245 7)}
      :button-selected {:fg 230 :bg 212}
      :button-unselected (pick {:fg 235 :bg 254} {:fg 254 :bg 235})
      :help-key {:fg (pick "#909090" "#626262")}

@@ -2,9 +2,12 @@
   "Interactive prompts modeled on gum, see `bb-tty.inline`."
   (:refer-clojure :exclude [filter])
   (:require
+    [babashka.fs :as fs]
+    [babashka.process :as p]
     [bb-tty.ansi :as ansi]
     [bb-tty.fuzzy :as fuzzy]
     [bb-tty.inline :as inline]
+    [bb-tty.text-area :as text-area]
     [bb-tty.text-input :as text-input]
     [bb-tty.tty :as tty]
     [clojure.string :as str])
@@ -415,3 +418,83 @@
      :record input-record
      :tick {:ms text-input/blink-ms
             :f #(update % :input text-input/blink)}}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Write
+
+(def ^:private write-max-height
+  "Rows of the text area, as in gum."
+  5)
+
+(defn- write-options
+  "Returns the options of the text area for a terminal of `size`."
+  [prompt {:keys [rows cols]}]
+  {:prompt (ansi/style (:text-area-prompt (palette)) "┃ ")
+   :width (or cols (:cols inline/default-size))
+   :height (-> (or rows (:rows inline/default-size))
+             ;; Blank line and help
+             (- (count (prompt-lines prompt)) 2)
+             (min write-max-height)
+             (max 1))})
+
+(defn- edit-in-editor
+  "Opens the text in $VISUAL or $EDITOR, like gum's ctrl+e. Keeps the text
+  when the editor fails."
+  [{:keys [area] :as state}]
+  (let [file (fs/create-temp-file {:prefix "prstack." :suffix ".md"})
+        editor (or (System/getenv "VISUAL") (System/getenv "EDITOR") "vi")]
+    (try
+      (spit (str file) (text-area/value area))
+      (if (zero? (:exit (p/shell {:continue true} editor (str file))))
+        ;; Editors end files with a newline
+        (assoc state :area (text-area/init (str/replace (slurp (str file)) #"\n$" "")))
+        state)
+      (finally
+        (fs/delete-if-exists file)))))
+
+(defn- write-update [{:keys [prompt area] ::inline/keys [size] :as state} key]
+  (case key
+    :enter (inline/submit state (not-empty (str/trim (text-area/value area))))
+    :esc (inline/skip state)
+    :ctrl-e (inline/suspend state edit-in-editor)
+    (if-let [area' (text-area/handle-key area key)]
+      (assoc state :area (text-area/scroll area' (write-options prompt size)))
+      state)))
+
+(defn- write-view [{:keys [prompt placeholder area]} size]
+  (let [p (palette)]
+    (concat
+      (map #(ansi/style (:prompt p) %) (prompt-lines prompt))
+      (text-area/view area
+        (assoc (write-options prompt size)
+          :placeholder placeholder
+          :cursor-style (:accent p)
+          :placeholder-style (:muted p)))
+      [""
+       (help-bar [["ctrl+j" "insert newline"] ["ctrl+e" "open editor"] ["enter" "submit"]])])))
+
+(defn- write-record [{:keys [prompt area]} outcome]
+  (let [lines (str/split-lines (str/trim (text-area/value area)))]
+    (cond
+      (not= :submitted outcome) (skipped-record prompt outcome)
+      (str/blank? (first lines)) (record-line false prompt "empty")
+      :else (record-line true prompt
+              (str (first lines)
+                   (when (next lines)
+                     (ansi/style (:muted (palette)) (format " (+%d lines)" (dec (count lines))))))))))
+
+(defn write
+  "Prompts for multiple lines of text, starting with `value`. Returns the
+  trimmed text, or nil when it's empty or cancelled with esc. Enter submits,
+  ctrl+j inserts a new line and ctrl+e opens the text in an editor. Ctrl+c
+  throws, see `inline/run!`."
+  [{:keys [prompt value placeholder] :or {placeholder "Write something..."}}]
+  (inline/run!
+    {:init {:prompt prompt
+            :placeholder placeholder
+            :area (text-area/init value)}
+     :update write-update
+     :view write-view
+     :record write-record
+     :tick {:ms text-input/blink-ms
+            :f #(update % :area text-area/blink)}}))

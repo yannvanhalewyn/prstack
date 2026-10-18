@@ -193,20 +193,18 @@
       (tty/on-resize render!))))
 
 (defn run-event-loop!
-  "Calls `f` with every key pressed, see `tty/key-reader`."
+  "Calls `f` with every key pressed, see `tty/read-key`."
   [f]
   (let [running? (atom true)
-        read-key (tty/key-reader)
         event-loop
         (future
           (loop []
             (when @running?
-              ;; nil means the end of input, there are no more keys to read
-              (when-let [key (read-key)]
-                ;; As long as we call `close!` synchronously in this handler
-                ;; it will shut down gracefully. If not one more key will be
-                ;; read before shutdown.
-                (f key)
+              ;; Waits for keys in short intervals, to stop soon after
+              ;; `close!`
+              (let [key (tty/read-key 100)]
+                (when-not (= ::tty/timeout key)
+                  (f key))
                 (recur)))))]
     [event-loop #(reset! running? false)]))
 

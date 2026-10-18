@@ -1,15 +1,18 @@
 (ns bb-tty.tty
   (:require
-    [babashka.process :as p]
     [bb-tty.ansi :as ansi]
+    [bb-tty.keys :as keys]
     [clojure.string :as str])
   (:import
-    (org.jline.keymap BindingReader KeyMap)
     (org.jline.terminal Attributes$LocalFlag Terminal TerminalBuilder)
     (sun.misc Signal SignalHandler)))
 
 (def ^:private current-terminal
   "The JLine terminal while running in raw mode, see `run-in-raw-mode`."
+  (atom nil))
+
+(def ^:private raw-mode-attrs
+  "The terminal's `:original` and `:raw` attributes while in raw mode."
   (atom nil))
 
 (defn- open-terminal ^Terminal []
@@ -63,74 +66,99 @@
            (doto (.getAttributes terminal)
              (.setLocalFlag Attributes$LocalFlag/ISIG false))))
        (reset! current-terminal terminal)
+       (reset! raw-mode-attrs {:original original-attrs
+                               :raw (.getAttributes terminal)})
        (try
          (f)
          (finally
            (reset! current-terminal nil)
+           (reset! raw-mode-attrs nil)
            (.setAttributes terminal original-attrs)))))))
+
+(defn outside-raw-mode
+  "Calls `f` with the terminal as it was before entering raw mode, e.g. to run
+  an editor, and returns to raw mode afterwards."
+  [f]
+  (let [^Terminal terminal @current-terminal
+        {:keys [original raw]} @raw-mode-attrs]
+    (.setAttributes terminal original)
+    (try
+      (f)
+      (finally
+        (.setAttributes terminal raw)))))
 
 (defmacro in-raw-mode [& body]
   `(run-in-raw-mode (fn [] ~@body)))
 
-(def ^:private key-map
-  "Maps escape sequences of special keys to keywords, e.g. `:up`, `:enter`,
-  `:ctrl-c` or `:alt-b`. Arrow keys are sent differently depending on the
-  terminal's cursor key mode, so both are bound."
-  (let [km (KeyMap.)
-        bind (fn [k & seqs]
-               (.bind km k ^"[Ljava.lang.CharSequence;" (into-array CharSequence seqs)))]
-    (bind :up "\u001b[A" "\u001bOA")
-    (bind :down "\u001b[B" "\u001bOB")
-    (bind :right "\u001b[C" "\u001bOC")
-    (bind :left "\u001b[D" "\u001bOD")
-    (bind :alt-right "\u001b[1;3C" "\u001b\u001b[C")
-    (bind :alt-left "\u001b[1;3D" "\u001b\u001b[D")
-    (bind :ctrl-right "\u001b[1;5C")
-    (bind :ctrl-left "\u001b[1;5D")
-    (bind :home "\u001b[H" "\u001bOH" "\u001b[1~" "\u001b[7~")
-    (bind :end "\u001b[F" "\u001bOF" "\u001b[4~" "\u001b[8~")
-    (bind :delete "\u001b[3~")
-    (bind :shift-tab "\u001b[Z")
-    (bind :enter "\r")
-    (bind :tab "\t")
-    (bind :backspace "\u007f" "\b")
-    (bind :alt-backspace "\u001b\u007f")
-    ;; A lone escape, sequences starting with it win when they follow quickly
-    (bind :esc "\u001b")
-    ;; Ctrl+letter sends the letter's position in the alphabet. Tab (ctrl+i),
-    ;; enter (ctrl+m) and backspace (ctrl+h) are bound above.
-    (doseq [c "abcdefgjklnopqrstuvwxyz"]
-      (bind (keyword (str "ctrl-" c)) (str (char (- (int c) 96)))))
-    ;; Alt+letter sends an escape before the letter
-    (doseq [c "abcdefghijklmnopqrstuvwxyz"]
-      (bind (keyword (str "alt-" c)) (str "\u001b" c)))
-    (doto km
-      ;; Any other input is a regular key
-      (.setNomatch ::char)
-      (.setUnicode ::char)
-      ;; How long to wait after an escape to see if it starts a sequence
-      (.setAmbiguousTimeout 50))))
+(def ^:private pending
+  "Bytes read from stdin that weren't parsed into keys yet. Kept between reads,
+  so keys typed ahead reach the next prompt."
+  (atom []))
 
-(defn key-reader
-  "Returns a function that blocks until a key is pressed, returning a keyword
-  for special keys (e.g. `:up`), a string for others (e.g. \"j\") or nil when
-  the input has ended. Called with a timeout in milliseconds, it returns
-  `::timeout` when no key was pressed in time. Only works while running in raw
-  mode."
+(def ^:private poll-ms 10)
+
+(def ^:private escape-timeout-ms
+  "How long to wait for the rest of an escape sequence, after which a lone
+  escape is the escape key."
+  50)
+
+(defn- now []
+  (System/currentTimeMillis))
+
+(defn- read-available!
+  "Reads the bytes available on stdin without blocking, returning true when
+  there were any. Reading stdin directly, rather than with JLine's reader,
+  never leaves a blocking read behind. JLine reads on a background thread to
+  support timeouts, which keeps waiting for input after a timeout and would
+  take the next key from the next prompt, or from a program like an editor."
   []
-  (let [reader (BindingReader. (.reader ^Terminal @current-terminal))
-        read-key (fn []
-                   (let [binding (.readBinding reader key-map)]
-                     (if (= ::char binding)
-                       (.getLastBinding reader)
-                       binding)))]
-    (fn
-      ([]
-       (read-key))
-      ([timeout-ms]
-       (if (= -2 (.peekCharacter reader (long timeout-ms)))
-         ::timeout
-         (read-key))))))
+  (let [in System/in
+        n (.available in)]
+    (when (pos? n)
+      (let [buf (byte-array n)
+            read (.read in buf 0 n)]
+        (when (pos? read)
+          (swap! pending into (map #(bit-and % 0xff)) (take read buf))
+          true)))))
+
+(defn- await-input!
+  "Waits for input at most `timeout-ms`, or forever when nil. Returns true
+  when there is input."
+  [timeout-ms]
+  (let [deadline (some-> timeout-ms (+ (now)))]
+    (loop []
+      (read-available!)
+      (cond
+        (seq @pending) true
+        (and deadline (>= (now) deadline)) false
+        :else (do (Thread/sleep (long poll-ms)) (recur))))))
+
+(defn- await-more-input!
+  "Waits at most `timeout-ms` for more input, returning true when it came."
+  [timeout-ms]
+  (let [deadline (+ (now) timeout-ms)]
+    (loop []
+      (cond
+        (read-available!) true
+        (>= (now) deadline) false
+        :else (do (Thread/sleep 5) (recur))))))
+
+(defn read-key
+  "Waits for a key press and returns it, see `bb-tty.keys`. With a timeout in
+  milliseconds, returns `::timeout` when no key was pressed in time. Only
+  works while running in raw mode."
+  ([]
+   (read-key nil))
+  ([timeout-ms]
+   (if-not (await-input! timeout-ms)
+     ::timeout
+     (loop [complete? false]
+       (if-let [[key remaining] (keys/parse @pending complete?)]
+         (do (reset! pending remaining)
+           key)
+         ;; Waits for the rest of the sequence, if it doesn't come it's
+         ;; complete
+         (recur (not (await-more-input! escape-timeout-ms))))))))
 
 (defn write!
   "Writes to the terminal while running in raw mode. Unlike printing to stdout,
@@ -145,24 +173,35 @@
 
 (def ^:private detected-background (atom nil))
 
+(defn- latin-1
+  "Converts bytes to a string with a character per byte, and back."
+  [x]
+  (if (string? x)
+    (mapv int x)
+    (apply str (map char x))))
+
 (defn- query-background
-  "Asks the terminal for its background color, returning the raw reply. The
-  OSC 11 query is followed by a DA1 query (`\\e[c`) which every terminal
-  answers, so its reply marks the end of the response, also when the terminal
-  doesn't support OSC 11."
-  [^Terminal terminal]
-  (let [reader (.reader terminal)
-        deadline (+ (System/currentTimeMillis) 500)
-        sb (StringBuilder.)]
-    (write! "\u001b]11;?\u001b\\" "\u001b[c")
+  "Asks the terminal for its background color, returning the OSC 11 reply.
+  The query is followed by a DA1 query (`\\e[c`) which every terminal answers,
+  so its reply marks the end of the response, also when the terminal doesn't
+  support OSC 11. The replies are taken out of the input, keeping keys typed
+  in the meantime."
+  []
+  (write! "\u001b]11;?\u001b\\" "\u001b[c")
+  (let [deadline (+ (now) 500)]
     (loop []
-      (let [remaining (- deadline (System/currentTimeMillis))
-            c (if (pos? remaining) (.read reader remaining) -2)]
-        (when-not (neg? c)
-          (.append sb (char c))
-          (when-not (re-find #"\u001b\[\?[\d;]*c$" (str sb))
-            (recur)))))
-    (str sb)))
+      (read-available!)
+      (let [input (latin-1 @pending)]
+        (if-let [da1 (re-find #"\u001b\[\?[\d;]*c" input)]
+          (let [osc (re-find #"\u001b\]11;[^\u0007\u001b]*(?:\u0007|\u001b\\)" input)]
+            (reset! pending
+              (latin-1 (cond-> (str/replace-first input da1 "")
+                         osc (str/replace-first osc ""))))
+            (or osc ""))
+          (if (< (now) deadline)
+            (do (Thread/sleep (long poll-ms))
+              (recur))
+            ""))))))
 
 (defn detect-background!
   "Detects whether the terminal has a `:light` or `:dark` background, once per
@@ -171,7 +210,7 @@
   []
   (when-not @detected-background
     (reset! detected-background
-      (or (some-> @current-terminal query-background ansi/parse-background-reply)
+      (or (some-> (query-background) ansi/parse-background-reply)
           (ansi/parse-colorfgbg (System/getenv "COLORFGBG"))
           :dark))))
 
@@ -180,19 +219,3 @@
   `detect-background!`. Defaults to `:dark` when it wasn't detected."
   []
   (or @detected-background :dark))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Prompts
-
-(defn prompt-write
-  "Prompts for multiple lines of text. Returns nil when cancelled or empty."
-  [{:keys [prompt value placeholder]}]
-  ;; Not using bblgum here as it drops empty lines from the output
-  (let [{:keys [exit out]}
-        (apply p/shell {:out :string :in :inherit :err :inherit :continue true}
-          (cond-> ["gum" "write"]
-            prompt (conj (str "--header=" (ansi/colorize :white prompt)))
-            value (conj (str "--value=" value))
-            placeholder (conj (str "--placeholder=" placeholder))))]
-    (when (zero? exit)
-      (not-empty (str/trim out)))))

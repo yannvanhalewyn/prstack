@@ -3,6 +3,7 @@
     [bb-tty.ansi :as ansi]
     [bb-tty.inline :as inline]
     [bb-tty.prompt :as prompt]
+    [bb-tty.text-area :as text-area]
     [bb-tty.text-input :as text-input]
     [clojure.test :refer [deftest is testing]]))
 
@@ -197,3 +198,31 @@
     (is (= "✔ PR title feat: login" (record (input-state "feat: login ") :submitted)))
     (is (= "✗ PR title empty" (record (input-state " ") :submitted)))
     (is (= "✗ PR title skipped" (record (input-state "x") :skipped)))))
+
+(defn- write-state [value]
+  {:prompt "PR description"
+   :placeholder "Write something..."
+   :area (text-area/init value)
+   ::inline/size {:rows 24 :cols 80}})
+
+(deftest test-write-update
+  (let [press (partial press #'prompt/write-update)]
+    (testing "enter submits the trimmed text, ctrl+j inserts a line"
+      (is (= "Fixes\nlogin" (answer (press (write-state "Fixes") :ctrl-j "l" "o" "g" "i" "n" :enter))))
+      (is (nil? (answer (press (write-state "  ") :enter)))))
+    (testing "esc skips"
+      (is (= :skipped (::inline/outcome (press (write-state "x") :esc)))))
+    (testing "ctrl+e leaves the prompt to open an editor"
+      (is (fn? (::inline/suspend (press (write-state "x") :ctrl-e)))))))
+
+(deftest test-write-view
+  (is (= ["PR description" "┃ Fixes" "┃ login " "┃ " "┃ " "┃ " ""
+          "ctrl+j insert newline • ctrl+e open editor • enter submit"]
+         (map ansi/strip-ansi (#'prompt/write-view (write-state "Fixes\nlogin") {:rows 24 :cols 80})))))
+
+(deftest test-write-record
+  (let [record (comp ansi/strip-ansi #'prompt/write-record)]
+    (is (= "✔ PR description Fixes login (+2 lines)"
+           (record (write-state "Fixes login\n\nDetails") :submitted)))
+    (is (= "✔ PR description Fixes login" (record (write-state "Fixes login") :submitted)))
+    (is (= "✗ PR description empty" (record (write-state "") :submitted)))))

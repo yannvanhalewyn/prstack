@@ -1,9 +1,10 @@
 (ns bb-tty.text-input
   "A single line text editor with readline keys, modeled on the textinput of
   bubbles that gum uses. It's a value with a cursor position, updated with keys
-  from `tty/key-reader`."
+  from `bb-tty.keys`."
   (:require
-    [bb-tty.ansi :as ansi]))
+    [bb-tty.ansi :as ansi]
+    [clojure.string :as str]))
 
 (def blink-ms
   "How often the cursor blinks, as in bubbles."
@@ -47,8 +48,16 @@
   (let [n (count value)
         move #(assoc input :pos % :blink-on? true)
         edit #(assoc input :value %1 :pos %2 :blink-on? true)]
-    (if (printable? key)
+    (cond
+      (printable? key)
       (edit (str (subs value 0 pos) key (subs value pos)) (+ pos (count key)))
+
+      ;; Pasted lines are joined, as the input is a single line
+      (:paste key)
+      (let [text (str/replace (:paste key) #"\n+" " ")]
+        (edit (str (subs value 0 pos) text (subs value pos)) (+ pos (count text))))
+
+      :else
       (case key
         (:left :ctrl-b) (move (max 0 (dec pos)))
         (:right :ctrl-f) (move (min n (inc pos)))

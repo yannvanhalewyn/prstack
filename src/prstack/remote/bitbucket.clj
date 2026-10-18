@@ -15,7 +15,6 @@
     [babashka.json :as json]
     [bb-tty.ansi :as ansi]
     [bb-tty.prompt :as prompt]
-    [bb-tty.tty :as tty]
     [clojure.string :as str]
     [prstack.remote :as remote]))
 
@@ -222,8 +221,7 @@
                                 (ansi/colorize :blue head-branch)
                                 (ansi/colorize :blue base-branch))
                       :value (or title head-branch)})]
-    (let [description (tty/prompt-write
-                        {:prompt "PR description (ctrl+d to submit, esc to leave empty)"})
+    (let [description (prompt/write {:prompt "PR description"})
           pr (request! remote
                {:method :post
                 :path "/pullrequests"

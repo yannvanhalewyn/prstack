@@ -308,6 +308,16 @@ handling whatever isn't ported yet.
    `ctrl+e` → `$EDITOR` (write a temp file, run the editor in the foreground,
    read the file back). If the textarea gets hairy, ship `$EDITOR` only first;
    it's a valid stopping point.
+   - **Keys are now read from stdin directly** (`bb-tty.keys` parses them),
+     instead of with JLine's `BindingReader`. JLine 4.4.0 (bundled with bb)
+     reads on a background thread to support timeouts. After a timeout (a
+     spinner, the wait after esc) that thread keeps blocking on stdin, and
+     takes the next key from the next prompt or from a program like the
+     editor or `gh`. Polling `System/in` with `available()` never leaves a
+     read behind.
+   - Bracketed paste is enabled while a prompt runs, so pasted newlines don't
+     submit `write`.
+   - The Bitbucket "ctrl+d to submit" hint is fixed.
 8. **Clean up**
    - Remove `bblgum` from `bb.edn` / `deps.edn`.
    - Swap `babashka.json` for the built-in `cheshire.core` (2 files: `github.clj`,
