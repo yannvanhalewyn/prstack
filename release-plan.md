@@ -318,7 +318,11 @@ handling whatever isn't ported yet.
    - Bracketed paste is enabled while a prompt runs, so pasted newlines don't
      submit `write`.
    - The Bitbucket "ctrl+d to submit" hint is fixed.
-8. **Clean up**
+8. **Clean up** (done, except `bb-tty-release-plan.md`, which is kept: it's a
+   plan for extracting bb-tty, not a stale doc, and bb-tty no longer depends
+   on prstack). `hashp` moved to the `:dev` alias of `deps.edn`, as
+   `dev/user.clj` requires it. The README requires bb 1.12.216 or newer, the
+   first release with the JLine classes bb-tty uses.
    - Remove `bblgum` from `bb.edn` / `deps.edn`.
    - Swap `babashka.json` for the built-in `cheshire.core` (2 files: `github.clj`,
      `bitbucket.clj`). This gets `bb.edn` to zero deps, so `bin/prstack` no

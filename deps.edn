@@ -1,12 +1,14 @@
 {:paths ["src"]
- :deps {babashka/process {:mvn/version "0.6.23"}
+ ;; Babashka has these built in, for a JVM REPL
+ :deps {babashka/fs {:mvn/version "0.5.34"}
+        babashka/process {:mvn/version "0.6.23"}
+        cheshire/cheshire {:mvn/version "6.2.0"}
         org.babashka/http-client {:mvn/version "0.4.22"}
-        org.babashka/json {:mvn/version "0.1.6"}
-        org.clojure/tools.logging {:mvn/version "1.3.0"}
-        io.github.lispyclouds/bblgum {:git/sha "df647fb50f32e05b26e46e58d7249b4798e469e6"}}
+        org.clojure/tools.logging {:mvn/version "1.3.0"}}
  :aliases
  {:dev {:extra-paths ["dev"]
         :extra-deps {org.clojure/tools.namespace {:mvn/version "1.5.1"}
-                     djblue/portal {:mvn/version "0.37.1"}}}
+                     djblue/portal {:mvn/version "0.37.1"}
+                     hashp/hashp {:mvn/version "0.2.2"}}}
   :test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.77.1234"}}}}}

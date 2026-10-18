@@ -1,7 +1,7 @@
 (ns prstack.remote.github
   "GitHub implementation of the RemoteVCS protocol, using the GitHub CLI (gh)."
   (:require
-    [babashka.json :as json]
+    [cheshire.core :as json]
     [clojure.set :as set]
     [clojure.string :as str]
     [prstack.remote :as remote]
@@ -42,12 +42,13 @@
   [remote {:keys [state] :or {state :open}}]
   (try
     [(map parse-pr
-       (json/read-str
+       (json/parse-string
          (u/run-cmd
            ["gh" "pr" "list"
             "--state" (name state)
             "--json" (str/join "," (map name gh-json-fields))]
-           {:dir (:remote/project-dir remote)})))]
+           {:dir (:remote/project-dir remote)})
+         true))]
     (catch Exception e
       (if (= (str/trim (ex-message e)) "no git remotes found")
         [nil {:error/type :github/no-remote-found
