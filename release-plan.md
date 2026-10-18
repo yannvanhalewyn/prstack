@@ -1,5 +1,19 @@
 # Release Plan
 
+## Status
+
+Step 1 is done (bookmark `refactor-replace-gum`), pending a manual check of
+`prstack sync`, creating PRs and the TUI. Next up is step 2.
+
+Run the tests with:
+
+```
+bb -e "(babashka.classpath/add-classpath \"test\") (require 'clojure.test) (doseq [ns '[bb-tty.keys-test bb-tty.ansi-test bb-tty.inline-test bb-tty.prompt-test bb-tty.fuzzy-test bb-tty.text-input-test bb-tty.text-area-test prstack.tui.db-test prstack.tui.rows-test prstack.stack-test prstack.vcs.graph-test prstack.vcs-test]] (require ns)) (let [{:keys [fail error]} (apply clojure.test/run-tests (filter #(re-find #\"-test$\" (str %)) (map ns-name (all-ns))))] (System/exit (+ fail error)))"
+```
+
+`prstack.vcs-test` creates repos in `tmp/`, which a sandbox may block.
+Interactive prompts need a real terminal and can't be tested in a sandbox.
+
 Two steps:
 
 1. **Drop gum.** Rebuild the prompts on top of `bb-tty`, copying gum's look and
@@ -360,7 +374,7 @@ handling whatever isn't ported yet.
 1. **Entry point and version**
    - Use `prstack.main/-main` as the uberjar main.
    - Add `resources/PRSTACK_VERSION` (or generate it from the git tag in CI)
-     and `prstack --version`.
+     and `prstack --version`. Add `"resources"` to `:paths` in `bb.edn`.
 2. **Add `bb.edn` tasks**
    ```clojure
    :tasks
@@ -387,7 +401,7 @@ handling whatever isn't ported yet.
 - macOS ad-hoc signing needs `codesign`, which needs a `macos-latest` runner.
   Either run the macOS concatenation there or use `rcodesign` on Linux.
 - Pin the bb version in one place, e.g. `.bb-version`, and bump it on purpose.
-  It must be at least the first bb release that bundles JLine.
+  The minimum is 1.12.216; 1.13.220 is the version that's been tested.
 
 ### Distribution
 - **Homebrew tap** (`yannvanhalewyn/homebrew-tap`, `Formula/prstack.rb`):
@@ -395,8 +409,9 @@ handling whatever isn't ported yet.
   `depends_on "gh" => :recommended` and a short `caveats` about jj/gh. Let the
   release workflow bump the formula (e.g. with `mislav/bump-homebrew-formula-action`
   or a small script that commits to the tap).
-- **bbin**: `bbin install io.github.yannvanhalewyn/prstack` works for free once
-  `bb.edn` has zero deps. Document it as the option for Clojure users.
+- **bbin**: add `:bbin/bin {prstack {:main-opts ["-m" "prstack.main"]}}` to
+  `bb.edn`, so `bbin install io.github.yannvanhalewyn/prstack` works. Document
+  it as the option for Clojure users.
 - **Manual install**: download, untar and put on the PATH. Make this the README
   install section, with Homebrew first.
 
