@@ -2,8 +2,8 @@
 
 ## Status
 
-Step 1 is merged (PR #8). Step 2 is in progress, starting with task 1 (entry
-point and `--version`).
+Step 1 is merged (PR #8). Step 2 is in progress: tasks 1 (`--version`) and 2
+(`bb jar`) are done, next up is task 3 (bb version check).
 
 Run the tests with:
 
@@ -403,19 +403,24 @@ Commit each one separately.
    - `bin/prstack` already adds every `:paths` entry to the classpath, so
      running from a clone keeps working.
    - Verify: `./bin/prstack --version`, `bb -m prstack.main --version`.
-2. **Uberjar task.**
+2. **Jar task.** `bb jar` builds `target/prstack.jar`.
    ```clojure
    :tasks
-   {uberjar {:doc "Build target/prstack.jar"
-             :task (shell "bb uberjar target/prstack.jar -m prstack.main")}}
+   {jar {:doc "Build target/prstack.jar"
+         :task (shell "bb uberjar target/prstack.jar -m prstack.main")}}
    ```
+   - The task can't be called `uberjar`: a task overrides bb's built-in
+     command of the same name, so `bb uberjar` inside it would call the task
+     again, forever.
    - The bb uberjar contains the sources, not AOT-compiled classes. Startup
      stays the same as today.
-   - Verify: `bb uberjar`, then `unzip -l target/prstack.jar`. Copy the jar out
+   - Verify: `bb jar`, then `unzip -l target/prstack.jar`. Copy the jar out
      of the repo and run `bb prstack.jar --version` and `bb prstack.jar list`
-     from another repository.
-   - `bb uberjar` writes to `java.io.tmpdir`. In a sandbox, pass
-     `-Djava.io.tmpdir=$TMPDIR`.
+     from another repository. Don't run the jar from this repo: bb reads the
+     `bb.edn` in the current directory and would load `src/` instead.
+   - `bb uberjar` writes to `java.io.tmpdir`. In a sandbox, run
+     `bb -Djava.io.tmpdir=$TMPDIR uberjar target/prstack.jar -m prstack.main`
+     directly, since the flag doesn't reach the `bb` that the task starts.
 3. **bb version check.** The jar runs on whatever `bb` the user has. At
    startup, compare `(System/getProperty "babashka.version")` against
    1.12.216 (the first release with the JLine classes bb-tty uses) and print
@@ -431,7 +436,7 @@ Commit each one separately.
    - Verify without touching your setup: `env PATH=/usr/bin:/bin` hides `gh`
      and `jj`. `env GH_CONFIG_DIR=(mktemp -d)` makes `gh` act logged out.
 5. **CI release** (`.github/workflows/release.yml`, on `v*` tags).
-   - One `ubuntu-latest` job: install bb, `bb uberjar`, rename the jar to
+   - One `ubuntu-latest` job: install bb, `bb jar`, rename the jar to
      `prstack-<version>.jar`, write its sha256, and
      `gh release create` with both attached.
    - Check that the tag matches `resources/PRSTACK_VERSION` and fail

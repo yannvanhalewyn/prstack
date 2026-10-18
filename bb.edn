@@ -1,1 +1,5 @@
-{:paths ["src" "resources"]}
+{:paths ["src" "resources"]
+ :tasks
+ ;; Not named uberjar, which would override bb's built-in uberjar command
+ {jar {:doc "Build target/prstack.jar"
+       :task (shell "bb uberjar target/prstack.jar -m prstack.main")}}}
