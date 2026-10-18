@@ -156,7 +156,7 @@
        (:app-state/copy-menu-open? state)
        (str (ansi/colorize :cyan "Copy:")
             (str/join
-              (for [[k label] [["y" "PR URL"] ["b" "branch name"]
+              (for [[k label] [["y" "PR URL"] ["t" "PR title"] ["b" "branch name"]
                                ["s" "stack (markdown)"] ["esc" "cancel"]]]
                 (str "  " (ansi/colorize :white k) " " (ansi/colorize :gray label)))))
 

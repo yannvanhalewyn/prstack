@@ -269,6 +269,9 @@
         "y" (if-let [url (:pr/url pr)]
               (copy! url (str "Copied " url))
               (show-message! "No PR for this branch"))
+        "t" (if-let [title (:pr/title pr)]
+              (copy! title (str "Copied " title))
+              (show-message! "No PR for this branch"))
         "b" (let [branch (:change/selected-branchname change)]
               (copy! branch (str "Copied " branch)))
         "s" (if-let [markdown (stack-markdown state row)]
