@@ -206,7 +206,9 @@ The prompts need a separate **inline** mode. Proposed layout:
   - Add a `palette` that takes the detected background (`:light` / `:dark`)
     and returns the named gum colors.
   - Add `CLEAR_TO_END` (`\e[J`) and a parametrised `cursor-up`.
-  - Add `background`, which runs the OSC 11 detection described above.
+  - Add pure parsers for the OSC 11 reply and `COLORFGBG`. The detection
+    itself (`tty/detect-background!`) lives in `bb-tty.tty`, since it needs
+    the terminal.
 - **`bb-tty.tty`**
   - Extend `key-map` with `:enter` (`\r`), `:esc` (a lone `\e` after the
     ambiguous timeout), `:backspace` (`\x7f`, `\b`), `:delete` (`\e[3~`),
@@ -238,7 +240,9 @@ The prompts need a separate **inline** mode. Proposed layout:
     1. Erase the frame, or leave the alt screen.
     2. Print the `:record` line.
     3. Show the cursor and restore the terminal attributes.
-  - Re-render on `SIGWINCH` via the existing `tty/on-resize`.
+  - Re-render on resize. Rather than handling `SIGWINCH`, the loop checks the
+    terminal size at least every 100ms, which keeps all rendering on one
+    thread.
   - Only renders when `(System/console)` is present. Without a TTY, a
     non-interactive call should fail with a clear message instead of hanging.
 - **New `bb-tty.prompt`** (keep the `tty/prompt-*` names as thin wrappers, so
