@@ -4,6 +4,7 @@
     [bb-tty.tty :as tty]
     [bb-tty.tui :as tui]
     [clojure.java.browse :as browse]
+    [clojure.string :as str]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.sync :as commands.sync]
     [prstack.config :as config]
@@ -244,7 +245,7 @@
   to base like they're displayed. Branches without a PR are left out."
   [state row]
   (let [{repo-id :repo/id stack-id :stack/id} (:row/key row)]
-    (->> (display-rows state)
+    (->> (rows/display-rows state)
       (filter #(and (= :change (:row/kind %))
                     (= repo-id (get-in % [:row/key :repo/id]))
                     (= stack-id (get-in % [:row/key :stack/id]))))
@@ -255,7 +256,7 @@
 
 (defmethod dispatch! :event/open-copy-menu
   [_evt]
-  (when (selected-row @app-state)
+  (when (rows/selected-row @app-state)
     (swap! app-state #(-> %
                         (assoc :app-state/copy-menu-open? true)
                         (dissoc :app-state/message)))))
@@ -264,7 +265,7 @@
   [[_evt key]]
   (swap! app-state dissoc :app-state/copy-menu-open?)
   (let [state @app-state]
-    (when-let [{:keys [change pr] :as row} (selected-row state)]
+    (when-let [{:keys [change pr] :as row} (rows/selected-row state)]
       (case key
         "y" (if-let [url (:pr/url pr)]
               (copy! url (str "Copied " url))

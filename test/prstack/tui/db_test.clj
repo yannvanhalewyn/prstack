@@ -2,7 +2,7 @@
   (:require
     [clojure.test :refer [deftest is testing]]
     [prstack.tui.db :as db]
-    [prstack.tui.fixtures :refer [app-state repo-state stack]]
+    [prstack.tui.fixtures :refer [app-state new-pr repo-state stack]]
     [prstack.tui.rows :as rows]))
 
 (defn- move [state offset]
@@ -62,35 +62,6 @@
     (testing "drops updates for repos that are gone"
       (is (= state (update-loading-repo state "web" 1 assoc :repo/name "new"))))))
 
-(deftest test-display-rows-collapses-repos-without-stacks
-  (let [rows (db/display-rows
-               (app-state
-                 (repo-state "web" [(stack "main" "feat/x")] [])
-                 (repo-state "docs" [(stack "main")] [])
-                 (repo-state "infra" [] [])
-                 (assoc (repo-state "api" [] [])
-                   :repo/current-stacks {:load/status :status/pending})))]
-    (testing "only repos with stacks get a header"
-      (is (= ["web"]
-             (keep #(when (= :repo-header (:row/kind %)) (:repo/name %)) rows))))
-
-    (testing "repos without stacks and loading repos are each listed on a single line"
-      (is (= [{:row/kind :text :style :gray :text "No stacks in: docs, infra"}
-              {:row/kind :loading :repo-names ["api"]}]
-             (take-last 2 rows))))))
-
-(deftest test-display-rows-while-reloading
-  (testing "repos stay where their previous result put them"
-    (let [reloading #(assoc-in % [:repo/current-stacks :load/status] :status/pending)
-          rows (db/display-rows
-                 (app-state
-                   (reloading (repo-state "web" [(stack "main" "feat/x")] []))
-                   (reloading (repo-state "docs" [] []))))]
-      (is (= ["web"]
-             (keep #(when (= :repo-header (:row/kind %)) (:repo/name %)) rows)))
-      (is (= {:row/kind :text :style :gray :text "No stacks in: docs"}
-             (last rows))))))
-
 (deftest test-stack-markdown
   (let [with-title #(assoc %1 :pr/title %2)
         state (app-state
@@ -100,7 +71,7 @@
                   [(with-title (new-pr 1 "feat/a" "main") "Add a")
                    (with-title (new-pr 3 "feat/c" "feat/b") "Add c")
                    (with-title (new-pr 9 "feat/x" "main") "Add x")]))
-        row-of #(db/selected-row (move state %))]
+        row-of #(rows/selected-row (move state %))]
     (testing "lists the PRs of the selected stack from leaf to base"
       (is (= "- [#3 Add c](https://example.com/3)\n- [#1 Add a](https://example.com/1)"
              (#'db/stack-markdown state (row-of 0)))))
@@ -112,5 +83,5 @@
     (testing "nil when the stack has no PRs"
       (is (nil? (#'db/stack-markdown
                   (app-state (repo-state "api" [(stack "main" "feat/a")] []))
-                  (db/selected-row
+                  (rows/selected-row
                     (app-state (repo-state "api" [(stack "main" "feat/a")] [])))))))))
