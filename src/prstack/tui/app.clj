@@ -70,6 +70,7 @@
            ("k" :up) (db/dispatch! [:event/move-up])
            "d" (db/dispatch! [:event/run-diff])
            "o" (db/dispatch! [:event/open-pr])
+           "y" (db/dispatch! [:event/copy-pr-url])
            "c" (db/dispatch! [:event/create-pr])
            "m" (db/dispatch! [:event/merge-pr])
            "s" (db/dispatch! [:event/sync])
@@ -117,7 +118,7 @@
     2 (render-all-stacks-tab height)
     (render-stacks height)))
 
-(defn- render-keybindings []
+(defn- render-footer [state]
   (let [{:keys [cols]} (tty/get-terminal-size)
         separator (str/join (repeat (or cols 80) "\u2500"))
         keybindings
@@ -129,6 +130,8 @@
           :keybind/name "Diff"}
          {:keybind/display "o"
           :keybind/name "Open PR"}
+         {:keybind/display "y"
+          :keybind/name "Copy PR URL"}
          {:keybind/display "c"
           :keybind/name "Create PR"}
          {:keybind/display "m"
@@ -141,9 +144,11 @@
           :keybind/name "Quit"}]]
     [""
      (ansi/colorize :gray separator)
-     (ansi/colorize :gray (str/join "  "
-                            (for [kb keybindings]
-                              (format "%s: %s" (:keybind/display kb) (:keybind/name kb)))))]))
+     (if-let [message (:app-state/message state)]
+       (ansi/colorize :green message)
+       (ansi/colorize :gray (str/join "  "
+                              (for [kb keybindings]
+                                (format "%s: %s" (:keybind/display kb) (:keybind/name kb))))))]))
 
 (defn run-app! []
   (db/dispatch! [:event/refresh])
@@ -164,7 +169,7 @@
                nil))}
           (fn [state]
             (let [header (render-tabs state)
-                  footer (render-keybindings)
+                  footer (render-footer state)
                   ;; The block adds a blank line above and below
                   height (some-> (tty/get-terminal-size) :rows
                            (- 2 (count header) (count footer)))]

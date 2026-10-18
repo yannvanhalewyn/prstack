@@ -11,6 +11,7 @@
     [prstack.remote :as remote]
     [prstack.repo :as repo]
     [prstack.repo.loader :as loader]
+    [prstack.tools.clipboard :as tools.clipboard]
     [prstack.tools.schema :as tools.schema]
     [prstack.tui.rows :as rows]
     [prstack.ui :as ui]
@@ -50,6 +51,8 @@
    [:app-state/selected-tab :int]
    ;; Nil, or no longer displayed, selects a fallback row. See `rows/selected-row`.
    [:app-state/selection {:optional true} RowKey]
+   ;; Short feedback shown in the footer, cleared after a few seconds
+   [:app-state/message {:optional true} :string]
    ;; Runs after closing the TUI, then only the repo is refreshed
    [:app-state/run-in-fg {:optional true}
     [:map
@@ -216,6 +219,25 @@
   [_evt]
   (when-let [url (:pr/url (:pr (rows/selected-row @app-state)))]
     (browse/browse-url url)))
+
+(def ^:private message-duration-ms 2000)
+
+(defn- show-message!
+  "Shows `message` in the footer for a few seconds."
+  [message]
+  (swap! app-state assoc :app-state/message message)
+  (future
+    (Thread/sleep message-duration-ms)
+    ;; `identical?` so that an equal, newer message isn't cleared early
+    (swap! app-state
+      #(cond-> % (identical? message (:app-state/message %))
+         (dissoc :app-state/message)))))
+
+(defmethod dispatch! :event/copy-pr-url
+  [_evt]
+  (when-let [url (:pr/url (:pr (selected-row @app-state)))]
+    (tools.clipboard/copy! url)
+    (show-message! (str "Copied " url))))
 
 (defmethod dispatch! :event/create-pr
   [_evt]
