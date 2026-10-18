@@ -2,6 +2,7 @@
   (:gen-class)
   (:require
     [bb-tty.ansi :as ansi]
+    [bb-tty.inline :as inline]
     [clojure.java.io :as io]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.feature-base :as commands.feature-base]
@@ -119,7 +120,7 @@
       (init/ensure-initialized! (:project-dir global-opts))
       ((:exec command) args global-opts))))
 
-(defn -main [& args]
+(defn- run-cli [args]
   (let [[global-opts remaining-args] (parse-global-opts args)
         global-opts (resolve-dirs global-opts)]
     (cond
@@ -153,3 +154,12 @@
           (println (ansi/colorize :red "Error") "Unknown command:" (first remaining-args) "\n")
           (print-help)
           (System/exit 1))))))
+
+(defn -main [& args]
+  (try
+    (run-cli args)
+    (catch clojure.lang.ExceptionInfo e
+      (if (inline/interrupted? e)
+        ;; Like a process interrupted by ctrl+c
+        (System/exit 130)
+        (throw e)))))

@@ -19,6 +19,11 @@
   [state]
   (assoc state ::outcome :skipped))
 
+(defn interrupted?
+  "Returns true when `e` was thrown because ctrl+c was pressed in a prompt."
+  [e]
+  (= ::interrupted (:type (ex-data e))))
+
 (defn- abort [state]
   (assoc state ::outcome :aborted))
 

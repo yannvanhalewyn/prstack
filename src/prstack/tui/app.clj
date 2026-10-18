@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [run!])
   (:require
     [bb-tty.ansi :as ansi]
+    [bb-tty.inline :as inline]
     [bb-tty.tty :as tty]
     [bb-tty.tui :as tui]
     [clojure.string :as str]
@@ -197,7 +198,12 @@
                  footer]))))))
     (when-let [{:fg/keys [run repo-id]} (:app-state/run-in-fg @db/app-state)]
       (swap! db/app-state dissoc :app-state/run-in-fg)
-      (run)
+      (try
+        (run)
+        ;; Pressing ctrl+c in a prompt returns to the TUI
+        (catch clojure.lang.ExceptionInfo e
+          (when-not (inline/interrupted? e)
+            (throw e))))
       ;; The command could have changed the repo
       (db/dispatch! [:event/refresh-repo repo-id])
       (recur))))

@@ -2,7 +2,7 @@
   "Shared UI formatting utilities for CLI and TUI."
   (:require
     [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
+    [bb-tty.prompt :as prompt]
     [prstack.remote :as remote]))
 
 (defn format-repo-header
@@ -76,5 +76,5 @@
     :else    (ansi/colorize :gray "  No PR found")))
 
 (defn fetch-prs-with-spinner [remote]
-  (tty/spin #(remote/list-prs remote {})
+  (prompt/spin #(remote/list-prs remote {})
     {:title "Fetching PRs..."}))

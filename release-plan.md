@@ -245,8 +245,10 @@ The prompts need a separate **inline** mode. Proposed layout:
     thread.
   - Only renders when `(System/console)` is present. Without a TTY, a
     non-interactive call should fail with a clear message instead of hanging.
-- **New `bb-tty.prompt`** (keep the `tty/prompt-*` names as thin wrappers, so
-  call sites don't change):
+- **New `bb-tty.prompt`**. Each ported prompt moves from `tty/prompt-*` to
+  `prompt/*`, and its call sites switch over. Thin wrappers in `bb-tty.tty`
+  aren't possible, since `bb-tty.inline` requires `bb-tty.tty` and the
+  requires would form a cycle.
   - `confirm`, `choose`, `filter`, `input`, `write`, each with pure
     `update`/`view` functions, so they're unit-testable without a terminal.
   - Shared `help-bar` and `text-input` (the line editor state and its keys)
@@ -280,11 +282,13 @@ handling whatever isn't ported yet.
    - Verify with a scratch REPL demo that repaints a changing list, handles
      resize and prints a record. Check the detection in a dark and a light
      terminal theme and inside tmux.
-2. **`spin`**: switch to gum's `dot` frames, 100ms, color 212. Delete
-   `with-spinner`.
+2. **`spin`**: move it to `prompt/spin` on top of `bb-tty.inline`, using
+   gum's `dot` frames, 100ms and color 212. Delete `with-spinner`. Since
+   ctrl+c now reaches the spinner as a key, also add the "interrupted"
+   handling: `main` exits 130 and the TUI's foreground runner returns to the
+   TUI.
 3. **`confirm`**: port it. It's the most used prompt and exercises the
-   renderer, the help bar and the exit semantics. Add the ctrl+c `ex-info`
-   and handle it in `main` and `run-in-fg!`.
+   renderer, the help bar and the exit semantics.
 4. **`choose`**: port it with pagination and dots.
 5. **`fuzzy` + `filter`**: fullscreen in the alt screen with a scrolling list,
    then print the inline record after leaving it.

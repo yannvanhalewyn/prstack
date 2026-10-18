@@ -186,37 +186,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Prompts
 
-(defn ^:lsp/allow-unused with-spinner [cmd {:keys [title]}]
-  (b/gum :spin cmd :title title))
-
-(def ^:private spinner-frames
-  ["⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏"])
-
-(defn spin
-  "Calls `f` while displaying a spinner with a title. Unlike `with-spinner`
-  this doesn't require a shell command. Returns the result of `f`."
-  [f {:keys [title]}]
-  (if-not (System/console)
-    (f)
-    (let [done (promise)
-          render (fn [s]
-                   (binding [*out* *err*]
-                     (print (str "\r" ansi/CLEAR_LINE s))
-                     (flush)))
-          spinner (future
-                    (render ansi/HIDE_CURSOR)
-                    (loop [i 0]
-                      (render (str (ansi/colorize :magenta (nth spinner-frames (mod i (count spinner-frames))))
-                                   " " title))
-                      (when (= ::pending (deref done 80 ::pending))
-                        (recur (inc i))))
-                    (render ansi/SHOW_CURSOR))]
-      (try
-        (f)
-        (finally
-          (deliver done true)
-          @spinner)))))
-
 (defn- gum-args
   ([opts]
    (gum-args {} opts))
