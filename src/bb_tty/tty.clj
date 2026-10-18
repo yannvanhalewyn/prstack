@@ -3,8 +3,7 @@
     [babashka.process :as p]
     [bb-tty.ansi :as ansi]
     [bblgum.core :as b]
-    [clojure.string :as str]
-    [prstack.utils :as u])
+    [clojure.string :as str])
   (:import
     (org.jline.keymap BindingReader KeyMap)
     (org.jline.terminal Attributes$LocalFlag Terminal TerminalBuilder)
@@ -217,20 +216,6 @@
             placeholder (conj (str "--placeholder=" placeholder))))]
     (when (zero? exit)
       (not-empty (str/trim out)))))
-
-(defn prompt-pick
-  {:arglists '([{:keys [prompt options render-option limit]}])}
-  [{:keys [options render-option limit]
-    :or {limit 1}
-    :as opts}]
-  (cond->>
-    (:result
-      (apply b/gum :choose (map (or render-option identity) options)
-        (gum-args {:limit limit} opts)))
-    render-option
-    (map (fn [result]
-           (u/find-first #(= (render-option %) result) options)))
-    (= limit 1) (first)))
 
 (defn prompt-filter
   [{:keys [prompt options render-option limit]}]

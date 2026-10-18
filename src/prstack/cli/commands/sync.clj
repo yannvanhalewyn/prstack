@@ -2,7 +2,6 @@
   (:require
     [bb-tty.ansi :as ansi]
     [bb-tty.prompt :as prompt]
-    [bb-tty.tty :as tty]
     [clojure.set :as set]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.ui :as cli.ui]
@@ -132,7 +131,7 @@
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/diverged? selected-branches)]
         (println)
         (let [solution
-              (tty/prompt-pick
+              (prompt/choose
                 {:prompt (str "Branch " (ui/format-branch branchname) " diverged. What do you want to do?")
                  :options
                  [{:name "Push local to remote" :action :push}

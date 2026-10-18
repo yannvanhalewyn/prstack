@@ -63,7 +63,9 @@
               (str/join "\r\n" lines)))
        ansi/SYNC_END))
 
-(def ^:private default-size {:rows 24 :cols 80})
+(def default-size
+  "The size assumed when the terminal doesn't report one."
+  {:rows 24 :cols 80})
 
 (def ^:private max-wait-ms
   "How long to wait for a key at most before checking for a terminal resize."
@@ -97,7 +99,7 @@
                       ;; The input has ended
                       (nil? key) (skip state)
                       (= :ctrl-c key) (abort state)
-                      :else (update-fn state key))
+                      :else (update-fn (assoc state ::size size) key))
               ;; Also ticks while keys are pressed, e.g. when holding one
               tick? (and next-tick
                          (>= (now) next-tick)
@@ -112,6 +114,7 @@
   - `:init`        the initial state
   - `:update`      `(fn [state key])` returning the next state, finish the
                    prompt with `submit` or `skip`. See `tty/key-reader` for keys.
+                   The state has the terminal's size under `::size`.
   - `:view`        `(fn [state size])` returning the lines of the prompt, where
                    size is the terminal's `{:rows :cols}`
   - `:record`      `(fn [state outcome])` returning a line that remains in

@@ -19,6 +19,9 @@
       (for [[k desc] bindings]
         (str (ansi/style (:help-key p) k) " " (ansi/style (:help-desc p) desc))))))
 
+(defn- prompt-lines [prompt]
+  (if prompt (str/split-lines prompt) []))
+
 (defn- record-line
   "Renders the line that remains once a prompt finished. Only the first line
   of `prompt` is shown. When `ok?` the answer is highlighted, otherwise it's
@@ -26,9 +29,16 @@
   [ok? prompt answer]
   (let [p (palette)
         style (if ok? (:accent p) (:muted p))]
-    (str (ansi/style style (if ok? "✔" "✗")) " "
-         (str/triml (first (str/split-lines prompt))) " "
-         (ansi/style style answer))))
+    (->> [(ansi/style style (if ok? "✔" "✗"))
+          (some-> (first (prompt-lines prompt)) str/triml)
+          (ansi/style style answer)]
+      (remove str/blank?)
+      (str/join " "))))
+
+(defn- skipped-record
+  "The record of a prompt that was cancelled with esc or ctrl+c."
+  [prompt outcome]
+  (record-line false prompt (if (= :aborted outcome) "aborted" "skipped")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Spinner
@@ -98,7 +108,7 @@
                         (str "   " label "   "))
                       " "))]
     (concat
-      (for [line (str/split-lines prompt)]
+      (for [line (prompt-lines prompt)]
         (str " " (ansi/style (:prompt p) line)))
       [""
        (str (button "Yes" yes?) (button "No" (not yes?)))
@@ -107,7 +117,7 @@
 
 (defn- confirm-record [{:keys [prompt yes?]} outcome]
   (if (= :aborted outcome)
-    (record-line false prompt "aborted")
+    (skipped-record prompt outcome)
     (record-line yes? prompt (if yes? "Yes" "No"))))
 
 (defn confirm
@@ -119,3 +129,81 @@
      :update confirm-update
      :view confirm-view
      :record confirm-record}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Choose
+
+(def ^:private choose-max-page-size
+  "Options per page, as in gum."
+  10)
+
+(defn- choose-page-size
+  "Returns the number of options per page, fewer than gum's 10 when the
+  terminal is too small to show them with the prompt and help."
+  [prompt rows]
+  (-> (or rows (:rows inline/default-size))
+    ;; Blank lines, page dots and help
+    (- (count (prompt-lines prompt)) 4)
+    (min choose-max-page-size)
+    (max 1)))
+
+(defn- choose-update [{:keys [prompt options index] ::inline/keys [size] :as state} key]
+  (let [n (count options)
+        page-size (choose-page-size prompt (:rows size))]
+    (case key
+      ("j" :down :ctrl-j :ctrl-n) (assoc state :index (mod (inc index) n))
+      ("k" :up :ctrl-k :ctrl-p) (assoc state :index (mod (dec index) n))
+      ("l" :right :ctrl-f) (assoc state :index (min (+ index page-size) (dec n)))
+      ("h" :left :ctrl-b) (assoc state :index (max (- index page-size) 0))
+      ("g" :home) (assoc state :index 0)
+      ("G" :end) (assoc state :index (dec n))
+      :enter (inline/submit state (nth options index))
+      :esc (inline/skip state)
+      state)))
+
+(defn- choose-view [{:keys [prompt options index render-option]} {:keys [rows]}]
+  (let [p (palette)
+        page-size (choose-page-size prompt rows)
+        page (quot index page-size)
+        pages (quot (+ (count options) page-size -1) page-size)
+        start (* page page-size)
+        visible (->> options (drop start) (take page-size))]
+    (concat
+      (map #(ansi/style (:prompt p) %) (prompt-lines prompt))
+      (map-indexed
+        (fn [i option]
+          (if (= index (+ start i))
+            (ansi/style (:accent p) (str "> " (render-option option)))
+            (str "  " (render-option option))))
+        visible)
+      (if (> pages 1)
+        ;; Pads the last page so the dots stay in place
+        (concat (repeat (- page-size (count visible)) "")
+          [""
+           (str "  " (str/join (for [i (range pages)]
+                                 (ansi/style (if (= i page) (:dot-active p) (:dot-inactive p))
+                                   "•"))))])
+        ;; gum renders a blank line after the options
+        [""])
+      [""
+       (help-bar [["←↓↑→" "navigate"] ["enter" "submit"]])])))
+
+(defn- choose-record [{:keys [prompt options index render-option]} outcome]
+  (if (= :submitted outcome)
+    (record-line true prompt (render-option (nth options index)))
+    (skipped-record prompt outcome)))
+
+(defn choose
+  "Lets the user pick one of `options`, returning it. Options are shown with
+  `render-option`, `str` by default. Returns nil when cancelled with esc,
+  ctrl+c throws, see `inline/run!`."
+  [{:keys [prompt options render-option] :or {render-option str}}]
+  (when (seq options)
+    (inline/run!
+      {:init {:prompt prompt
+              :options (vec options)
+              :index 0
+              :render-option (comp str render-option)}
+       :update choose-update
+       :view choose-view
+       :record choose-record})))

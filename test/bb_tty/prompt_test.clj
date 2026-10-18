@@ -47,3 +47,63 @@
     (is (= "✔ Merge #1? Yes" (record {:prompt "Merge #1?\nmore" :yes? true} :submitted)))
     (is (= "✗ Create PRs? No" (record {:prompt "  Create PRs?" :yes? false} :submitted)))
     (is (= "✗ Push? aborted" (record {:prompt "Push?" :yes? true} :aborted)))))
+
+(defn- choose-state [n & {:as opts}]
+  (merge {:prompt "Pick one"
+          :options (mapv #(str "opt " %) (range n))
+          :index 0
+          :render-option str}
+    opts))
+
+(deftest test-choose-update
+  (let [press (partial press #'prompt/choose-update)]
+    (testing "moves the cursor, wrapping around"
+      (is (= 1 (:index (press (choose-state 3) "j"))))
+      (is (= 2 (:index (press (choose-state 3) :up))))
+      (is (= 0 (:index (press (choose-state 3) :down :ctrl-n "j")))))
+    (testing "jumps to the first and last option"
+      (is (= 24 (:index (press (choose-state 25) "G"))))
+      (is (= 0 (:index (press (choose-state 25) :end "g")))))
+    (testing "flips pages of 10 options"
+      (is (= 10 (:index (press (choose-state 25) "l"))))
+      (is (= 24 (:index (press (choose-state 25) "l" :right :right))))
+      (is (= 3 (:index (press (choose-state 25 :index 13) :left))))
+      (is (= 0 (:index (press (choose-state 25 :index 3) "h")))))
+    (testing "pages are smaller on a small terminal"
+      (is (= 5 (:index (press (choose-state 25 ::inline/size {:rows 10 :cols 80}) "l")))))
+    (testing "enter submits the option under the cursor"
+      (is (= "opt 1" (answer (press (choose-state 3) "j" :enter)))))
+    (testing "esc skips"
+      (is (= :skipped (::inline/outcome (press (choose-state 3) :esc)))))))
+
+(defn- choose-lines [state]
+  (map ansi/strip-ansi (#'prompt/choose-view state {:rows 24 :cols 80})))
+
+(deftest test-choose-view
+  (testing "a single page"
+    (is (= ["Pick one"
+            "> opt 0"
+            "  opt 1"
+            ""
+            ""
+            "←↓↑→ navigate • enter submit"]
+           (choose-lines (choose-state 2)))))
+  (testing "the last page is padded to keep the dots in place"
+    (is (= (concat ["Pick one"
+                    "  opt 10"
+                    "> opt 11"]
+             (repeat 8 "")
+             [""
+              "  ••"
+              ""
+              "←↓↑→ navigate • enter submit"])
+           (choose-lines (choose-state 12 :index 11)))))
+  (testing "renders options with render-option"
+    (is (= "> Git"
+           (second (choose-lines (choose-state 0 :options [{:label "Git"}] :render-option :label)))))))
+
+(deftest test-choose-record
+  (let [record (comp ansi/strip-ansi #'prompt/choose-record)]
+    (is (= "✔ Pick one opt 1" (record (choose-state 3 :index 1) :submitted)))
+    (is (= "✗ Pick one skipped" (record (choose-state 3) :skipped)))
+    (is (= "✗ Pick one aborted" (record (choose-state 3) :aborted)))))
