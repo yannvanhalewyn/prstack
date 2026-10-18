@@ -8,6 +8,7 @@
     [prstack.config :as config]
     [prstack.init :as init]
     [prstack.tui.db :as db]
+    [prstack.tui.rows :as rows]
     [prstack.ui :as ui]
     [prstack.utils :as u]))
 
@@ -35,7 +36,7 @@
             :wrong-base-branch wrong-base-branch}))))
 
 (defn- render-row
-  "Renders a display row, see `db/display-rows`, as a line."
+  "Renders a display row, see `rows/display-rows`, as a line."
   [row selected-key max-width]
   (case (:row/kind row)
     :repo-header (ui/format-repo-header (:repo/name row))
@@ -74,8 +75,8 @@
            "s" (db/dispatch! [:event/sync])
            nil)))}
     (fn [state]
-      (let [rows (db/display-rows state)
-            selected-key (:row/key (db/selected-row state rows))
+      (let [rows (rows/display-rows state)
+            selected-key (:row/key (rows/selected-row state rows))
             max-width (->> rows
                         (filter #(#{:change :base} (:row/kind %)))
                         (map branch-width)
