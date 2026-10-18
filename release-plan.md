@@ -2,8 +2,8 @@
 
 ## Status
 
-Step 1 is done (bookmark `refactor-replace-gum`), pending a manual check of
-`prstack sync`, creating PRs and the TUI. Next up is step 2.
+Step 1 is merged (PR #8). Step 2 is in progress, starting with task 1 (entry
+point and `--version`).
 
 Run the tests with:
 
@@ -14,16 +14,19 @@ bb -e "(babashka.classpath/add-classpath \"test\") (require 'clojure.test) (dose
 `prstack.vcs-test` creates repos in `tmp/`, which a sandbox may block.
 Interactive prompts need a real terminal and can't be tested in a sandbox.
 
-Two steps:
+Three steps:
 
 1. **Drop gum.** Rebuild the prompts on top of `bb-tty`, copying gum's look and
    key bindings. After this the only runtime requirement is `bb` (plus `gh` /
    `jj` / `git`, which we can't avoid).
-2. **Ship a self-contained binary.** Append the prstack uberjar to the `bb`
-   binary, publish per-platform builds on GitHub Releases, and install them via
-   a Homebrew tap.
+2. **Release on top of bb.** Publish the prstack uberjar on GitHub Releases and
+   install it via a Homebrew tap that pulls in `bb` as a dependency. This is
+   how borkdude ships neil, his own bb tool.
+3. **Self-contained binaries (later, optional).** Append the uberjar to the
+   `bb` binary for people who don't use Homebrew. Only after step 2 has
+   shipped.
 
-Step 2 only starts once step 1 is merged. A binary that still needs `gum` on
+Step 2 only starts once step 1 is merged. A release that still needs `gum` on
 the PATH defeats the point.
 
 ---
@@ -367,56 +370,144 @@ handling whatever isn't ported yet.
 
 ---
 
-## Step 2: Self-contained binary
+## Step 2: Release on top of bb
 
-### Build
+### How other Clojure tools do it
 
-1. **Entry point and version**
-   - Use `prstack.main/-main` as the uberjar main.
-   - Add `resources/PRSTACK_VERSION` (or generate it from the git tag in CI)
-     and `prstack --version`. Add `"resources"` to `:paths` in `bb.edn`.
-2. **Add `bb.edn` tasks**
+- **clj-kondo and jet** are compiled with GraalVM `native-image`, once per
+  platform. That doesn't apply here: prstack is a bb script and has to run on
+  bb.
+- **neil** is a bb tool like prstack. Its Homebrew formula has
+  `depends_on "borkdude/brew/babashka"` and installs the script. It also has a
+  `:bbin/bin` entry in `bb.edn`.
+- borkdude's tap (`borkdude/homebrew-brew`) keeps a `<tool>.template` and an
+  `update-<tool>` script per formula. The script reads the latest tag,
+  downloads the release assets, computes the sha256 sums and fills in the
+  template with `sed`. The tap isn't bumped by the release workflow.
+- Homebrew core has no `babashka` formula, so the dependency is
+  `borkdude/brew/babashka`.
+
+The self-contained `cat bb uber.jar` binary is borkdude's documented approach
+(wiki: "Self-contained executable"). It's moved to step 3 because of the macOS
+signing findings listed there.
+
+### Tasks (in order)
+
+Commit each one separately.
+
+1. **Entry point and version.**
+   - `prstack.main/-main` is the uberjar main.
+   - Add `resources/PRSTACK_VERSION` (starting at `0.1.0`) and
+     `prstack --version` / `-V`. Add `"resources"` to `:paths` in `bb.edn`
+     and `deps.edn`.
+   - `bin/prstack` already adds every `:paths` entry to the classpath, so
+     running from a clone keeps working.
+   - Verify: `./bin/prstack --version`, `bb -m prstack.main --version`.
+2. **Uberjar task.**
    ```clojure
    :tasks
-   {uberjar {:task (shell "bb uberjar target/prstack.jar -m prstack.main")}
-    build   {:depends [uberjar]
-             :task (shell "sh -c 'cat $(which bb) target/prstack.jar > target/prstack && chmod +x target/prstack'")}}
+   {uberjar {:doc "Build target/prstack.jar"
+             :task (shell "bb uberjar target/prstack.jar -m prstack.main")}}
    ```
-   The bb uberjar contains the sources, not AOT-compiled classes. Startup stays
-   the same as today.
-3. **Check on macOS arm64.** Appending to a signed Mach-O binary can break
-   signature checks. If the binary gets killed, run `codesign -s -` on it
-   (ad-hoc) after concatenating, and include that in the build.
+   - The bb uberjar contains the sources, not AOT-compiled classes. Startup
+     stays the same as today.
+   - Verify: `bb uberjar`, then `unzip -l target/prstack.jar`. Copy the jar out
+     of the repo and run `bb prstack.jar --version` and `bb prstack.jar list`
+     from another repository.
+   - `bb uberjar` writes to `java.io.tmpdir`. In a sandbox, pass
+     `-Djava.io.tmpdir=$TMPDIR`.
+3. **bb version check.** The jar runs on whatever `bb` the user has. At
+   startup, compare `(System/getProperty "babashka.version")` against
+   1.12.216 (the first release with the JLine classes bb-tty uses) and print
+   an upgrade hint instead of a stack trace.
+   - Verify: fake a lower version in a REPL, or run on an old bb release
+     downloaded to `$TMPDIR`.
+4. **Runtime checks.**
+   - On startup of commands that need them, check for `gh` (GitHub remotes)
+     and `jj`/`git`, and print an install hint instead of a stack trace. This
+     item is in `,todos.md`.
+   - Ask `gh auth status` once when the GitHub remote fails with an auth
+     error.
+   - Verify without touching your setup: `env PATH=/usr/bin:/bin` hides `gh`
+     and `jj`. `env GH_CONFIG_DIR=(mktemp -d)` makes `gh` act logged out.
+5. **CI release** (`.github/workflows/release.yml`, on `v*` tags).
+   - One `ubuntu-latest` job: install bb, `bb uberjar`, rename the jar to
+     `prstack-<version>.jar`, write its sha256, and
+     `gh release create` with both attached.
+   - Check that the tag matches `resources/PRSTACK_VERSION` and fail
+     otherwise.
+   - Tags with `-rc` are created as pre-releases.
+   - Verify: push `v0.1.0-rc1`, watch it with `gh run watch`, then
+     `gh release download v0.1.0-rc1` and `shasum -a 256 -c`. Delete the rc
+     release and tag afterwards.
+6. **Homebrew tap** (`yannvanhalewyn/homebrew-tap`, `Formula/prstack.rb`).
+   ```ruby
+   class Prstack < Formula
+     desc "Manage stacks of pull requests with Jujutsu or Git"
+     homepage "https://github.com/yannvanhalewyn/prstack"
+     url "https://github.com/yannvanhalewyn/prstack/releases/download/v0.1.0/prstack-0.1.0.jar"
+     sha256 "..."
+     license "MIT" # whichever license the repo picks
 
-### CI release (`.github/workflows/release.yml`, on `v*` tags)
-- One `ubuntu-latest` job is enough, since nothing is compiled. Steps:
-  1. Install bb and build `prstack.jar`.
-  2. Download **pinned** bb release tarballs for `macos-aarch64`,
-     `macos-amd64`, `linux-amd64-static` and `linux-aarch64-static` (check the
-     exact asset names on the babashka releases page).
-  3. Concatenate each with the jar and name them `prstack-<version>-<platform>.tar.gz`.
-  4. Write `sha256` sums.
-  5. `gh release create` with the jar attached as well, for bbin and
-     power users.
-- macOS ad-hoc signing needs `codesign`, which needs a `macos-latest` runner.
-  Either run the macOS concatenation there or use `rcodesign` on Linux.
-- Pin the bb version in one place, e.g. `.bb-version`, and bump it on purpose.
-  The minimum is 1.12.216; 1.13.220 is the version that's been tested.
+     depends_on "borkdude/brew/babashka"
 
-### Distribution
-- **Homebrew tap** (`yannvanhalewyn/homebrew-tap`, `Formula/prstack.rb`):
-  `on_macos` / `on_linux` × `on_arm` / `on_intel` URLs and sha256s, with
-  `depends_on "gh" => :recommended` and a short `caveats` about jj/gh. Let the
-  release workflow bump the formula (e.g. with `mislav/bump-homebrew-formula-action`
-  or a small script that commits to the tap).
-- **bbin**: add `:bbin/bin {prstack {:main-opts ["-m" "prstack.main"]}}` to
-  `bb.edn`, so `bbin install io.github.yannvanhalewyn/prstack` works. Document
-  it as the option for Clojure users.
-- **Manual install**: download, untar and put on the PATH. Make this the README
-  install section, with Homebrew first.
+     def install
+       libexec.install "prstack-#{version}.jar" => "prstack.jar"
+       (bin/"prstack").write <<~EOS
+         #!/bin/bash
+         exec "#{Formula["borkdude/brew/babashka"].opt_bin}/bb" "#{libexec}/prstack.jar" "$@"
+       EOS
+     end
 
-### Runtime checks (before announcing)
-- On startup of commands that need them, check for `gh` (GitHub remotes) and
-  `jj`/`git`, and print an install hint instead of a stack trace. This item is
-  in `,todos.md`.
-- Ask `gh auth status` once when the GitHub remote fails with an auth error.
+     def caveats
+       "prstack uses jj or git, and gh for GitHub remotes."
+     end
+
+     test do
+       assert_match version.to_s, shell_output("#{bin}/prstack --version")
+     end
+   end
+   ```
+   - Start with borkdude's setup: `prstack.template` plus an `update-prstack`
+     script, run by hand after a release. Automating the bump from the release
+     workflow (it needs a token with write access to the tap) can come later.
+   - Verify: `brew install yannvanhalewyn/tap/prstack`, `brew test prstack`,
+     `brew audit --strict yannvanhalewyn/tap/prstack`. Try it first with the
+     rc jar.
+7. **bbin.** Add `:bbin/bin {prstack {:main-opts ["-m" "prstack.main"]}}` to
+   `bb.edn`, so `bbin install io.github.yannvanhalewyn/prstack` works.
+   - Verify: `bbin install .` from the repo, then `prstack --version`.
+8. **README.** The install section lists Homebrew first, then bbin, then
+   manual: install bb, download the jar and run `bb prstack.jar` (or an
+   alias), or clone the repo as today.
+   - Verify: follow the README word for word in a clean setting (a Docker
+     container, or a second macOS user).
+9. **License.** The repo has no `LICENSE` file yet. Without one, nobody is
+   allowed to use or share the code, and `brew audit` flags the formula. Pick
+   one (MIT and EPL-1.0 are common for Clojure tools) before the release.
+10. **Release `v0.1.0`.**
+
+---
+
+## Step 3: Self-contained binaries (later, optional)
+
+Append the uberjar to the `bb` binary for each platform:
+`cat bb prstack.jar > prstack && chmod +x prstack`. The jar is the same on
+every platform, so one Linux job can build all of them from pinned bb release
+tarballs (`macos-aarch64`, `macos-amd64`, `linux-amd64-static`,
+`linux-aarch64-static`).
+
+**Findings on macOS arm64** (bb 1.13.220, tested with a hello-world jar):
+- The concatenated binary **runs** without re-signing.
+- `codesign -v` fails with `main executable failed strict validation`, and
+  `codesign -s - --force` fails with the same error. Ad-hoc re-signing is
+  **not** a fix, because Apple's tools reject data appended after the Mach-O.
+- Untested: a copy downloaded through a browser gets the quarantine flag, and
+  Gatekeeper will probably block it because the signature doesn't validate.
+  Users would need `xattr -d com.apple.quarantine prstack`. Downloads through
+  `curl` and Homebrew don't get the flag. Also untested: installing such a
+  binary through Homebrew.
+
+Test the browser download and a Homebrew install of the binary before
+publishing these. Linux has no signing, so the Linux binaries are the
+low-risk part.
