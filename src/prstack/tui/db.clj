@@ -1,7 +1,7 @@
 (ns prstack.tui.db
   (:require
     [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
+    [bb-tty.prompt :as prompt]
     [bb-tty.tui :as tui]
     [clojure.java.browse :as browse]
     [clojure.string :as str]
@@ -308,7 +308,7 @@
     (when pr
       (run-in-fg! repo
         (fn []
-          (when (tty/prompt-confirm
+          (when (prompt/confirm
                   {:prompt
                    (format "Would you like to merge PR %s %s?\nThis will merge %s onto %s."
                      (ansi/colorize :blue (str "#" (:pr/number pr)))
@@ -322,7 +322,7 @@
               (println (ansi/colorize :green "✔")
                 "Removed" (ansi/colorize :cyan branch)
                 "from feature base branches"))
-            (when (tty/prompt-confirm
+            (when (prompt/confirm
                     {:prompt (str "Would you like to run " (ansi/colorize :yellow "prstack sync") "?")})
               ((:exec commands.sync/command) [] (repo-opts state repo)))))))))
 

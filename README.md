@@ -62,7 +62,7 @@ Repositories without stacks are summarized on one line. Repositories that were n
 
 ## Installation
 
-**Requirements**: [Babashka](https://babashka.org/), [gum](https://github.com/charmbracelet/gum) and, for GitHub repos, the [GitHub CLI](https://cli.github.com/)
+**Requirements**: [Babashka](https://babashka.org/) 1.12.216 or newer and, for GitHub repos, the [GitHub CLI](https://cli.github.com/)
 
 ```bash
 git clone https://github.com/yannvanhalewyn/prstack.git

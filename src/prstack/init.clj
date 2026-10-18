@@ -1,7 +1,7 @@
 (ns prstack.init
   (:require
     [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
+    [bb-tty.prompt :as prompt]
     [prstack.config :as config]
     [prstack.vcs.jujutsu :as vcs.jj]))
 
@@ -23,7 +23,7 @@
   (println "First, choose your version control system:")
   (println)
 
-  (let [choice (tty/prompt-pick
+  (let [choice (prompt/choose
                  {:prompt "Which VCS would you like to use?"
                   :options
                   [{:label "Jujutsu (recommended)" :value :jujutsu}
@@ -43,7 +43,7 @@
   (println "You can install it from: https://martinvonz.github.io/jj/latest/install-and-setup/")
   (println)
 
-  (let [choice (tty/prompt-pick
+  (let [choice (prompt/choose
                  {:prompt "What would you like to do?"
                   :options
                   [{:label "Exit and install Jujutsu (recommended)" :value :exit}

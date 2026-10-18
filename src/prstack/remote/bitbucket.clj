@@ -12,9 +12,9 @@
       with the pullrequest:write scope."
   (:require
     [babashka.http-client :as http]
-    [babashka.json :as json]
     [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
+    [bb-tty.prompt :as prompt]
+    [cheshire.core :as json]
     [clojure.string :as str]
     [prstack.remote :as remote]))
 
@@ -110,10 +110,10 @@
          ". Granted scopes: " (str/join ", " (:granted detail)) ".")
 
     (some? detail)
-    (str " " (if (string? detail) detail (json/write-str detail)))))
+    (str " " (if (string? detail) detail (json/generate-string detail)))))
 
 (defn- error-message [remote response]
-  (let [body (try (json/read-str (:body response)) (catch Exception _ nil))]
+  (let [body (try (json/parse-string (:body response) true) (catch Exception _ nil))]
     (str "Bitbucket API error (" (:status response) "): "
          (or (when-let [message (get-in body [:error :message])]
                (str message (error-detail (get-in body [:error :detail]))))
@@ -139,10 +139,10 @@
                               body (assoc "Content-Type" "application/json"))
                    :throw false}
             query-params (assoc :query-params query-params)
-            body (assoc :body (json/write-str body))))]
+            body (assoc :body (json/generate-string body))))]
     (if (<= 200 (:status response) 299)
       (when-not (str/blank? (:body response))
-        (json/read-str (:body response)))
+        (json/parse-string (:body response) true))
       (throw (ex-info (error-message remote response)
                {:error/type :bitbucket/api-error
                 :http/status (:status response)})))))
@@ -216,13 +216,12 @@
 (defn create-pr!
   "Creates a PR, prompting the user for a title and description."
   [remote {:pr/keys [head-branch base-branch title]}]
-  (when-let [title (tty/prompt-input
+  (when-let [title (prompt/input
                      {:prompt (format "PR title for %s onto %s"
                                 (ansi/colorize :blue head-branch)
                                 (ansi/colorize :blue base-branch))
                       :value (or title head-branch)})]
-    (let [description (tty/prompt-write
-                        {:prompt "PR description (ctrl+d to submit, esc to leave empty)"})
+    (let [description (prompt/write {:prompt "PR description"})
           pr (request! remote
                {:method :post
                 :path "/pullrequests"

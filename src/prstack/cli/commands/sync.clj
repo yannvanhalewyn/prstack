@@ -1,7 +1,7 @@
 (ns prstack.cli.commands.sync
   (:require
     [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
+    [bb-tty.prompt :as prompt]
     [clojure.set :as set]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.ui :as cli.ui]
@@ -71,7 +71,7 @@
             (println)))
 
         (doseq [pr to-delete]
-          (when (tty/prompt-confirm {:prompt (str "Delete " (ui/format-branch (:pr/head-branch pr)))})
+          (when (prompt/confirm {:prompt (str "Delete " (ui/format-branch (:pr/head-branch pr)))})
             (ui/info "Deleting " (ui/format-branch (:pr/head-branch pr)) "...")
             (vcs/delete-bookmark! vcs (:pr/head-branch pr))
             (ui/success "Branch deleted")))))))
@@ -115,7 +115,7 @@
     (let [pulled (atom #{})]
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/behind? selected-branches)]
         (println)
-        (when (tty/prompt-confirm {:prompt (format "Pull %s?" (ui/format-branch branchname))})
+        (when (prompt/confirm {:prompt (format "Pull %s?" (ui/format-branch branchname))})
           (ui/info "Pulling " (ui/format-branch branchname) "...")
           (vcs/set-bookmark-to-remote! vcs branchname)
           (ui/success "Pulled")
@@ -123,7 +123,7 @@
 
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/ahead? selected-branches)]
         (println)
-        (when (tty/prompt-confirm {:prompt (format "Push %s?" (ui/format-branch branchname))})
+        (when (prompt/confirm {:prompt (format "Push %s?" (ui/format-branch branchname))})
           (ui/info "Pushing " (ui/format-branch branchname) "...")
           (vcs/push-branch! vcs branchname)
           (ui/success "Pushed")))
@@ -131,7 +131,7 @@
       (doseq [{:keys [branch/branchname]} (filter vcs.branch/diverged? selected-branches)]
         (println)
         (let [solution
-              (tty/prompt-pick
+              (prompt/choose
                 {:prompt (str "Branch " (ui/format-branch branchname) " diverged. What do you want to do?")
                  :options
                  [{:name "Push local to remote" :action :push}
@@ -170,7 +170,7 @@
         (let [base (first affected-bases)]
           (ui/info "Base " (ui/format-branch base) " was updated")
           (println)
-          (when (tty/prompt-confirm {:prompt (str "Rebase onto " base "?")})
+          (when (prompt/confirm {:prompt (str "Rebase onto " base "?")})
             (ui/info "Rebasing...")
             (vcs/rebase-on! vcs base)
             (ui/success "Rebased")))))))
@@ -203,7 +203,7 @@
                                     stack))]
         (when has-missing-prs?
           (ui/info "Stack " (ui/format-branch leaf-branch) " has branches without PRs")
-          (when (tty/prompt-confirm {:prompt "  Create missing PRs?"})
+          (when (prompt/confirm {:prompt "  Create missing PRs?"})
             (commands.create-prs/create-prs! repo
               {:prs pr-result
                :stacks [stack]

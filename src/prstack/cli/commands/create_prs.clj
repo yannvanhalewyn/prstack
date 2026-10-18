@@ -1,7 +1,7 @@
 (ns prstack.cli.commands.create-prs
   (:require
     [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
+    [bb-tty.prompt :as prompt]
     [clojure.string :as str]
     [prstack.cli.ui :as cli.ui]
     [prstack.pr :as pr]
@@ -16,7 +16,7 @@
 (defn- ensure-remote-branch! [branchname msg vcs branch-infos]
   (let [branch-info (get branch-infos branchname)]
     (if (vcs.branch/no-remote? branch-info)
-      (when (tty/prompt-confirm
+      (when (prompt/confirm
               {:prompt (str msg (format "Push %s to remote?" (ansi/colorize :blue branchname)))})
         (vcs/push-branch! vcs branchname)
         true)
@@ -49,7 +49,7 @@
             (ansi/colorize :blue base-branch)))
 
         :else
-        (when (tty/prompt-confirm
+        (when (prompt/confirm
                 {:prompt
                  (format "Create a PR for %s onto %s?"
                    (ansi/colorize :blue head-branch)

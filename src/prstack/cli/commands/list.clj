@@ -1,7 +1,7 @@
 (ns prstack.cli.commands.list
   (:require
     [bb-tty.ansi :as ansi]
-    [bb-tty.tty :as tty]
+    [bb-tty.prompt :as prompt]
     [clojure.string :as str]
     [prstack.cli.ui :as cli.ui]
     [prstack.config :as config]
@@ -59,7 +59,7 @@
 (defn- list-workspace [args {:keys [workspace-dir]}]
   (let [opts (parse-opts args)
         repo-dirs (workspace/find-repos workspace-dir)
-        repos (tty/spin
+        repos (prompt/spin
                 (fn []
                   (u/pmap-large-stack
                     #(-> (workspace/open-repo workspace-dir %)
