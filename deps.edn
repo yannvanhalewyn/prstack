@@ -1,4 +1,4 @@
-{:paths ["src"]
+{:paths ["src" "resources"]
  ;; Babashka has these built in, for a JVM REPL
  :deps {babashka/fs {:mvn/version "0.5.34"}
         babashka/process {:mvn/version "0.6.23"}

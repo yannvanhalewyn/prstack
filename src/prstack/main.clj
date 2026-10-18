@@ -4,6 +4,7 @@
     [bb-tty.ansi :as ansi]
     [bb-tty.inline :as inline]
     [clojure.java.io :as io]
+    [clojure.string :as str]
     [prstack.cli.commands.create-prs :as commands.create-prs]
     [prstack.cli.commands.feature-base :as commands.feature-base]
     [prstack.cli.commands.list :as commands.list]
@@ -47,6 +48,9 @@
       (#{"--help" "-h"} arg)
       (recur (assoc opts :help? true) remaining more)
 
+      (#{"--version" "-V"} arg)
+      (recur (assoc opts :version? true) remaining more)
+
       :else
       (recur opts (conj remaining arg) more))))
 
@@ -70,6 +74,7 @@
    (println "Global Options:")
    (println "      --dir <dir>  Run as if prstack was started in <dir>")
    (println "  -h, --help       Show this help message and exit")
+   (println "  -V, --version    Show the version and exit")
    (println))
   ([command]
    (println (format "Usage: prstack %s <subcommand> [options]" (:name command)))
@@ -120,9 +125,13 @@
       (init/ensure-initialized! (:project-dir global-opts))
       ((:exec command) args global-opts))))
 
-(defn- run-cli [args]
-  (let [[global-opts remaining-args] (parse-global-opts args)
-        global-opts (resolve-dirs global-opts)]
+(defn- version
+  "The version from `resources/PRSTACK_VERSION`."
+  []
+  (some-> (io/resource "PRSTACK_VERSION") slurp str/trim))
+
+(defn- run-command [global-opts remaining-args]
+  (let [global-opts (resolve-dirs global-opts)]
     (cond
       (:help? global-opts)
       (if-let [command (u/find-first #(= (:name %) (first remaining-args)) commands)]
@@ -154,6 +163,14 @@
           (println (ansi/colorize :red "Error") "Unknown command:" (first remaining-args) "\n")
           (print-help)
           (System/exit 1))))))
+
+(defn- run-cli [args]
+  (let [[global-opts remaining-args] (parse-global-opts args)]
+    ;; Before resolving dirs, so it works from any directory
+    (when (:version? global-opts)
+      (println "prstack" (or (version) "unknown"))
+      (System/exit 0))
+    (run-command global-opts remaining-args)))
 
 (defn -main [& args]
   (try
