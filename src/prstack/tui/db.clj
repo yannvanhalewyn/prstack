@@ -53,6 +53,8 @@
    [:app-state/selection {:optional true} RowKey]
    ;; Short feedback shown in the footer, cleared after a few seconds
    [:app-state/message {:optional true} :string]
+   ;; After pressing `y`, the next key picks what to copy
+   [:app-state/copy-menu-open? {:optional true} :boolean]
    ;; Runs after closing the TUI, then only the repo is refreshed
    [:app-state/run-in-fg {:optional true}
     [:map
@@ -233,11 +235,49 @@
       #(cond-> % (identical? message (:app-state/message %))
          (dissoc :app-state/message)))))
 
-(defmethod dispatch! :event/copy-pr-url
+(defn- copy! [text message]
+  (tools.clipboard/copy! text)
+  (show-message! message))
+
+(defn- stack-markdown
+  "Returns the PRs of the stack of `row` as a markdown list of links, from leaf
+  to base like they're displayed. Branches without a PR are left out."
+  [state row]
+  (let [{repo-id :repo/id stack-id :stack/id} (:row/key row)]
+    (->> (display-rows state)
+      (filter #(and (= :change (:row/kind %))
+                    (= repo-id (get-in % [:row/key :repo/id]))
+                    (= stack-id (get-in % [:row/key :stack/id]))))
+      (keep :pr)
+      (map #(format "- [#%s %s](%s)" (:pr/number %) (:pr/title %) (:pr/url %)))
+      (str/join "\n")
+      not-empty)))
+
+(defmethod dispatch! :event/open-copy-menu
   [_evt]
-  (when-let [url (:pr/url (:pr (selected-row @app-state)))]
-    (tools.clipboard/copy! url)
-    (show-message! (str "Copied " url))))
+  (when (selected-row @app-state)
+    (swap! app-state #(-> %
+                        (assoc :app-state/copy-menu-open? true)
+                        (dissoc :app-state/message)))))
+
+(defmethod dispatch! :event/copy-menu-key
+  [[_evt key]]
+  (swap! app-state dissoc :app-state/copy-menu-open?)
+  (let [state @app-state]
+    (when-let [{:keys [change pr] :as row} (selected-row state)]
+      (case key
+        "y" (if-let [url (:pr/url pr)]
+              (copy! url (str "Copied " url))
+              (show-message! "No PR for this branch"))
+        "b" (let [branch (:change/selected-branchname change)]
+              (copy! branch (str "Copied " branch)))
+        "s" (if-let [markdown (stack-markdown state row)]
+              (copy! markdown
+                (format "Copied %s PRs of the stack as markdown"
+                  (count (str/split-lines markdown))))
+              (show-message! "No PRs in this stack"))
+        ;; Any other key cancels
+        nil))))
 
 (defmethod dispatch! :event/create-pr
   [_evt]

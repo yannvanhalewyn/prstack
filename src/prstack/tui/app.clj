@@ -60,17 +60,25 @@
   (tui/component
     {:on-key-press
      (fn [key]
-       ;; First check for custom command bindings (allows overriding defaults)
-       (if (and (string? key)
-                (config/has-keybinding? (db/global-config @db/app-state) key))
+       (cond
+         ;; The copy menu takes every key, returning true so that other
+         ;; handlers (like quit) don't see it
+         (:app-state/copy-menu-open? @db/app-state)
+         (do (db/dispatch! [:event/copy-menu-key key])
+           true)
+
+         ;; Custom command bindings can override defaults
+         (and (string? key)
+              (config/has-keybinding? (db/global-config @db/app-state) key))
          (db/dispatch! [:event/run-custom-command key])
-         ;; Fall back to built-in commands
+
+         :else
          (case key
            ("j" :down) (db/dispatch! [:event/move-down])
            ("k" :up) (db/dispatch! [:event/move-up])
            "d" (db/dispatch! [:event/run-diff])
            "o" (db/dispatch! [:event/open-pr])
-           "y" (db/dispatch! [:event/copy-pr-url])
+           "y" (db/dispatch! [:event/open-copy-menu])
            "c" (db/dispatch! [:event/create-pr])
            "m" (db/dispatch! [:event/merge-pr])
            "s" (db/dispatch! [:event/sync])
@@ -131,7 +139,7 @@
          {:keybind/display "o"
           :keybind/name "Open PR"}
          {:keybind/display "y"
-          :keybind/name "Copy PR URL"}
+          :keybind/name "Copy…"}
          {:keybind/display "c"
           :keybind/name "Create PR"}
          {:keybind/display "m"
@@ -144,8 +152,18 @@
           :keybind/name "Quit"}]]
     [""
      (ansi/colorize :gray separator)
-     (if-let [message (:app-state/message state)]
-       (ansi/colorize :green message)
+     (cond
+       (:app-state/copy-menu-open? state)
+       (str (ansi/colorize :cyan "Copy:")
+            (str/join
+              (for [[k label] [["y" "PR URL"] ["b" "branch name"]
+                               ["s" "stack (markdown)"] ["esc" "cancel"]]]
+                (str "  " (ansi/colorize :white k) " " (ansi/colorize :gray label)))))
+
+       (:app-state/message state)
+       (ansi/colorize :green (:app-state/message state))
+
+       :else
        (ansi/colorize :gray (str/join "  "
                               (for [kb keybindings]
                                 (format "%s: %s" (:keybind/display kb) (:keybind/name kb))))))]))
