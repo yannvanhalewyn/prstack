@@ -2,13 +2,14 @@
 
 ## Status
 
-Step 1 is merged (PR #8). Step 2 is in progress: tasks 1 (`--version`) and 2
-(`bb jar`) are done, next up is task 3 (bb version check).
+Step 1 is merged (PR #8). Step 2 is in progress: tasks 1 (`--version`), 2
+(`bb jar`) and 3 (bb version check) are done, next up is task 4 (runtime
+checks).
 
 Run the tests with:
 
 ```
-bb -e "(babashka.classpath/add-classpath \"test\") (require 'clojure.test) (doseq [ns '[bb-tty.keys-test bb-tty.ansi-test bb-tty.inline-test bb-tty.prompt-test bb-tty.fuzzy-test bb-tty.text-input-test bb-tty.text-area-test prstack.tui.db-test prstack.tui.rows-test prstack.stack-test prstack.vcs.graph-test prstack.vcs-test]] (require ns)) (let [{:keys [fail error]} (apply clojure.test/run-tests (filter #(re-find #\"-test$\" (str %)) (map ns-name (all-ns))))] (System/exit (+ fail error)))"
+bb -e "(babashka.classpath/add-classpath \"test\") (require 'clojure.test) (doseq [ns '[bb-tty.keys-test bb-tty.ansi-test bb-tty.inline-test bb-tty.prompt-test bb-tty.fuzzy-test bb-tty.text-input-test bb-tty.text-area-test prstack.tui.db-test prstack.tui.rows-test prstack.stack-test prstack.vcs.graph-test prstack.vcs-test prstack.launch-test]] (require ns)) (let [{:keys [fail error]} (apply clojure.test/run-tests (filter #(re-find #\"-test$\" (str %)) (map ns-name (all-ns))))] (System/exit (+ fail error)))"
 ```
 
 `prstack.vcs-test` creates repos in `tmp/`, which a sandbox may block.
@@ -338,8 +339,8 @@ handling whatever isn't ported yet.
 8. **Clean up** (done, except `bb-tty-release-plan.md`, which is kept: it's a
    plan for extracting bb-tty, not a stale doc, and bb-tty no longer depends
    on prstack). `hashp` moved to the `:dev` alias of `deps.edn`, as
-   `dev/user.clj` requires it. The README requires bb 1.12.216 or newer, the
-   first release with the JLine classes bb-tty uses.
+   `dev/user.clj` requires it. The README requires bb 1.12.218 or newer (see step
+   2, task 3 for why).
    - Remove `bblgum` from `bb.edn` / `deps.edn`.
    - Swap `babashka.json` for the built-in `cheshire.core` (2 files: `github.clj`,
      `bitbucket.clj`). This gets `bb.edn` to zero deps, so `bin/prstack` no
@@ -396,18 +397,19 @@ signing findings listed there.
 Commit each one separately.
 
 1. **Entry point and version.**
-   - `prstack.main/-main` is the uberjar main.
+   - `prstack.launch/-main` is the entry point (see task 3), for the uberjar,
+     `bin/prstack` and bbin.
    - Add `resources/PRSTACK_VERSION` (starting at `0.1.0`) and
      `prstack --version` / `-V`. Add `"resources"` to `:paths` in `bb.edn`
      and `deps.edn`.
    - `bin/prstack` already adds every `:paths` entry to the classpath, so
      running from a clone keeps working.
-   - Verify: `./bin/prstack --version`, `bb -m prstack.main --version`.
+   - Verify: `./bin/prstack --version`, `bb -m prstack.launch --version`.
 2. **Jar task.** `bb jar` builds `target/prstack.jar`.
    ```clojure
    :tasks
    {jar {:doc "Build target/prstack.jar"
-         :task (shell "bb uberjar target/prstack.jar -m prstack.main")}}
+         :task (shell "bb uberjar target/prstack.jar -m prstack.launch")}}
    ```
    - The task can't be called `uberjar`: a task overrides bb's built-in
      command of the same name, so `bb uberjar` inside it would call the task
@@ -419,14 +421,28 @@ Commit each one separately.
      from another repository. Don't run the jar from this repo: bb reads the
      `bb.edn` in the current directory and would load `src/` instead.
    - `bb uberjar` writes to `java.io.tmpdir`. In a sandbox, run
-     `bb -Djava.io.tmpdir=$TMPDIR uberjar target/prstack.jar -m prstack.main`
+     `bb -Djava.io.tmpdir=$TMPDIR uberjar target/prstack.jar -m prstack.launch`
      directly, since the flag doesn't reach the `bb` that the task starts.
-3. **bb version check.** The jar runs on whatever `bb` the user has. At
-   startup, compare `(System/getProperty "babashka.version")` against
-   1.12.216 (the first release with the JLine classes bb-tty uses) and print
+3. **bb version check.** The jar runs on whatever `bb` the user has, so
+   `prstack.launch` checks `babashka.version` against **1.12.218** and prints
    an upgrade hint instead of a stack trace.
-   - Verify: fake a lower version in a REPL, or run on an old bb release
-     downloaded to `$TMPDIR`.
+   - Why 1.12.218: bb-tty uses JLine, which bb added in 1.12.215. But
+     `tty/open-terminal` also calls `TerminalBuilder.graphemeCluster` (to skip
+     JLine's terminal probe), and that method only exists from 1.12.218 on.
+     On 1.12.215–1.12.217 prstack loads, then crashes as soon as a prompt or
+     the TUI opens the terminal. On 1.12.214 and older, loading `bb-tty`
+     already fails. The README used to say 1.12.216, which was wrong.
+   - Tested on downloaded macOS builds of 1.12.214, 1.12.217, 1.12.218 and
+     1.13.220: every JLine call bb-tty makes (on a dumb terminal) and the test
+     suite pass on 1.12.218. The prompts themselves weren't run on 1.12.218,
+     since that needs a real terminal.
+   - The check lives in its own namespace that requires nothing:
+     `prstack.main` loads `bb-tty` (and so JLine) through its requires, so a
+     check in `-main` would come too late. `bin/prstack` no longer requires
+     `prstack.utils` for the same reason.
+   - Verify: download an old bb from the babashka releases page and run
+     `old-bb/bb target/prstack.jar --version` and `old-bb/bb bin/prstack
+     --version`.
 4. **Runtime checks.**
    - On startup of commands that need them, check for `gh` (GitHub remotes)
      and `jj`/`git`, and print an install hint instead of a stack trace. This
@@ -479,7 +495,7 @@ Commit each one separately.
    - Verify: `brew install yannvanhalewyn/tap/prstack`, `brew test prstack`,
      `brew audit --strict yannvanhalewyn/tap/prstack`. Try it first with the
      rc jar.
-7. **bbin.** Add `:bbin/bin {prstack {:main-opts ["-m" "prstack.main"]}}` to
+7. **bbin.** Add `:bbin/bin {prstack {:main-opts ["-m" "prstack.launch"]}}` to
    `bb.edn`, so `bbin install io.github.yannvanhalewyn/prstack` works.
    - Verify: `bbin install .` from the repo, then `prstack --version`.
 8. **README.** The install section lists Homebrew first, then bbin, then
