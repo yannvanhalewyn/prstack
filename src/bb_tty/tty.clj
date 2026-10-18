@@ -2,7 +2,6 @@
   (:require
     [babashka.process :as p]
     [bb-tty.ansi :as ansi]
-    [bblgum.core :as b]
     [clojure.string :as str])
   (:import
     (org.jline.keymap BindingReader KeyMap)
@@ -184,25 +183,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Prompts
-
-(defn- gum-args
-  ([opts]
-   (gum-args {} opts))
-  ([base {:keys [prompt]}]
-   (cond-> (into [] (mapcat identity base))
-     prompt (concat [:header (str (ansi/colorize :white prompt))]))))
-
-(defn prompt-input
-  "Prompts for a single line of text. Returns nil when cancelled or empty."
-  [{:keys [value placeholder] :as opts}]
-  (let [{:keys [status result]}
-        (apply b/gum :input
-          (gum-args (cond-> {}
-                      value (assoc :value value)
-                      placeholder (assoc :placeholder placeholder))
-            opts))]
-    (when (zero? status)
-      (not-empty (str/trim (str/join "\n" result))))))
 
 (defn prompt-write
   "Prompts for multiple lines of text. Returns nil when cancelled or empty."

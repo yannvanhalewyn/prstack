@@ -368,3 +368,50 @@
          :tick {:ms text-input/blink-ms
                 :f #(update % :input text-input/blink)}
          :fullscreen? true}))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Input
+
+(defn- input-update [{:keys [input] :as state} key]
+  (case key
+    :enter (inline/submit state (not-empty (str/trim (:value input))))
+    :esc (inline/skip state)
+    (if-let [input' (text-input/handle-key input key)]
+      (assoc state :input input')
+      state)))
+
+(defn- input-view [{:keys [prompt placeholder input]} {:keys [cols]}]
+  (let [p (palette)]
+    (concat
+      (map #(ansi/style (:prompt p) %) (prompt-lines prompt))
+      [(text-input/view input
+         {:prompt "> "
+          :placeholder placeholder
+          :focused? true
+          :width cols
+          :cursor-style (:accent p)
+          :placeholder-style (:muted p)})
+       ""
+       (help-bar [["enter" "submit"]])])))
+
+(defn- input-record [{:keys [prompt input]} outcome]
+  (let [value (str/trim (:value input))]
+    (cond
+      (not= :submitted outcome) (skipped-record prompt outcome)
+      (empty? value) (record-line false prompt "empty")
+      :else (record-line true prompt value))))
+
+(defn input
+  "Prompts for a single line of text, starting with `value`. Returns the
+  trimmed text, or nil when it's empty or cancelled with esc. Ctrl+c throws,
+  see `inline/run!`."
+  [{:keys [prompt value placeholder] :or {placeholder "Type something..."}}]
+  (inline/run!
+    {:init {:prompt prompt
+            :placeholder placeholder
+            :input (text-input/init value)}
+     :update input-update
+     :view input-view
+     :record input-record
+     :tick {:ms text-input/blink-ms
+            :f #(update % :input text-input/blink)}}))

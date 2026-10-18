@@ -14,6 +14,7 @@
     [babashka.http-client :as http]
     [babashka.json :as json]
     [bb-tty.ansi :as ansi]
+    [bb-tty.prompt :as prompt]
     [bb-tty.tty :as tty]
     [clojure.string :as str]
     [prstack.remote :as remote]))
@@ -216,7 +217,7 @@
 (defn create-pr!
   "Creates a PR, prompting the user for a title and description."
   [remote {:pr/keys [head-branch base-branch title]}]
-  (when-let [title (tty/prompt-input
+  (when-let [title (prompt/input
                      {:prompt (format "PR title for %s onto %s"
                                 (ansi/colorize :blue head-branch)
                                 (ansi/colorize :blue base-branch))

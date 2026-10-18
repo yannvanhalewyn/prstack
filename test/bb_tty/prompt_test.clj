@@ -170,3 +170,30 @@
     (is (= "✔ Pick a branch feat/login"
            (record (filter-state branches :chosen 2) :submitted)))
     (is (= "✗ Pick a branch skipped" (record (filter-state branches) :skipped)))))
+
+(defn- input-state [value]
+  {:prompt "PR title"
+   :placeholder "Type something..."
+   :input (text-input/init value)})
+
+(deftest test-input-update
+  (let [press (partial press #'prompt/input-update)]
+    (testing "edits the value"
+      (is (= "feat: login" (answer (press (input-state "feat") ":" " " "l" "o" "g" "i" "n" :enter)))))
+    (testing "returns the trimmed value, nil when empty"
+      (is (= "fix" (answer (press (input-state "  fix  ") :enter))))
+      (is (nil? (answer (press (input-state "abc") :ctrl-u :enter)))))
+    (testing "esc skips"
+      (is (= :skipped (::inline/outcome (press (input-state "abc") :esc)))))))
+
+(deftest test-input-view
+  (is (= ["PR title" "> feat " "" "enter submit"]
+         (map ansi/strip-ansi (#'prompt/input-view (input-state "feat") {:rows 24 :cols 80}))))
+  (is (= "> Type something..."
+         (ansi/strip-ansi (second (#'prompt/input-view (input-state "") {:rows 24 :cols 80}))))))
+
+(deftest test-input-record
+  (let [record (comp ansi/strip-ansi #'prompt/input-record)]
+    (is (= "✔ PR title feat: login" (record (input-state "feat: login ") :submitted)))
+    (is (= "✗ PR title empty" (record (input-state " ") :submitted)))
+    (is (= "✗ PR title skipped" (record (input-state "x") :skipped)))))
